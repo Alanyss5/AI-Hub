@@ -1,0 +1,20 @@
+# 在项目目录下创建本地工具目录
+mkdir -p .claude/tools
+cd .claude/tools
+
+# 下载 csharp-ls（.NET 全局工具或本地）
+dotnet tool install --tool-path ./csharp-ls csharp-ls
+
+# 或者手动下载二进制
+curl -L https://github.com/razzmatazz/csharp-language-server/releases/latest/download/csharp-ls-osx-x64 -o ./csharp-ls/csharp-ls
+chmod +x ./csharp-ls/csharp-ls
+
+
+
+mkdir -p .claude/tools/jdtls
+cd .claude/tools/jdtls
+
+# 下载最新版
+curl -L https://download.eclipse.org/jdtls/snapshots/jdt-language-server-latest.tar.gz -o jdtls.tar.gz
+tar -xzf jdtls.tar.gz
+java要注意版本选择

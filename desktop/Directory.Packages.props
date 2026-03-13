@@ -1,0 +1,13 @@
+﻿<Project>
+  <ItemGroup>
+    <PackageVersion Include="Avalonia" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Desktop" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="11.3.9" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="11.3.9" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageVersion Include="Tomlyn" Version="0.17.0" />
+    <PackageVersion Include="xunit" Version="2.5.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.5.3" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+﻿{
+  "languageServers": {
+    "csharp": {
+      "extensions": [".cs"],
+      "command": ["omnisharp", "-lsp"],
+      "rootMarkers": ["*.sln", "*.csproj", "Assets"],
+      "initializationOptions": {}
+    }
+  }
+}

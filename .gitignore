@@ -1,0 +1,15 @@
+.vs/
+.idea/
+.vscode/
+**/bin/
+**/obj/
+*.user
+*.suo
+*.bak.*
+.DS_Store
+.test-temp/
+backups/
+**/.artifacts/
+**/.verify/
+*.log
+*.tmp

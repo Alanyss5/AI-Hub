@@ -1,0 +1,14 @@
+﻿{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File __AI_HUB_ROOT_JSON__\\scripts\\hooks\\session-start.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}

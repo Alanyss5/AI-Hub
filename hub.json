@@ -1,0 +1,10 @@
+﻿{
+  "name": "AI-Hub",
+  "displayName": "AI-Hub",
+  "schemaVersion": 1,
+  "description": "AI-Hub 本地桌面控制平面",
+  "desktop": {
+    "solutionPath": "desktop/AIHub.sln",
+    "entryProject": "desktop/apps/AIHub.Desktop/AIHub.Desktop.csproj"
+  }
+}

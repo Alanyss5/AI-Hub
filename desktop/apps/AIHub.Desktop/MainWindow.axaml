@@ -1,0 +1,66 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:AIHub.Desktop.ViewModels"
+        xmlns:tabs="using:AIHub.Desktop.Views.Tabs"
+        x:Class="AIHub.Desktop.MainWindow"
+        mc:Ignorable="d"
+        Width="1280"
+        Height="760"
+        MinWidth="1024"
+        MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Title="{Binding AppTitle}"
+        Background="#F5F1E8">
+  <Design.DataContext>
+    <vm:MainWindowViewModel />
+  </Design.DataContext>
+
+  <Grid RowDefinitions="Auto,*" Margin="24">
+    <Border Grid.Row="0" Background="#102A43" CornerRadius="24" Padding="28" Margin="0,0,0,20">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding Text.Shell.HeroTitle}" FontSize="30" FontWeight="Bold" Foreground="#FFF9F4" />
+          <TextBlock Text="{Binding Text.Shell.HeroSubtitle}" FontSize="14" Foreground="#D9E2EC" />
+          <TextBlock Text="{Binding HubStatus}" FontSize="13" Foreground="#BCCCDC" TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Spacing="10" HorizontalAlignment="Right">
+          <Border Background="#1F487E" CornerRadius="18" Padding="18,12">
+            <StackPanel Spacing="4">
+              <TextBlock Text="{Binding Text.Shell.ActiveScopeLabel}" Foreground="#D9E2EC" FontSize="12" />
+              <TextBlock Text="{Binding ActiveScopeDisplay}" Foreground="#FFF9F4" FontSize="20" FontWeight="SemiBold" />
+            </StackPanel>
+          </Border>
+          <Button x:Name="RefreshAllButton"
+                  Content="{Binding Text.Shell.RefreshAllButton}"
+                  Command="{Binding RefreshCommand}"
+                  Background="#D9E2EC"
+                  Foreground="#102A43"
+                  Padding="18,10" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <TabControl Grid.Row="1" Background="Transparent">
+      <TabItem x:Name="OverviewTab" Header="{Binding Text.Shell.OverviewTabHeader}">
+        <tabs:OverviewTabView />
+      </TabItem>
+      <TabItem x:Name="ProjectsTab" Header="{Binding Text.Projects.TabHeader}">
+        <tabs:ProjectsTabView />
+      </TabItem>
+      <TabItem x:Name="SkillsTab" Header="{Binding Text.Skills.TabHeader}">
+        <tabs:SkillsTabView />
+      </TabItem>
+      <TabItem x:Name="ScriptsTab" Header="{Binding Text.Scripts.TabHeader}">
+        <tabs:ScriptsTabView />
+      </TabItem>
+      <TabItem x:Name="McpTab" Header="{Binding Text.Mcp.TabHeader}">
+        <tabs:McpTabView />
+      </TabItem>
+      <TabItem x:Name="SettingsTab" Header="{Binding Text.Settings.TabHeader}">
+        <tabs:SettingsTabView />
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>

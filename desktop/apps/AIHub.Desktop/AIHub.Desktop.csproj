@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AutoStopRunningDesktopAppBeforeBuild Condition="'$(AutoStopRunningDesktopAppBeforeBuild)' == ''">true</AutoStopRunningDesktopAppBeforeBuild>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AIHub.Contracts\AIHub.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\AIHub.Application\AIHub.Application.csproj" />
+    <ProjectReference Include="..\..\src\AIHub.Infrastructure\AIHub.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\AIHub.Platform.Windows\AIHub.Platform.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+  <Target Name="StopRunningDesktopAppBeforeBuild"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(OS)' == 'Windows_NT' and '$(AutoStopRunningDesktopAppBeforeBuild)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$target = [System.IO.Path]::GetFullPath('$(TargetDir)$(AssemblyName).exe'); $matched = @(); foreach ($proc in Get-Process -Name 'AIHub.Desktop' -ErrorAction SilentlyContinue) { try { if ($proc.Path -and [string]::Equals([System.IO.Path]::GetFullPath($proc.Path), $target, [System.StringComparison]::OrdinalIgnoreCase)) { $matched += $proc } } catch { } }; if ($matched.Count -gt 0) { $matched | Stop-Process -Force; Start-Sleep -Milliseconds 500 }; Write-Host ('AI-Hub build precheck: stopped ' + $matched.Count + ' running desktop instance(s) at ' + $target)&quot;" />
+  </Target>
+</Project>

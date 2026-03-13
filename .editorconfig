@@ -1,0 +1,31 @@
+root = true
+
+[*.cs]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.axaml]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.md]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.json]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.toml]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+[*.ps1]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true

@@ -1,0 +1,87 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AIHub.Desktop.Views.Tabs.ScriptsTabView">
+  <ScrollViewer Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
+    <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
+      <Border Grid.Column="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Grid RowDefinitions="Auto,*" RowSpacing="12">
+          <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="{Binding Text.Scripts.ListTitle}" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding ScriptsSummaryDisplay}" FontSize="12" Foreground="#486581" />
+          </StackPanel>
+          <ListBox Grid.Row="1" ItemsSource="{Binding Scripts}" SelectedItem="{Binding SelectedScript}" BorderThickness="0" Background="Transparent">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Border Background="#F8F4EA" CornerRadius="16" Padding="14" Margin="0,0,0,10">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" />
+                    <TextBlock Text="{Binding Category}" FontSize="12" Foreground="#7B341E" />
+                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
+                    <TextBlock Text="{Binding CommandHint}" TextWrapping="Wrap" FontSize="12" Foreground="#102A43" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="16">
+        <Border Grid.Row="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
+          <StackPanel Spacing="6">
+            <TextBlock Text="{Binding Text.Scripts.DescriptionTitle}" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="专家模式：这里只保留 Hook 模板与外部诊断脚本；全局初始化、项目 Profile 应用和 MCP 配置生成都已迁入程序内部。" TextWrapping="Wrap" Foreground="#486581" />
+            <TextBlock Text="{Binding ScriptDescriptionDisplay}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding ScriptExecutionHint}" TextWrapping="Wrap" Foreground="#486581" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="1" Background="#FFFDF8" CornerRadius="20" Padding="20">
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="{Binding Text.Scripts.ProjectDirectoryLabel}" FontWeight="SemiBold" />
+                <TextBox Text="{Binding ScriptProjectPath}" Watermark="{Binding Text.Scripts.ProjectDirectoryWatermark}" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="{Binding Text.Scripts.ChooseDirectoryButton}" Command="{Binding ChooseScriptProjectFolderCommand}" Background="#D9E2EC" Foreground="#102A43" Padding="16,8" VerticalAlignment="Bottom" />
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="{Binding Text.Scripts.UserDirectoryLabel}" FontWeight="SemiBold" />
+                <TextBox Text="{Binding ScriptUserHome}" Watermark="{Binding Text.Scripts.UserDirectoryWatermark}" />
+              </StackPanel>
+              <Button Grid.Column="1" Content="{Binding Text.Scripts.ChooseDirectoryButton}" Command="{Binding ChooseScriptUserHomeFolderCommand}" Background="#D9E2EC" Foreground="#102A43" Padding="16,8" VerticalAlignment="Bottom" />
+            </Grid>
+            <Grid ColumnDefinitions="220,*" ColumnSpacing="16">
+              <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock Text="{Binding Text.Scripts.ProfileLabel}" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding ScriptProfileOptions}" SelectedItem="{Binding SelectedScriptProfileOption}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Text="{Binding Text.Scripts.ArgumentsLabel}" FontWeight="SemiBold" />
+                <TextBox Text="{Binding ScriptArgumentsText}" Watermark="{Binding Text.Scripts.ArgumentsWatermark}" />
+              </StackPanel>
+            </Grid>
+            <WrapPanel>
+              <Button Content="{Binding Text.Scripts.ExecuteButton}" Command="{Binding ExecuteScriptCommand}" Background="#1F487E" Foreground="White" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Scripts.RefreshButton}" Command="{Binding RefreshCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
+        <Border Grid.Row="2" Background="#F8F4EA" CornerRadius="16" Padding="16">
+          <Grid RowDefinitions="Auto,*" RowSpacing="10">
+            <StackPanel Grid.Row="0" Spacing="4">
+              <TextBlock Text="{Binding Text.Scripts.OutputTitle}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding OperationSummary}" TextWrapping="Wrap" />
+            </StackPanel>
+            <TextBox Grid.Row="1" Text="{Binding OperationDetails}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" MinHeight="220" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

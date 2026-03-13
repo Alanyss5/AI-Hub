@@ -1,0 +1,13 @@
+<Project>
+  <ItemGroup>
+    <AIHubSolutionTestProject Include="$(SolutionDir)tests\AIHub.Application.Tests\AIHub.Application.Tests.csproj" />
+  </ItemGroup>
+
+  <Target Name="VSTest">
+    <MSBuild
+      Projects="@(AIHubSolutionTestProject)"
+      Targets="VSTest"
+      BuildInParallel="true"
+      Properties="Configuration=$(Configuration);Platform=AnyCPU;BuildingSolutionFile=true;CurrentSolutionConfigurationContents=$(CurrentSolutionConfigurationContents);SolutionDir=$(SolutionDir);SolutionExt=$(SolutionExt);SolutionFileName=$(SolutionFileName);SolutionName=$(SolutionName);SolutionPath=$(SolutionPath)" />
+  </Target>
+</Project>

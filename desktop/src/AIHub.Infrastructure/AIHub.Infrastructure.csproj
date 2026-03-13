@@ -1,0 +1,13 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Tomlyn" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AIHub.Contracts\AIHub.Contracts.csproj" />
+    <ProjectReference Include="..\AIHub.Core\AIHub.Core.csproj" />
+    <ProjectReference Include="..\AIHub.Application\AIHub.Application.csproj" />
+  </ItemGroup>
+</Project>

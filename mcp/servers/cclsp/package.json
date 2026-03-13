@@ -1,0 +1,69 @@
+{
+  "name": "cclsp",
+  "version": "0.7.0",
+  "description": "MCP server for accessing LSP functionality",
+  "main": "dist/index.js",
+  "bin": {
+    "cclsp": "dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "bun build --target=node --outdir=dist index.ts",
+    "dev": "bun run --watch index.ts",
+    "start": "node dist/index.js",
+    "test": "bun test",
+    "test:execution": "RUN_EXECUTION_TESTS=1 bun test src/setup-execution.test.ts",
+    "test:all": "bun test && bun run test:execution",
+    "test:manual": "node test_mcp_client.cjs",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "lint:fix-unsafe": "biome check --fix --unsafe .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build && npm run test:all && npm run typecheck"
+  },
+  "keywords": [
+    "mcp",
+    "lsp",
+    "language-server",
+    "model-context-protocol",
+    "claude-code"
+  ],
+  "author": "nano",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ktnyt/cclsp.git"
+  },
+  "homepage": "https://github.com/ktnyt/cclsp#readme",
+  "bugs": {
+    "url": "https://github.com/ktnyt/cclsp/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "CLAUDE.md",
+    "cclsp.config.json"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.3",
+    "@types/inquirer": "^9.0.8",
+    "ignore": "^7.0.5",
+    "inquirer": "^12.6.3",
+    "typescript-language-server": "^4.3.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/bun": "latest",
+    "@types/node": "^24.0.1",
+    "memfs": "^4.36.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

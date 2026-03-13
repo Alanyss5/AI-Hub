@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "projects": [
+    {
+      "name": "1",
+      "path": "C:\\OverSeaFramework",
+      "profile": "frontend",
+      "isPinned": false
+    }
+  ]
+}
