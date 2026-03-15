@@ -18,6 +18,12 @@ public sealed record HubSettingsRecord
 
     public string? LastOpenedProject { get; init; }
 
+    public bool GlobalOnboardingCompleted { get; init; }
+
+    public DateTimeOffset? GlobalOnboardingCompletedAt { get; init; }
+
+    public string[] OnboardedProjectPaths { get; init; } = Array.Empty<string>();
+
     public bool ScriptExecutionRiskAccepted { get; init; }
 
     public DateTimeOffset? ScriptExecutionRiskAcceptedAt { get; init; }

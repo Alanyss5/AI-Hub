@@ -52,6 +52,8 @@ public sealed class MainWindowUiSmokeTests
         var viewModel = new MainWindowViewModel();
 
         AssertNamedButton(CreateView<ProjectsTabView>(viewModel), "ProjectsSaveButton");
+        AssertNamedButton(CreateView<ProjectsTabView>(viewModel), "ProjectsRescanGlobalOnboardingButton");
+        AssertNamedButton(CreateView<ProjectsTabView>(viewModel), "ProjectsRescanProjectOnboardingButton");
         AssertNamedButton(CreateView<SkillsTabView>(viewModel), "SkillsSaveSourceButton");
         AssertNamedButton(CreateView<SkillsTabView>(viewModel), "SkillsCheckSourceVersionsButton");
         AssertNamedButton(CreateView<SkillsTabView>(viewModel), "SkillsUpgradeSourceVersionsButton");

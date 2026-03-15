@@ -12,7 +12,42 @@ public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationS
         _diagnosticLogService = diagnosticLogService;
     }
 
-    public Task<OperationResult> ApplyGlobalLinksAsync(string hubRoot, CancellationToken cancellationToken = default)
+    public Task<WorkspaceOnboardingPreviewResult> PreviewGlobalOnboardingAsync(string hubRoot, CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
+            "当前 PowerShell 工作流不支持接管预检，已跳过。",
+            new WorkspaceOnboardingPreview(
+                WorkspaceScope.Global,
+                ProfileKind.Global,
+                null,
+                false,
+                false,
+                Array.Empty<WorkspaceOnboardingCandidate>(),
+                "当前自动化实现不提供接管向导。")));
+    }
+
+    public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
+        string hubRoot,
+        string projectPath,
+        ProfileKind profile,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
+            "当前 PowerShell 工作流不支持接管预检，已跳过。",
+            new WorkspaceOnboardingPreview(
+                WorkspaceScope.Project,
+                profile,
+                projectPath,
+                false,
+                false,
+                Array.Empty<WorkspaceOnboardingCandidate>(),
+                "当前自动化实现不提供接管向导。")));
+    }
+
+    public Task<OperationResult> ApplyGlobalLinksAsync(
+        string hubRoot,
+        IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
+        CancellationToken cancellationToken = default)
     {
         var scriptPath = Path.Combine(hubRoot, "scripts", "setup-global.ps1");
         var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
@@ -26,7 +61,12 @@ public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationS
             _diagnosticLogService);
     }
 
-    public Task<OperationResult> ApplyProjectProfileAsync(string hubRoot, string projectPath, ProfileKind profile, CancellationToken cancellationToken = default)
+    public Task<OperationResult> ApplyProjectProfileAsync(
+        string hubRoot,
+        string projectPath,
+        ProfileKind profile,
+        IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
+        CancellationToken cancellationToken = default)
     {
         var scriptPath = Path.Combine(hubRoot, "scripts", "use-profile.ps1");
 

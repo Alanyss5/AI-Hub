@@ -1,170 +1,181 @@
 # AI-Hub 使用手册
 
-## 总览
-AI-Hub 用于统一管理本地项目、Skills、MCP 和常用脚本。桌面端基于 `.NET 8 + Avalonia`，工作根目录固定为 `C:\AI-Hub`。
+更新日期：2026-03-15
 
-## Projects
-支持：
+## 1. 这版的核心变化
 
-- 项目登记、删除
-- 项目级 / 全局级作用域切换
-- 设为当前项目
-- 应用项目 Profile
+AI-Hub 当前采用统一的四层资源模型：
 
-注意：
+1. 全局公司层：`C:\AI-Hub`
+2. 全局私人层：`C:\Users\Administrator\AI-Personal`
+3. 项目公司层：所选 `Profile` 在 `AI-Hub` 下的目录
+4. 项目私人层：所选 `Profile` 在 `AI-Personal` 下的目录
 
-- 删除项目只移除注册表记录，不删除磁盘目录
-- 删除前会弹确认对话框
+最终生效顺序固定为：
 
-## Skills
-支持：
+1. 全局公司
+2. 全局私人
+3. 项目公司
+4. 项目私人
 
-- 扫描已安装 Skill
-- 登记来源、扫描来源、保存安装登记
-- 基线捕获、差异预览、检查更新、安全同步、强制同步
-- 来源级运行期定时策略
-- Overlay 文件级合并预览与应用
-- 查看备份历史并选择指定备份回滚
-- 在来源编辑区从可用引用中快速选择 branch / tag
+同名冲突规则固定为：
 
-### 来源级定时策略
-来源编辑区现在提供完整策略面板，按来源而不是按单个 Skill 配置。
+- 项目层覆盖全局层
+- 同层内私人覆盖公司
 
-可配置项：
+对外真正暴露给客户端和项目目录的不是四层原始目录，而是 `.runtime/effective/<profile>` 这套“已合并的有效输出”。
 
-- 频率：`6h / 12h / 24h / 7d`
-- 动作：`仅检查` 或 `检查并安全同步`
-- 最近执行结果、下次到期时间
-- 手动立即执行
+## 2. 四个按钮分别做什么
 
-兼容规则：
+### 切换为全局级
 
-- 旧数据 `AutoUpdate=true` 会迁移为 `24h + 仅检查`
-- 旧数据 `AutoUpdate=false` 会迁移为关闭运行期定时
-- “启动时自动检查 / 启动时自动同步”仍然只负责启动期行为
+只切换 AI-Hub 当前作用域到全局，不写用户目录。
 
-### Overlay 合并
-Overlay 模式下，来源和本地覆盖层同时变化时，可以先预览再应用。
+### 切换为项目级
 
-使用方式：
+只切换 AI-Hub 当前作用域到当前项目，不写项目目录。
 
-1. 在 Skills 页选择一个已登记的 Overlay Skill
-2. 点击 `Preview Merge`
-3. 按文件选择：
-   - `采用来源版`
-   - `保留本地版`
-   - `按删除状态应用`
-   - `跳过`
-4. 点击 `Apply Merge`
+### 应用全局链接
 
-执行特性：
+会做三件事：
 
-- 仅做文件级决策，不做行级编辑
-- 应用前自动创建 `pre-merge` 备份
-- 应用后自动重算基线、来源指纹、overlay 快照与删除列表
+1. 首次时扫描现有全局 `Skills / commands / agents / Claude settings / MCP`
+2. 通过接管向导决定导入到 `AI-Hub`、`AI-Personal` 或 `忽略`
+3. 生成 `.runtime/effective/global`，再把用户目录入口切过去
 
-## MCP
-支持：
+### 应用项目 Profile
 
-- manifest 编辑与客户端配置生成
-- 当前作用域体检
-- 当前作用域客户端同步
-- 外部 MCP 识别、冲突预览与纳管
-- 托管进程定义、启动、停止、重启、健康检查
-- 日志预览
-- 托盘菜单快捷操作
-- 运行摘要统计：总数、运行中、已停止、异常、可自恢复、需人工关注
+会做三件事：
 
-### 体检范围
-当前作用域体检会检查：
+1. 首次时扫描当前项目目录现有 `Skills / commands / agents / Claude settings / MCP`
+2. 通过接管向导决定导入到 `AI-Hub`、`AI-Personal` 或 `忽略`
+3. 生成 `.runtime/effective/<profile>`，再把项目入口切过去
 
-- manifest JSON 是否有效
-- generated 配置是否最新
-- 当前作用域客户端落地文件是否与 generated 一致
-- 命令、工作目录、环境变量、健康检查地址、可执行文件解析情况
-- 客户端里是否存在尚未纳入 AI-Hub 的外部 MCP
+## 3. 首次接管向导怎么理解
 
-### 客户端配置边界
-AI-Hub 当前接管：
+首次全局接管和首次项目接管都会扫描以下资源：
 
-- Claude 全局：`C:\Users\Administrator\.claude.json`
-- Codex 全局：`C:\Users\Administrator\.codex\config.toml`
-- Antigravity 全局：`C:\Users\Administrator\.gemini\antigravity\mcp_config.json`
-- 项目级 Claude：`项目\.mcp.json`
-- 项目级 Codex：`项目\.codex\config.toml`
+- Skills
+- Claude commands
+- Claude agents
+- Claude settings
+- MCP
 
-当前不做：
+每一项都支持三种选择：
 
-- Windows 登录自启动
-- 项目级 Antigravity MCP 文件路径扩展
+- 导入到 `AI-Hub`
+- 导入到 `AI-Personal`
+- 忽略
 
-写回规则：
+导入策略固定为“复制导入”：
 
-- 保留客户端原有非 MCP 设置
-- 保留尚未纳管的外部 MCP 条目
-- AI-Hub 只更新自己管理的 MCP 集合
-- 每次写回前自动备份原文件
+- 原位置保留
+- 目标已存在时先创建 `.bak.<timestamp>` 备份
+- 不做原地搬迁
 
-### 外部 MCP 纳管
-体检识别到外部 MCP 后，可在 MCP 管理页直接导入。
+## 4. 为什么项目目录里看不到单独的 global
 
-规则：
+这是当前实现的正常行为。
 
-- 全局作用域发现的外部 MCP 导入 `global` manifest
-- 项目作用域发现的外部 MCP 导入当前选中 profile manifest
-- 同名但定义不一致时会先显示冲突预览，需要显式选择采用哪一端
-- 导入后可立即同步到当前作用域客户端
+“全局层是否生效”不再通过项目目录里出现一个 `global` 子目录来体现，而是通过：
 
-## 系统通知
-Windows 系统通知当前只在“进入异常状态”时提醒，并按告警键 15 分钟去重。
+- 项目 `.claude\skills`
+- 项目 `.agents\skills`
+- 项目 `.agent\skills`
 
-会触发主动提醒的场景：
+这些入口统一指向：
 
-- Skills 定时检查 / 自动同步失败
-- 因本地改动导致自动同步被阻塞
-- MCP 当前作用域体检失败
-- 托管 MCP 健康检查异常
-- 托管 MCP 在当前应用会话内累计 3 次自恢复
+- `C:\AI-Hub\.runtime\effective\<profile>\skills`
 
-托盘摘要仍然保留，用于持续查看状态；系统通知只负责主动提醒。
+也就是说，全局层已经和所选 `Profile` 合并进 effective 输出里了。
 
-## 危险操作确认
-以下操作会先弹确认框：
+如果你要验证“全局是否生效”，请看：
 
-- 删除项目
-- 删除 Skills 来源
-- 删除 Skill 安装登记
-- 删除托管 MCP
-- 强制同步 Skill
-- Skill 回滚
-- Overlay 合并应用
-- 停止全部托管 MCP
-- 导入配置包
-- 导入外部 MCP
+1. 项目 skill 入口的实际目标路径
+2. `C:\AI-Hub\.runtime\effective\<profile>` 下的合并结果
 
-## 配置包导入导出
-导出：
+不要再去项目目录里找单独的 `global` 文件夹。
 
-- 会打包 Hub 设置、项目清单、Skills 来源与安装登记、MCP runtime、manifest、Skills overrides
+## 5. 路径不一致时为什么会被阻断
 
-导入：
+如果你已经选中了一个已登记项目，但表单里的目录被改成了另一个路径，例如：
 
-- 流程为“预检 -> 确认 -> 导入”
-- 预检会显示版本、导出时间、包含模块、将覆盖的配置类别、计划备份位置
-- 仅接受 `Version == "1.0"`，版本不匹配直接拒绝
+- 当前登记路径：`C:\Project\OverSeaFramework`
+- 当前表单路径：`C:\OverSeaFramework`
 
-## 测试与验收
-当前仓库已包含最小测试工程：`desktop/tests/AIHub.Application.Tests`。
+那么以下操作会被阻断，并弹出明确提示：
 
-当前已覆盖：
+- `应用项目 Profile`
+- `设为当前项目`
+- `重新扫描项目接管`
 
-- Skills 备份历史排序
-- 指定备份回滚
-- 旧 `AutoUpdate` 迁移
-- 定时策略到期筛选
-- Overlay 合并预览与应用
-- 来源引用快速选择
-- MCP generated 配置漂移识别
-- MCP 客户端写回、备份与外部配置识别
-- 配置包版本预检
-- MCP 异常摘要计算
+这是刻意设计，不会自动迁移。
+
+正确流程是：
+
+1. 先点击 `新增或更新项目`
+2. 把新路径保存到注册表
+3. 再执行 `应用项目 Profile` 或项目重扫
+
+## 6. 重扫为什么有时“没反应”
+
+当前版本里，重扫有两种明确结果：
+
+- 扫到候选项：进入接管向导
+- 没有候选项：弹出“未发现可重新导入资源”的结果提示
+
+提示框里会明确显示：
+
+- 当前作用域
+- 检查路径
+- 当前 Profile（项目级时）
+
+所以如果你点击重扫后看到的是结果提示框，表示这次扫描确实完成了，只是没有新增可导入项。
+
+## 7. 如何确认自己打开的是 worktree 版程序
+
+当前项目页会直接显示：
+
+- 构建来源
+- 可执行文件路径
+- 当前 `HubRoot`
+
+如果你是在本分支验收，应该看到可执行文件来自：
+
+`C:\Users\Administrator\.config\superpowers\worktrees\AI-Hub\codex\four-layer-onboarding\desktop\apps\AIHub.Desktop\bin\Debug\net8.0\AIHub.Desktop.exe`
+
+如果显示的是 `C:\AI-Hub\...` 下的 exe，说明你打开的还是主目录旧程序。
+
+## 8. 最短验收路径
+
+按下面顺序就能验证这轮修复：
+
+1. 打开 worktree 版 `AIHub.Desktop.exe`
+2. 在“项目与 Profile”页确认已经显示构建来源、可执行文件路径和 `HubRoot`
+3. 选中 `OverSeaFramework`
+4. 把项目目录保存为 `C:\OverSeaFramework`
+5. 选择 `backend`
+6. 点击 `应用项目 Profile`
+7. 在结果区确认：
+   - 实际项目路径是 `C:\OverSeaFramework`
+   - Profile 是 `backend`
+   - `.claude\skills`
+   - `.agents\skills`
+   - `.agent\skills`
+   都指向 `.runtime/effective/backend/skills`
+8. 点击 `重新扫描项目接管`
+9. 如果没有新增候选项，应弹出“未发现可重新导入资源”的结果提示
+
+## 9. 常见判断
+
+### 什么时候只需要切换
+
+当你只是想让 AI-Hub 之后的“当前作用域”操作改到全局或项目时，用“切换”。
+
+### 什么时候必须应用
+
+当你希望用户目录或项目目录里的真实入口、链接、配置文件发生变化时，用“应用”。
+
+### 什么时候必须先保存
+
+当你修改了已登记项目的目录路径，并且接下来还要做项目接管、设当前项目或项目重扫时，必须先保存。

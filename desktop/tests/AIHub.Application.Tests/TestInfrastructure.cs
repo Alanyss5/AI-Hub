@@ -81,11 +81,117 @@ internal sealed class FixedHubRootLocator : IHubRootLocator
 
 internal sealed class NoOpWorkspaceAutomationService : IWorkspaceAutomationService
 {
-    public Task<OperationResult> ApplyGlobalLinksAsync(string hubRoot, CancellationToken cancellationToken = default)
+    public Task<WorkspaceOnboardingPreviewResult> PreviewGlobalOnboardingAsync(string hubRoot, CancellationToken cancellationToken = default)
+        => Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
+            "ok",
+            new WorkspaceOnboardingPreview(
+                WorkspaceScope.Global,
+                ProfileKind.Global,
+                null,
+                false,
+                false,
+                Array.Empty<WorkspaceOnboardingCandidate>(),
+                "ok")));
+
+    public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
+        string hubRoot,
+        string projectPath,
+        ProfileKind profile,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
+            "ok",
+            new WorkspaceOnboardingPreview(
+                WorkspaceScope.Project,
+                profile,
+                projectPath,
+                false,
+                false,
+                Array.Empty<WorkspaceOnboardingCandidate>(),
+                "ok")));
+
+    public Task<OperationResult> ApplyGlobalLinksAsync(
+        string hubRoot,
+        IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
+        CancellationToken cancellationToken = default)
         => Task.FromResult(OperationResult.Ok("ok", hubRoot));
 
-    public Task<OperationResult> ApplyProjectProfileAsync(string hubRoot, string projectPath, ProfileKind profile, CancellationToken cancellationToken = default)
+    public Task<OperationResult> ApplyProjectProfileAsync(
+        string hubRoot,
+        string projectPath,
+        ProfileKind profile,
+        IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
+        CancellationToken cancellationToken = default)
         => Task.FromResult(OperationResult.Ok("ok", projectPath));
+}
+
+internal sealed class RecordingWorkspaceAutomationService : IWorkspaceAutomationService
+{
+    public int ApplyGlobalLinksCallCount { get; private set; }
+
+    public int ApplyProjectProfileCallCount { get; private set; }
+
+    public int PreviewGlobalOnboardingCallCount { get; private set; }
+
+    public int PreviewProjectOnboardingCallCount { get; private set; }
+
+    public WorkspaceOnboardingPreviewResult GlobalPreviewResult { get; set; } = WorkspaceOnboardingPreviewResult.Ok(
+        "ok",
+        new WorkspaceOnboardingPreview(WorkspaceScope.Global, ProfileKind.Global, null, false, false, Array.Empty<WorkspaceOnboardingCandidate>(), "ok"));
+
+    public WorkspaceOnboardingPreviewResult ProjectPreviewResult { get; set; } = WorkspaceOnboardingPreviewResult.Ok(
+        "ok",
+        new WorkspaceOnboardingPreview(WorkspaceScope.Project, ProfileKind.Global, null, false, false, Array.Empty<WorkspaceOnboardingCandidate>(), "ok"));
+
+    public OperationResult ApplyGlobalLinksResult { get; set; } = OperationResult.Ok("ok");
+
+    public OperationResult ApplyProjectProfileResult { get; set; } = OperationResult.Ok("ok");
+
+    public Task<WorkspaceOnboardingPreviewResult> PreviewGlobalOnboardingAsync(string hubRoot, CancellationToken cancellationToken = default)
+    {
+        PreviewGlobalOnboardingCallCount++;
+        return Task.FromResult(GlobalPreviewResult);
+    }
+
+    public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
+        string hubRoot,
+        string projectPath,
+        ProfileKind profile,
+        CancellationToken cancellationToken = default)
+    {
+        PreviewProjectOnboardingCallCount++;
+        var result = ProjectPreviewResult.Preview is null
+            ? ProjectPreviewResult
+            : ProjectPreviewResult with
+            {
+                Preview = ProjectPreviewResult.Preview with
+                {
+                    Scope = WorkspaceScope.Project,
+                    Profile = profile,
+                    ProjectPath = projectPath
+                }
+            };
+        return Task.FromResult(result);
+    }
+
+    public Task<OperationResult> ApplyGlobalLinksAsync(
+        string hubRoot,
+        IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyGlobalLinksCallCount++;
+        return Task.FromResult(ApplyGlobalLinksResult);
+    }
+
+    public Task<OperationResult> ApplyProjectProfileAsync(
+        string hubRoot,
+        string projectPath,
+        ProfileKind profile,
+        IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyProjectProfileCallCount++;
+        return Task.FromResult(ApplyProjectProfileResult);
+    }
 }
 
 internal sealed class NoOpMcpAutomationService : IMcpAutomationService

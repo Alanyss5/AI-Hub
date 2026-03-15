@@ -18,6 +18,18 @@ AI-Hub 是一个本地化的 Projects、Skills、Scripts 与 MCP 桌面控制台
 - 配置包导入导出与导入预检
 - `win-x64 self-contained` 发布脚本、发布清单与便携包打包回退
 
+2026-03-15 补充：
+
+- 工作区接入已升级为“四层资源叠加”模型：`全局公司 -> 全局私人 -> 项目公司(Profile) -> 项目私人(Profile)`
+- `AI-Personal` 不再只放个人 skills，而是同步承载 `skills / claude commands / claude agents / claude settings / mcp manifest`
+- `应用全局链接` 与 `应用项目 Profile` 会先生成 `.runtime/effective/<profile>` 有效输出，再把用户目录或项目目录入口切到这套输出
+- 首次全局接管、首次项目接管会先扫描现有 `Skills / commands / agents / Claude settings / MCP`，通过专用向导选择导入到 `AI-Hub`、`私人目录` 或 `忽略`
+- MCP generated 配置已按四层优先级生成，`frontend/backend` 默认继承全局层，再叠加对应 Profile 层
+- 项目页现在会显式显示运行标识：构建来源、当前可执行文件路径和 `HubRoot`
+- 如果已登记项目的路径和表单目录不一致，`应用项目 Profile`、`设为当前项目` 和 `重新扫描项目接管` 会先阻断并提示“请先保存项目”
+- 项目目录里不会出现独立的 `global` 子目录；全局层已经合并进 `.runtime/effective/<profile>`
+- 全局重扫和项目重扫在没有候选项时，会弹出“未发现可重新导入资源”的明确结果提示
+
 ## 构建与测试
 ```powershell
 C:\Users\Administrator\.dotnet\dotnet.exe build C:\AI-Hub\desktop\AIHub.sln
@@ -47,6 +59,7 @@ C:\Users\Administrator\.dotnet\dotnet.exe test C:\AI-Hub\desktop\AIHub.sln --no-
 - `desktop/`：桌面端解决方案与源代码
 - `skills/`：Skills 目录、来源登记、覆盖层与缓存数据
 - `mcp/`：MCP manifest、生成配置、运行时数据
+- `.runtime/effective/`：四层资源合并后的有效输出
 - `config/`：Hub 设置与 Skills 状态登记
 - `projects/`：项目注册表
 - `docs/`：中文文档
@@ -81,3 +94,20 @@ powershell -ExecutionPolicy Bypass -File C:\AI-Hub\scripts\windows\publish-deskt
 ```
 
 说明：当前 solution 级 `dotnet test C:\AI-Hub\desktop\AIHub.sln --no-build` 已恢复可用；发布脚本默认产出 `win-x64 self-contained` 目录，并在缺少 Inno Setup 时自动生成便携 zip 包。
+
+## Worktree 验收
+
+如果你正在验收 `codex/four-layer-onboarding` 分支，请运行 worktree 里的程序，而不是主目录旧版：
+
+```powershell
+C:\Users\Administrator\.config\superpowers\worktrees\AI-Hub\codex\four-layer-onboarding\desktop\apps\AIHub.Desktop\bin\Debug\net8.0\AIHub.Desktop.exe
+```
+
+最短验收路径：
+
+1. 打开上面的 worktree exe
+2. 在“项目与 Profile”页确认已经显示构建来源、可执行文件路径和 `HubRoot`
+3. 把 `OverSeaFramework` 保存为 `C:\OverSeaFramework`
+4. 应用 `backend`
+5. 确认项目 skill 入口改为 `.runtime/effective/backend/skills`
+6. 点击项目重扫且无新增资源时，确认会弹出明确结果提示
