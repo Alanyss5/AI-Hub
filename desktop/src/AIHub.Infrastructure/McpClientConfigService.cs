@@ -58,7 +58,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 ? ReadTomlConfig(target.FilePath)
                 : ReadJsonConfig(target.FilePath);
             var managedNames = managedServers.Keys
-                .Where(name => parsed.Servers.TryGetValue(name, out var current) && current == managedServers[name])
+                .Where(name => parsed.Servers.TryGetValue(name, out var current) && ServerDefinitionsEqual(current, managedServers[name]))
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
             var externalNames = parsed.Servers.Keys
@@ -67,7 +67,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 .ToArray();
             var inSync = managedServers.All(entry =>
                 parsed.Servers.TryGetValue(entry.Key, out var current) &&
-                current == entry.Value);
+                ServerDefinitionsEqual(current, entry.Value));
 
             statuses.Add(new McpClientConfigStatusRecord(
                 target.Client,
@@ -354,7 +354,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 }
             }
 
-            servers[entry.Key] = new McpServerDefinitionRecord(command, arguments, environment);
+            servers[GetCanonicalCodexServerName(entry.Key)] = new McpServerDefinitionRecord(command, arguments, environment);
         }
 
         return servers;
@@ -448,11 +448,25 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 itemTable["env"] = envTable;
             }
 
-            serverTable[entry.Key] = itemTable;
+            serverTable[GetCodexServerKey(entry.Key)] = itemTable;
         }
 
         root["mcp_servers"] = serverTable;
         return Toml.FromModel(root);
+    }
+
+    private static string GetCanonicalCodexServerName(string serverName)
+    {
+        return string.Equals(serverName, "coplay_mcp", StringComparison.OrdinalIgnoreCase)
+            ? "coplay-mcp"
+            : serverName;
+    }
+
+    private static string GetCodexServerKey(string serverName)
+    {
+        return string.Equals(serverName, "coplay-mcp", StringComparison.OrdinalIgnoreCase)
+            ? "coplay_mcp"
+            : serverName;
     }
 
     private static TomlTable? CloneTomlTable(TomlTable? source)
@@ -529,6 +543,35 @@ public sealed class McpClientConfigService : IMcpClientConfigService
         }
 
         return $"已同步 / AI-Hub 管理 {managedCount} / 外部 {externalCount}";
+    }
+
+    private static bool ServerDefinitionsEqual(McpServerDefinitionRecord left, McpServerDefinitionRecord right)
+    {
+        if (!string.Equals(left.Command, right.Command, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!left.Arguments.SequenceEqual(right.Arguments, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        if (left.EnvironmentVariables.Count != right.EnvironmentVariables.Count)
+        {
+            return false;
+        }
+
+        foreach (var environmentVariable in left.EnvironmentVariables)
+        {
+            if (!right.EnvironmentVariables.TryGetValue(environmentVariable.Key, out var rightValue) ||
+                !string.Equals(environmentVariable.Value, rightValue, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool TryResolveCommandPath(string command, out string resolvedPath)

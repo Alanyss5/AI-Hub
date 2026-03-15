@@ -88,8 +88,7 @@ public sealed class JsonHubSettingsStore : IHubSettingsStore
             PreferredClients = DefaultClients.ToArray(),
             AutoStartManagedMcpOnLoad = true,
             AutoCheckSkillUpdatesOnLoad = true,
-            AutoSyncSafeSkillsOnLoad = false,
-            OnboardedProjectPaths = Array.Empty<string>()
+            AutoSyncSafeSkillsOnLoad = false
         };
     }
 
@@ -106,8 +105,7 @@ public sealed class JsonHubSettingsStore : IHubSettingsStore
             PreferredClients = preferredClients,
             AutoStartManagedMcpOnLoad = current.AutoStartManagedMcpOnLoad,
             AutoCheckSkillUpdatesOnLoad = current.AutoCheckSkillUpdatesOnLoad,
-            AutoSyncSafeSkillsOnLoad = current.AutoSyncSafeSkillsOnLoad,
-            OnboardedProjectPaths = current.OnboardedProjectPaths ?? Array.Empty<string>()
+            AutoSyncSafeSkillsOnLoad = current.AutoSyncSafeSkillsOnLoad
         };
     }
 

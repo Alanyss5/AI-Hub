@@ -169,4 +169,76 @@ public sealed class McpClientConfigServiceTests
         Assert.Contains(externalServer.Variants, item => item.Client == McpClientKind.Claude);
         Assert.Contains(externalServer.Variants, item => item.Client == McpClientKind.Codex);
     }
+
+    [Fact]
+    public async Task SyncAsync_Writes_Codex_Server_Aliases_Using_Codex_Naming()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(userHome, ".codex"));
+
+        var managedServers = new Dictionary<string, McpServerDefinitionRecord>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["coplay-mcp"] = new(
+                "uvx",
+                new[] { "--python", ">=3.11", "coplay-mcp-server@latest" },
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["MCP_TOOL_TIMEOUT"] = "720000"
+                })
+        };
+
+        var service = new McpClientConfigService(userHome);
+
+        var result = await service.SyncAsync(scope.RootPath, WorkspaceScope.Global, ProfileKind.Global, null, managedServers);
+
+        Assert.True(result.Success, result.Details);
+        var codexText = await File.ReadAllTextAsync(Path.Combine(userHome, ".codex", "config.toml"));
+        Assert.Contains("[mcp_servers.coplay_mcp]", codexText, StringComparison.Ordinal);
+        Assert.DoesNotContain("[mcp_servers.coplay-mcp]", codexText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InspectAsync_Treats_Codex_Server_Alias_As_Managed_Server()
+    {
+        using var scope = new TestHubRootScope();
+        var projectPath = Path.Combine(scope.RootPath, "sample-project");
+        Directory.CreateDirectory(Path.Combine(projectPath, ".codex"));
+
+        await File.WriteAllTextAsync(
+            Path.Combine(projectPath, ".codex", "config.toml"),
+            """
+            [mcp_servers.coplay_mcp]
+            command = "uvx"
+            args = ["--python", ">=3.11", "coplay-mcp-server@latest"]
+
+            [mcp_servers.coplay_mcp.env]
+            MCP_TOOL_TIMEOUT = "720000"
+            """);
+
+        var managedServers = new Dictionary<string, McpServerDefinitionRecord>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["coplay-mcp"] = new(
+                "uvx",
+                new[] { "--python", ">=3.11", "coplay-mcp-server@latest" },
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["MCP_TOOL_TIMEOUT"] = "720000"
+                })
+        };
+
+        var service = new McpClientConfigService(Path.Combine(scope.RootPath, "user-home"));
+
+        var snapshot = await service.InspectAsync(
+            scope.RootPath,
+            WorkspaceScope.Project,
+            ProfileKind.Frontend,
+            projectPath,
+            managedServers);
+
+        var codexStatus = Assert.Single(snapshot.ClientStatuses.Where(item => item.Client == McpClientKind.Codex));
+        Assert.True(codexStatus.InSync);
+        Assert.Contains("coplay-mcp", codexStatus.ManagedServerNames);
+        Assert.Empty(snapshot.ExternalServers);
+    }
 }

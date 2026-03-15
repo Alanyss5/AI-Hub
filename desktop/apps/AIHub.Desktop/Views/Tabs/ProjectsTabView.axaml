@@ -74,40 +74,12 @@
           <Border Background="#F8F4EA" CornerRadius="16" Padding="16">
             <StackPanel Spacing="8">
               <TextBlock Text="{Binding Text.Projects.WorkspaceStatusTitle}" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding Text.Projects.RuntimeIdentityTitle}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding Text.Projects.BuildSourceLabel}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding RuntimeBuildIdentityDisplay}" TextWrapping="Wrap" />
-              <TextBlock Text="{Binding Text.Projects.ExecutablePathLabel}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding RuntimeExecutablePathDisplay}" TextWrapping="Wrap" />
-              <TextBlock Text="{Binding Text.Settings.HubRootTitle}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding HubRootDisplay}" TextWrapping="Wrap" />
               <TextBlock Text="{Binding Text.Projects.ScopeLabel}" FontSize="12" Foreground="#486581" />
               <TextBlock Text="{Binding ActiveScopeDisplay}" />
               <TextBlock Text="{Binding Text.Shell.DefaultProfileLabel}" FontSize="12" Foreground="#486581" />
               <TextBlock Text="{Binding DefaultProfileDisplay}" />
               <TextBlock Text="{Binding Text.Shell.RecentProjectLabel}" FontSize="12" Foreground="#486581" />
               <TextBlock Text="{Binding LastOpenedProjectDisplay}" TextWrapping="Wrap" />
-              <TextBlock Text="{Binding Text.Projects.GlobalOnboardingLabel}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding GlobalOnboardingStatusDisplay}" TextWrapping="Wrap" />
-              <TextBlock Text="{Binding Text.Projects.ProjectOnboardingLabel}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding ProjectOnboardingStatusDisplay}" TextWrapping="Wrap" />
-            </StackPanel>
-          </Border>
-          <Border Background="#F8F4EA" CornerRadius="16" Padding="16">
-            <StackPanel Spacing="8">
-              <TextBlock Text="{Binding Text.Projects.WorkspaceBindingTitle}" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding Text.Projects.WorkspaceBindingModeLabel}" FontSize="12" Foreground="#486581" />
-              <TextBlock Text="{Binding ProjectWorkspaceBindingModeDisplay}" TextWrapping="Wrap" />
-              <TextBlock Text="{Binding ProjectWorkspaceBindingWarningDisplay}"
-                         TextWrapping="Wrap"
-                         Foreground="#B44D12"
-                         IsVisible="{Binding HasProjectWorkspaceBindingWarning}" />
-              <TextBox Text="{Binding ProjectWorkspaceBindingDetails}"
-                       IsReadOnly="True"
-                       AcceptsReturn="True"
-                       TextWrapping="Wrap"
-                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                       MinHeight="180" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -123,8 +95,6 @@
             <Button Content="{Binding Text.Projects.SwitchProjectScopeButton}" Command="{Binding SwitchToSelectedProjectScopeCommand}" Background="#285E61" Foreground="White" Padding="16,10" />
             <Button Content="{Binding Text.Projects.SwitchGlobalScopeButton}" Command="{Binding SwitchToGlobalScopeCommand}" Background="#7B341E" Foreground="White" Padding="16,10" />
             <Button Content="{Binding Text.Projects.ApplyGlobalLinksButton}" Command="{Binding ApplyGlobalLinksCommand}" Background="#5A4A42" Foreground="White" Padding="16,10" />
-            <Button x:Name="ProjectsRescanGlobalOnboardingButton" Content="{Binding Text.Projects.RescanGlobalOnboardingButton}" Command="{Binding RescanGlobalOnboardingCommand}" Background="#D69E2E" Foreground="White" Padding="16,10" />
-            <Button x:Name="ProjectsRescanProjectOnboardingButton" Content="{Binding Text.Projects.RescanProjectOnboardingButton}" Command="{Binding RescanProjectOnboardingCommand}" Background="#2C7A7B" Foreground="White" Padding="16,10" />
             <Button Content="{Binding Text.Projects.DeleteSelectedButton}" Command="{Binding DeleteSelectedProjectCommand}" Background="#D9E2EC" Foreground="#102A43" Padding="16,10" />
             <Button Content="{Binding Text.Projects.ClearFormButton}" Command="{Binding ClearFormCommand}" Background="#D9E2EC" Foreground="#102A43" Padding="16,10" />
           </StackPanel>

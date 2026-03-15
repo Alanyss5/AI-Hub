@@ -201,7 +201,6 @@ public sealed partial class MainWindowViewModel
         }
 
         await LoadWorkspaceAsync(SelectedProject?.Path);
-        await LoadDiagnosticsAsync();
         return IsRiskConfirmed(kind);
     }
 

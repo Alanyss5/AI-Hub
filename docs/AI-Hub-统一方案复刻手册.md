@@ -3,37 +3,6 @@
 更新日期: 2026-03-07
 状态: 已按本文方案落地到当前机器，文中内容以 `C:\AI-Hub` 的真实现状为准。
 
-## 2026-03-15 四层资源补充
-
-当前复刻方案已经从“公司全局 + 个人 skills + 项目 profile”升级为完整的四层模型：
-
-- 全局公司层：`C:\AI-Hub`
-- 全局私人层：`C:\Users\Administrator\AI-Personal`
-- 项目公司层：当前项目所选 `Profile`
-- 项目私人层：当前项目所选 `Profile` 在 `AI-Personal` 下的对应资源
-
-`AI-Personal` 现在承载的不再只是 `skills`，而是完整补齐：
-
-- `skills/<profile>`
-- `claude/commands/<profile>`
-- `claude/agents/<profile>`
-- `claude/settings/<profile>.settings.json`
-- `mcp/manifest/<profile>.json`
-
-所有用户级和项目级入口不再直接指向原始层目录，而是先物化到：
-
-- `C:\AI-Hub\.runtime\effective\global`
-- `C:\AI-Hub\.runtime\effective\frontend`
-- `C:\AI-Hub\.runtime\effective\backend`
-
-再由入口目录链接到这套“有效输出”。
-
-首次全局接管和首次项目接管都会先扫描现有资源，并通过桌面端向导决定：
-
-- 导入到 `AI-Hub`
-- 导入到 `AI-Personal`
-- 忽略
-
 ## 1. 这份文档的定位
 
 这份文档的用途不是再手工重写一遍脚本，而是让你在其他电脑上可以按同一套结构直接复刻。

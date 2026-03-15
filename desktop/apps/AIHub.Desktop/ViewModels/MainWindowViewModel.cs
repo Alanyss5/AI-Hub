@@ -146,7 +146,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         InitializeMaintenanceState();
         InitializeAdvancedCommands();
         InitializeDiagnosticsState();
-        InitializeOnboardingState();
     }
 
     public MainWindowViewModel(
@@ -284,13 +283,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string ProjectPath
     {
         get => _projectPath;
-        set
-        {
-            if (SetProperty(ref _projectPath, value))
-            {
-                UpdateWorkspaceDiagnostics(SelectedProject);
-            }
-        }
+        set => SetProperty(ref _projectPath, value);
     }
 
     public bool IsPinned
@@ -609,9 +602,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     }
                 }
 
-                UpdateOnboardingStatusDisplay(_currentWorkspaceSettings, value);
-                UpdateWorkspaceDiagnostics(value);
-
                 RaiseCommandStates();
             }
         }
@@ -732,7 +722,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
-            var result = await _workspaceControlService!.SaveProjectAsync(project, SelectedProject?.Path);
+            var result = await _workspaceControlService!.SaveProjectAsync(project);
             ApplyOperationResult(result);
 
             if (result.Success)
@@ -772,7 +762,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task ApplyGlobalLinksAsync()
     {
-        await ExecuteGlobalOnboardingFlowAsync(forceRescan: false);
+        await RunBusyAsync(async () =>
+        {
+            if (!await EnsureRiskConfirmedAsync(HubRiskConsentKind.ScriptExecution))
+            {
+                return;
+            }
+
+            var result = await _workspaceControlService!.ApplyGlobalLinksAsync();
+            ApplyOperationResult(result);
+
+            if (result.Success)
+            {
+                await ReloadAllAsync(SelectedProject?.Path, SelectedMcpProfile?.Profile, SelectedManagedProcess?.Name);
+            }
+        });
     }
 
     private async Task ApplyProjectProfileAsync()
@@ -783,14 +787,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (TryCreateSelectedProjectPathMismatchNotice(project.Path, out var notice))
+        await RunBusyAsync(async () =>
         {
-            SetOperation(false, Text.State.ProjectPathMismatchBlocked, notice.Details);
-            await ShowNoticeAsync(notice);
-            return;
-        }
+            if (!await EnsureRiskConfirmedAsync(HubRiskConsentKind.ScriptExecution))
+            {
+                return;
+            }
 
-        await ExecuteProjectOnboardingFlowAsync(project, forceRescan: false);
+            var result = await _workspaceControlService!.ApplyProjectProfileAsync(project);
+            ApplyOperationResult(result);
+
+            if (result.Success)
+            {
+                await ReloadAllAsync(project.Path, SelectedMcpProfile?.Profile, SelectedManagedProcess?.Name);
+            }
+        });
     }
 
     private async Task SetCurrentProjectAsync()
@@ -801,16 +812,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (TryCreateSelectedProjectPathMismatchNotice(project.Path, out var notice))
-        {
-            SetOperation(false, Text.State.ProjectPathMismatchBlocked, notice.Details);
-            await ShowNoticeAsync(notice);
-            return;
-        }
-
         await RunBusyAsync(async () =>
         {
-            var saveResult = await _workspaceControlService!.SaveProjectAsync(project, SelectedProject?.Path);
+            var saveResult = await _workspaceControlService!.SaveProjectAsync(project);
             if (!saveResult.Success)
             {
                 ApplyOperationResult(saveResult);
@@ -1275,7 +1279,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
     private void ApplyWorkspaceSnapshot(WorkspaceSnapshot snapshot, string? preferredProjectPath)
     {
-        _currentWorkspaceSettings = snapshot.Settings;
         AppTitle = Text.Shell.AppTitle;
         HubRootDisplay = string.IsNullOrWhiteSpace(snapshot.Dashboard.HubRoot) ? Text.State.HubRootNotResolved : snapshot.Dashboard.HubRoot;
         HubStatus = snapshot.Dashboard.HubStatus;
@@ -1290,7 +1293,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         AutoCheckSkillUpdatesOnLoad = snapshot.Settings.AutoCheckSkillUpdatesOnLoad;
         AutoSyncSafeSkillsOnLoad = snapshot.Settings.AutoSyncSafeSkillsOnLoad;
         ApplyCurrentWorkspaceContext(snapshot.Settings.ActiveScope, snapshot.Settings.LastOpenedProject);
-        ApplyRiskConfirmations(snapshot.Settings);
 
         ReplaceCollection(Projects, snapshot.Projects);
         ReplaceCollection(EnabledClients, snapshot.Dashboard.EnabledClients);
@@ -1312,8 +1314,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             SelectedProject = null;
             ClearFormFields(snapshot.Settings.DefaultProfile);
-            UpdateOnboardingStatusDisplay(snapshot.Settings, null);
-            UpdateWorkspaceDiagnostics(null);
         }
     }
 
@@ -1747,7 +1747,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RaiseMaintenanceCommandStates();
         RaiseAdvancedCommandStates();
         RaiseDiagnosticsCommandStates();
-        RaiseOnboardingCommandStates();
     }
 
     private static ProjectRecord? FindProjectByPath(IEnumerable<ProjectRecord> projects, string? path)
@@ -1900,3 +1899,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return arguments.ToArray();
     }
 }
+
+
+

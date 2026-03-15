@@ -74,7 +74,8 @@ function Convert-ToCodexToml {
 
   foreach ($name in ($Servers.Keys | Sort-Object)) {
     $server = $Servers[$name]
-    $lines.Add("[mcp_servers.$name]")
+    $codexName = if ($name -ieq 'coplay-mcp') { 'coplay_mcp' } else { $name }
+    $lines.Add("[mcp_servers.$codexName]")
     $lines.Add("command = `"$($server.command)`"")
 
     if ($server.args) {
@@ -83,7 +84,7 @@ function Convert-ToCodexToml {
     }
 
     if ($server.env -and $server.env.Count -gt 0) {
-      $lines.Add("[mcp_servers.$name.env]")
+      $lines.Add("[mcp_servers.$codexName.env]")
       foreach ($envKey in ($server.env.Keys | Sort-Object)) {
         $lines.Add("$envKey = `"$($server.env[$envKey])`"")
       }

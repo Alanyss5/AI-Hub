@@ -19,6 +19,11 @@
 - `scripts\hooks\session-start.ps1`
 - `skills\` 下的 Skill 模板与说明文档
 
+## 外部引入的共享技能
+- `skills\global\superpowers\*`
+  - 来源: `obra/superpowers` (`https://github.com/obra/superpowers`)
+  - 许可证: `MIT`
+
 ## 说明
 - 以上依赖和脚本均按各自许可证与来源要求使用。
 - 若后续引入新的 NuGet 包、内置脚本或 vendored MCP 服务，请同步更新本文件。

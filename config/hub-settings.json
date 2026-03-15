@@ -2,8 +2,8 @@
   "schemaVersion": 2,
   "settings": {
     "hubRoot": "C:\\AI-Hub",
-    "defaultProfile": "global",
-    "activeScope": "global",
+    "defaultProfile": "frontend",
+    "activeScope": "project",
     "preferredClients": [
       "claude",
       "codex",
@@ -12,9 +12,9 @@
     "autoStartManagedMcpOnLoad": true,
     "autoCheckSkillUpdatesOnLoad": true,
     "autoSyncSafeSkillsOnLoad": false,
-    "lastOpenedProject": "C:\\OverSeaFramework",
+    "lastOpenedProject": "C:\\Project\\OverSeaFramework",
     "scriptExecutionRiskAccepted": true,
-    "scriptExecutionRiskAcceptedAt": "2026-03-08T22:34:03.9810327+08:00",
+    "scriptExecutionRiskAcceptedAt": "2026-03-15T22:07:56.0271035+08:00",
     "managedMcpRiskAccepted": true,
     "managedMcpRiskAcceptedAt": "2026-03-08T22:36:08.0777341+08:00",
     "externalMcpImportRiskAccepted": false,
