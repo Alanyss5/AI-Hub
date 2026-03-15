@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using AIHub.Application.Services;
+using System.Text.Json.Nodes;
 using AIHub.Infrastructure;
 using AIHub.Contracts;
 
@@ -59,6 +60,336 @@ public sealed class AutomationInternalizationTests
     }
 
     [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyGlobalLinksAsync_Points_Personal_Skill_Entrypoints_To_Private_Layer()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        var personalRoot = Path.Combine(userHome, "AI-Personal");
+        await WriteSkillAsync(Path.Combine(personalRoot, "skills", "global", "private-skill"), "private");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"), "{}");
+
+        var linkService = new RecordingPlatformLinkService();
+        var service = new NativeWorkspaceAutomationService(
+            linkService,
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var result = await service.ApplyGlobalLinksAsync(scope.RootPath);
+
+        Assert.True(result.Success, result.Details);
+        Assert.Contains(linkService.Junctions, item =>
+            item.LinkPath.EndsWith(Path.Combine(".claude", "skills", "personal"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine("AI-Personal", "skills", "global"), StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(linkService.Junctions, item =>
+            item.LinkPath.EndsWith(Path.Combine(".codex", "skills", "personal"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine("AI-Personal", "skills", "global"), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_PreviewGlobalOnboardingAsync_Detects_Unmanaged_Global_Resources()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            "{\"hubRoot\":\"__AI_HUB_ROOT_JSON__\"}");
+
+        var skillPath = Path.Combine(userHome, ".claude", "skills", "demo-skill");
+        Directory.CreateDirectory(skillPath);
+        await File.WriteAllTextAsync(Path.Combine(skillPath, "SKILL.md"), "# demo");
+        Directory.CreateDirectory(Path.Combine(userHome, ".claude", "commands"));
+        Directory.CreateDirectory(Path.Combine(userHome, ".claude", "agents"));
+        await File.WriteAllTextAsync(Path.Combine(userHome, ".claude", "commands", "review.md"), "review");
+        await File.WriteAllTextAsync(Path.Combine(userHome, ".claude", "agents", "helper.md"), "helper");
+        await File.WriteAllTextAsync(Path.Combine(userHome, ".claude", "settings.json"), "{\"theme\":\"legacy\"}");
+        await File.WriteAllTextAsync(
+            Path.Combine(userHome, ".claude.json"),
+            """
+            {
+              "mcpServers": {
+                "external-one": {
+                  "command": "cmd",
+                  "args": ["/c", "echo external"],
+                  "env": {
+                    "SOURCE": "claude"
+                  }
+                }
+              }
+            }
+            """);
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var previewResult = await service.PreviewGlobalOnboardingAsync(scope.RootPath);
+
+        Assert.True(previewResult.Success, previewResult.Details);
+        var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
+        Assert.Contains(preview.Candidates, item => item.ResourceKind == WorkspaceOnboardingResourceKind.Skill);
+        Assert.Contains(preview.Candidates, item => item.ResourceKind == WorkspaceOnboardingResourceKind.ClaudeCommand);
+        Assert.Contains(preview.Candidates, item => item.ResourceKind == WorkspaceOnboardingResourceKind.ClaudeAgent);
+        Assert.Contains(preview.Candidates, item => item.ResourceKind == WorkspaceOnboardingResourceKind.ClaudeSettings);
+        Assert.Contains(preview.Candidates, item => item.ResourceKind == WorkspaceOnboardingResourceKind.McpServer);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_PreviewGlobalOnboardingAsync_Defaults_Conflicting_Mcp_To_Ignore()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(userHome, ".codex"));
+        await File.WriteAllTextAsync(
+            Path.Combine(userHome, ".claude.json"),
+            """
+            {
+              "mcpServers": {
+                "shared": {
+                  "command": "node",
+                  "args": ["claude.js"],
+                  "env": {}
+                }
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(userHome, ".codex", "config.toml"),
+            """
+            [mcp_servers.shared]
+            command = "node"
+            args = ["codex.js"]
+            """);
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var previewResult = await service.PreviewGlobalOnboardingAsync(scope.RootPath);
+
+        Assert.True(previewResult.Success, previewResult.Details);
+        var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
+        var candidate = Assert.Single(preview.Candidates.Where(item => item.ResourceKind == WorkspaceOnboardingResourceKind.McpServer));
+        Assert.Equal(WorkspaceImportTargetKind.Ignore, candidate.SuggestedTarget);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyGlobalLinksAsync_Rejects_Conflicting_Mcp_Import()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(userHome, ".codex"));
+        await File.WriteAllTextAsync(
+            Path.Combine(userHome, ".claude.json"),
+            """
+            {
+              "mcpServers": {
+                "shared": {
+                  "command": "node",
+                  "args": ["claude.js"],
+                  "env": {}
+                }
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(userHome, ".codex", "config.toml"),
+            """
+            [mcp_servers.shared]
+            command = "node"
+            args = ["codex.js"]
+            """);
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var previewResult = await service.PreviewGlobalOnboardingAsync(scope.RootPath);
+        var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
+        var candidate = Assert.Single(preview.Candidates.Where(item => item.ResourceKind == WorkspaceOnboardingResourceKind.McpServer));
+
+        var result = await service.ApplyGlobalLinksAsync(
+            scope.RootPath,
+            new[]
+            {
+                new WorkspaceImportDecisionRecord(candidate.Id, WorkspaceImportTargetKind.AIHub)
+            });
+
+        Assert.False(result.Success);
+        Assert.Contains("不一致", result.Message + Environment.NewLine + result.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_PreviewGlobalOnboardingAsync_Suggests_Private_Target_For_Personal_Sources()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        var personalSkillPath = Path.Combine(userHome, ".codex", "skills", "personal", "legacy-private");
+        Directory.CreateDirectory(personalSkillPath);
+        await File.WriteAllTextAsync(Path.Combine(personalSkillPath, "SKILL.md"), "# private");
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var previewResult = await service.PreviewGlobalOnboardingAsync(scope.RootPath);
+
+        Assert.True(previewResult.Success, previewResult.Details);
+        var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
+        var candidate = Assert.Single(preview.Candidates.Where(item => item.DisplayName == "legacy-private"));
+        Assert.Equal(WorkspaceImportTargetKind.Private, candidate.SuggestedTarget);
+        Assert.EndsWith(Path.Combine("skills", "global", "imported", "codex", "legacy-private"), candidate.PrivateDestinationPath, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(Path.DirectorySeparatorChar + "personal" + Path.DirectorySeparatorChar, candidate.PrivateDestinationPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_PreviewGlobalOnboardingAsync_Preserves_Nested_Skill_Paths()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        var teamASkill = Path.Combine(userHome, ".claude", "skills", "team-a", "shared-skill");
+        var teamBSkill = Path.Combine(userHome, ".claude", "skills", "team-b", "shared-skill");
+        Directory.CreateDirectory(teamASkill);
+        Directory.CreateDirectory(teamBSkill);
+        await File.WriteAllTextAsync(Path.Combine(teamASkill, "SKILL.md"), "# team a");
+        await File.WriteAllTextAsync(Path.Combine(teamBSkill, "SKILL.md"), "# team b");
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var previewResult = await service.PreviewGlobalOnboardingAsync(scope.RootPath);
+
+        Assert.True(previewResult.Success, previewResult.Details);
+        var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
+        var teamACandidate = Assert.Single(preview.Candidates.Where(item => item.SourcePath.EndsWith(Path.Combine("team-a", "shared-skill"), StringComparison.OrdinalIgnoreCase)));
+        var teamBCandidate = Assert.Single(preview.Candidates.Where(item => item.SourcePath.EndsWith(Path.Combine("team-b", "shared-skill"), StringComparison.OrdinalIgnoreCase)));
+        Assert.EndsWith(Path.Combine("skills", "global", "imported", "claude", "team-a", "shared-skill"), teamACandidate.CompanyDestinationPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("skills", "global", "imported", "claude", "team-b", "shared-skill"), teamBCandidate.CompanyDestinationPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_PreviewGlobalOnboardingAsync_Rebuilds_Effective_Settings_Before_Comparing()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, ".runtime", "effective", "global", "claude"));
+
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            """
+            {
+              "theme": "new-effective"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, ".runtime", "effective", "global", "claude", "settings.json"),
+            """
+            {
+              "theme": "stale-effective"
+            }
+            """);
+
+        Directory.CreateDirectory(Path.Combine(userHome, ".claude"));
+        await File.WriteAllTextAsync(
+            Path.Combine(userHome, ".claude", "settings.json"),
+            """
+            {
+              "theme": "stale-effective"
+            }
+            """);
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var previewResult = await service.PreviewGlobalOnboardingAsync(scope.RootPath);
+
+        Assert.True(previewResult.Success, previewResult.Details);
+        var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
+        var settingsCandidate = Assert.Single(preview.Candidates.Where(item => item.ResourceKind == WorkspaceOnboardingResourceKind.ClaudeSettings));
+        Assert.Contains("\"theme\": \"stale-effective\"", settingsCandidate.SourceDetails, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyGlobalLinksAsync_Does_Not_Rebuild_Unrelated_Broken_Profile()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            """
+            {
+              "theme": "global-ok"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "frontend.settings.json"),
+            "{ invalid json");
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var result = await service.ApplyGlobalLinksAsync(scope.RootPath);
+
+        Assert.True(result.Success, result.Details);
+        Assert.Contains("global-ok", await File.ReadAllTextAsync(Path.Combine(userHome, ".claude", "settings.json")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyGlobalLinksAsync_Refreshes_Project_Profile_Effective_Output()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "claude"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            """
+            {
+              "theme": "global-updated"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "frontend.settings.json"),
+            """
+            {
+              "profile": "frontend"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "claude", "settings.json"),
+            """
+            {
+              "theme": "stale"
+            }
+            """);
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var result = await service.ApplyGlobalLinksAsync(scope.RootPath);
+
+        Assert.True(result.Success, result.Details);
+        var frontendEffectiveSettings = await File.ReadAllTextAsync(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "claude", "settings.json"));
+        Assert.Contains("global-updated", frontendEffectiveSettings, StringComparison.Ordinal);
+        Assert.Contains("frontend", frontendEffectiveSettings, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NativeWorkspaceAutomationService_ApplyProjectProfileAsync_Writes_Project_Config_And_Backup()
     {
         using var scope = new TestHubRootScope();
@@ -68,11 +399,21 @@ public sealed class AutomationInternalizationTests
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "generated", "claude"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "generated", "codex"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "manifest"));
         await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"), "{\"hubRoot\":\"__AI_HUB_ROOT_JSON__\"}");
-        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "mcp", "generated", "claude", "global.mcp.json"), "{\"mcpServers\":{\"demo\":{}}}");
-        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "mcp", "generated", "codex", "global.config.toml"), "[mcp_servers.demo]\ncommand = \"demo\"");
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "mcp", "manifest", "global.json"),
+            """
+            {
+              "mcpServers": {
+                "demo": {
+                  "command": "demo",
+                  "args": [],
+                  "env": {}
+                }
+              }
+            }
+            """);
         Directory.CreateDirectory(Path.Combine(projectPath, ".codex"));
         await File.WriteAllTextAsync(Path.Combine(projectPath, ".mcp.json"), "old");
 
@@ -90,9 +431,208 @@ public sealed class AutomationInternalizationTests
     }
 
     [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyProjectProfileAsync_Materializes_Four_Layer_Effective_Output()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        var personalRoot = Path.Combine(userHome, "AI-Personal");
+        var projectPath = Path.Combine(scope.RootPath, "project-a");
+        Directory.CreateDirectory(projectPath);
+
+        await WriteSkillAsync(Path.Combine(scope.RootPath, "skills", "global", "shared-company"), "company-global");
+        await WriteSkillAsync(Path.Combine(personalRoot, "skills", "global", "shared-private"), "private-global");
+        await WriteSkillAsync(Path.Combine(scope.RootPath, "skills", "frontend", "frontend-company"), "company-frontend");
+        await WriteSkillAsync(Path.Combine(personalRoot, "skills", "frontend", "frontend-private"), "private-frontend");
+        await WriteSkillAsync(Path.Combine(scope.RootPath, "skills", "global", "override-me"), "company-global");
+        await WriteSkillAsync(Path.Combine(personalRoot, "skills", "frontend", "override-me"), "private-frontend-wins");
+
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
+        Directory.CreateDirectory(Path.Combine(personalRoot, "claude", "commands", "frontend"));
+        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "claude", "commands", "global", "shared.md"), "company-global-command");
+        await File.WriteAllTextAsync(Path.Combine(personalRoot, "claude", "commands", "frontend", "shared.md"), "private-frontend-command");
+
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
+        Directory.CreateDirectory(Path.Combine(personalRoot, "claude", "agents", "frontend"));
+        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "claude", "agents", "global", "shared.md"), "company-global-agent");
+        await File.WriteAllTextAsync(Path.Combine(personalRoot, "claude", "agents", "frontend", "shared.md"), "private-frontend-agent");
+
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        Directory.CreateDirectory(Path.Combine(personalRoot, "claude", "settings"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            """
+            {
+              "theme": "company-global",
+              "nested": {
+                "source": "company-global"
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(personalRoot, "claude", "settings", "global.settings.json"),
+            """
+            {
+              "nested": {
+                "source": "private-global"
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "frontend.settings.json"),
+            """
+            {
+              "project": "company-frontend"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(personalRoot, "claude", "settings", "frontend.settings.json"),
+            """
+            {
+              "project": "private-frontend"
+            }
+            """);
+
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "manifest"));
+        Directory.CreateDirectory(Path.Combine(personalRoot, "mcp", "manifest"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "mcp", "manifest", "global.json"),
+            """
+            {
+              "mcpServers": {
+                "shared": {
+                  "command": "cmd",
+                  "args": ["/c", "echo company-global"],
+                  "env": {
+                    "LAYER": "company-global"
+                  }
+                }
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(personalRoot, "mcp", "manifest", "global.json"),
+            """
+            {
+              "mcpServers": {
+                "shared": {
+                  "command": "cmd",
+                  "args": ["/c", "echo private-global"],
+                  "env": {
+                    "LAYER": "private-global"
+                  }
+                }
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "mcp", "manifest", "frontend.json"),
+            """
+            {
+              "mcpServers": {
+                "profile-only": {
+                  "command": "cmd",
+                  "args": ["/c", "echo company-frontend"],
+                  "env": {
+                    "LAYER": "company-frontend"
+                  }
+                }
+              }
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(personalRoot, "mcp", "manifest", "frontend.json"),
+            """
+            {
+              "mcpServers": {
+                "shared": {
+                  "command": "cmd",
+                  "args": ["/c", "echo private-frontend"],
+                  "env": {
+                    "LAYER": "private-frontend"
+                  }
+                }
+              }
+            }
+            """);
+
+        var linkService = new RecordingPlatformLinkService();
+        var service = new NativeWorkspaceAutomationService(
+            linkService,
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, ProfileKind.Frontend);
+
+        Assert.True(result.Success, result.Details);
+        Assert.Contains("项目目录：" + projectPath, result.Details, StringComparison.Ordinal);
+        Assert.Contains("Profile：前端", result.Details, StringComparison.Ordinal);
+        Assert.Contains(Path.Combine(".runtime", "effective", "frontend"), result.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(".claude\\skills -> " + Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills"), result.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(".agents\\skills -> " + Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills"), result.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(".agent\\skills -> " + Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills"), result.Details, StringComparison.OrdinalIgnoreCase);
+        var effectiveSkillTarget = Assert.Single(linkService.Junctions.Where(item =>
+            item.LinkPath.EndsWith(Path.Combine(projectPath, ".claude", "skills"), StringComparison.OrdinalIgnoreCase))).TargetPath;
+        Assert.EndsWith(Path.Combine(".runtime", "effective", "frontend", "skills"), effectiveSkillTarget, StringComparison.OrdinalIgnoreCase);
+
+        var effectiveSkillContent = await File.ReadAllTextAsync(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills", "override-me", "SKILL.md"));
+        Assert.Contains("private-frontend-wins", effectiveSkillContent, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills", "shared-company", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills", "shared-private", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills", "frontend-company", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills", "frontend-private", "SKILL.md")));
+
+        var settingsRoot = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(projectPath, ".claude", "settings.json")))!.AsObject();
+        Assert.Equal("company-global", settingsRoot["theme"]!.GetValue<string>());
+        Assert.Equal("private-global", settingsRoot["nested"]!["source"]!.GetValue<string>());
+        Assert.Equal("private-frontend", settingsRoot["project"]!.GetValue<string>());
+
+        var mcpRoot = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(projectPath, ".mcp.json")))!.AsObject();
+        var mcpServers = mcpRoot["mcpServers"]!.AsObject();
+        Assert.Equal("private-frontend", mcpServers["shared"]!["env"]!["LAYER"]!.GetValue<string>());
+        Assert.Equal("company-frontend", mcpServers["profile-only"]!["env"]!["LAYER"]!.GetValue<string>());
+        Assert.Contains("[mcp_servers.shared]", await File.ReadAllTextAsync(Path.Combine(projectPath, ".codex", "config.toml")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyProjectProfileAsync_Does_Not_Rebuild_Unrelated_Broken_Profile()
+    {
+        using var scope = new TestHubRootScope();
+        var projectPath = Path.Combine(scope.RootPath, "project-a");
+        Directory.CreateDirectory(projectPath);
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            """
+            {
+              "theme": "global-ok"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "frontend.settings.json"),
+            """
+            {
+              "theme": "frontend-ok"
+            }
+            """);
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "backend.settings.json"),
+            "{ invalid json");
+
+        var service = new NativeWorkspaceAutomationService(
+            new RecordingPlatformLinkService(),
+            new FakePlatformCapabilitiesService());
+
+        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, ProfileKind.Frontend);
+
+        Assert.True(result.Success, result.Details);
+        Assert.Contains("frontend-ok", await File.ReadAllTextAsync(Path.Combine(projectPath, ".claude", "settings.json")), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task NativeMcpAutomationService_GenerateConfigsAsync_Writes_All_Client_Outputs()
     {
         using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
         var manifestRoot = Path.Combine(scope.RootPath, "mcp", "manifest");
         Directory.CreateDirectory(manifestRoot);
         await File.WriteAllTextAsync(
@@ -111,7 +651,7 @@ public sealed class AutomationInternalizationTests
             }
             """);
         await File.WriteAllTextAsync(
-            Path.Combine(manifestRoot, "project-a.json"),
+            Path.Combine(manifestRoot, "frontend.json"),
             """
             {
               "mcpServers": {
@@ -126,18 +666,23 @@ public sealed class AutomationInternalizationTests
             }
             """);
 
-        var service = new NativeMcpAutomationService();
+        var service = new NativeMcpAutomationService(() => userHome);
 
         var result = await service.GenerateConfigsAsync(scope.RootPath);
 
         Assert.True(result.Success, result.Details);
-        var claudePath = Path.Combine(scope.RootPath, "mcp", "generated", "claude", "project-a.mcp.json");
-        var codexPath = Path.Combine(scope.RootPath, "mcp", "generated", "codex", "project-a.config.toml");
-        var antigravityPath = Path.Combine(scope.RootPath, "mcp", "generated", "antigravity", "project-a.mcp.json");
+        var claudePath = Path.Combine(scope.RootPath, "mcp", "generated", "claude", "frontend.mcp.json");
+        var codexPath = Path.Combine(scope.RootPath, "mcp", "generated", "codex", "frontend.config.toml");
+        var antigravityPath = Path.Combine(scope.RootPath, "mcp", "generated", "antigravity", "frontend.mcp.json");
         Assert.Contains("shared", await File.ReadAllTextAsync(claudePath), StringComparison.Ordinal);
         Assert.Contains("project", await File.ReadAllTextAsync(claudePath), StringComparison.Ordinal);
         Assert.Contains("mcp_servers", await File.ReadAllTextAsync(codexPath), StringComparison.Ordinal);
         Assert.Contains("shared", await File.ReadAllTextAsync(antigravityPath), StringComparison.Ordinal);
     }
-}
 
+    private static async Task WriteSkillAsync(string skillDirectory, string content)
+    {
+        Directory.CreateDirectory(skillDirectory);
+        await File.WriteAllTextAsync(Path.Combine(skillDirectory, "SKILL.md"), content);
+    }
+}
