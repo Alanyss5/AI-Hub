@@ -93,6 +93,16 @@ public sealed class DesktopTextCatalog
 
         public string WorkspaceStatusTitle => "当前工作区状态";
 
+        public string RuntimeIdentityTitle => "运行标识";
+
+        public string BuildSourceLabel => "构建来源";
+
+        public string ExecutablePathLabel => "可执行文件";
+
+        public string WorkspaceBindingTitle => "当前接管状态";
+
+        public string WorkspaceBindingModeLabel => "接管模式";
+
         public string ScopeLabel => "作用域";
 
         public string ActionCenterTitle => "操作中心";
@@ -108,6 +118,14 @@ public sealed class DesktopTextCatalog
         public string SwitchGlobalScopeButton => "切换为全局级";
 
         public string ApplyGlobalLinksButton => "应用全局链接";
+
+        public string RescanGlobalOnboardingButton => "重新扫描全局接管";
+
+        public string RescanProjectOnboardingButton => "重新扫描项目接管";
+
+        public string GlobalOnboardingLabel => "全局接管状态";
+
+        public string ProjectOnboardingLabel => "项目接管状态";
 
         public string DeleteSelectedButton => "删除所选";
 
@@ -577,6 +595,18 @@ public sealed class DesktopTextCatalog
         public string ResetRiskConfirmationsMessage => "重置后，脚本执行、托管 MCP 运行和外部 MCP 导入都需要再次显式确认。";
 
         public string ResetRiskConfirmationsConfirmText => "重置确认";
+
+        public string NoticeConfirmText => "知道了";
+
+        public string GlobalOnboardingDialogTitle => "全局接管向导";
+
+        public string ProjectOnboardingDialogTitle => "项目接管向导";
+
+        public string ProjectPathMismatchTitle => "项目路径尚未保存";
+
+        public string ProjectPathMismatchMessage => "当前登记路径与表单目录不一致。接管、设为当前项目和项目重扫前，请先保存项目。";
+
+        public string RescanResultTitle => "重新扫描结果";
     }
 
     public sealed class StateText
@@ -679,6 +709,8 @@ public sealed class DesktopTextCatalog
 
         public string AppNotReadyForConfirmation => "当前界面尚未准备好确认对话框。";
 
+        public string AppNotReadyForNotice => "当前界面尚未准备好提示对话框。";
+
         public string RuntimeScheduledUpdateDisabled => "运行期定时更新：关闭";
 
         public string NoNeedToRunSourcePolicy => "当前没有需要执行的来源策略。";
@@ -756,6 +788,60 @@ public sealed class DesktopTextCatalog
         public string ScopeGlobal => "全局级";
 
         public string ScopeProject => "项目级";
+
+        public string RegisteredProjectPathLabel => "当前登记路径：";
+
+        public string FormProjectPathLabel => "当前表单路径：";
+
+        public string CheckedPathLabel => "检查路径：";
+
+        public string CurrentProfileLabel => "当前 Profile：";
+
+        public string EffectiveOutputRootLabel => "有效输出根目录：";
+
+        public string NextStepLabel => "下一步：";
+
+        public string SaveProjectFirstStep => "请先点击“新增或更新项目”，保存目录变更后再继续。";
+
+        public string ProjectPathMismatchBlocked => "项目路径与已登记路径不一致，已阻止继续执行。";
+
+        public string ProjectPathMismatchInlineWarning => "表单目录与当前登记目录不一致；接管和项目重扫前请先保存项目。";
+
+        public string WorkspaceBindingNotSelected => "未选择项目，无法检查项目接管入口。";
+
+        public string WorkspaceBindingLegacyMode => "旧式直连";
+
+        public string WorkspaceBindingEffectiveMode => "四层有效输出";
+
+        public string WorkspaceBindingMixedMode => "混合 / 异常";
+
+        public string WorkspaceBindingUnmanagedMode => "未纳管";
+
+        public string WorkspaceBindingMissingTarget => "未发现";
+
+        public string WorkspaceBindingDirectDirectory => "普通目录（未纳管）";
+
+        public string WorkspaceBindingLegacyWarning => "当前项目仍指向旧式直连 skills/<profile>，全局层不会单独出现在项目目录里。请重新应用项目 Profile。";
+
+        public string WorkspaceBindingMixedWarning => "项目 skill 入口目标不一致，建议重新应用项目 Profile。";
+
+        public string WorkspaceBindingUnmanagedWarning => "未检测到完整项目 skill 入口，建议重新应用项目 Profile。";
+
+        public string NoGlobalReimportableResources => "未发现可重新导入的全局资源。";
+
+        public string NoProjectReimportableResources => "未发现可重新导入的项目资源。";
+
+        public string OnboardingPending => "待完成首次接管";
+
+        public string OnboardingProjectNotSelected => "未选择项目";
+
+        public string GlobalOnboardingScanCompleted => "全局接管扫描已完成。";
+
+        public string ProjectOnboardingScanCompleted => "项目接管扫描已完成。";
+
+        public string OnboardingCancelled => "已取消接管导入。";
+
+        public string OnboardingDialogNotReady => "当前界面尚未准备好接管向导。";
 
         public string UnclosedQuoteDetected => "参数中存在未闭合引号。";
 
@@ -942,6 +1028,29 @@ public sealed class DesktopTextCatalog
             var pidPart = running && processId.HasValue ? $" / PID {processId.Value}" : string.Empty;
             var healthPart = string.IsNullOrWhiteSpace(healthStatus) ? string.Empty : $" / {healthStatus}";
             return name + " / " + status + pidPart + healthPart;
+        }
+
+        public string RescanScope(WorkspaceScope scope) => scope == WorkspaceScope.Project ? ScopeProject : ScopeGlobal;
+
+        public string OnboardingCompleted(DateTimeOffset? completedAt)
+        {
+            return completedAt.HasValue
+                ? "已完成首次接管 / " + completedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                : "已完成首次接管";
+        }
+
+        public string GlobalOnboardingDialogMessage(bool forceRescan)
+        {
+            return forceRescan
+                ? "重新扫描现有全局资源并决定导入去向。"
+                : "首次全局接管前，请先确认现有资源的去向。";
+        }
+
+        public string ProjectOnboardingDialogMessage(bool forceRescan)
+        {
+            return forceRescan
+                ? "重新扫描当前项目的现有资源并决定导入去向。"
+                : "首次项目接管前，请先确认现有资源的去向。";
         }
     }
 }

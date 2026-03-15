@@ -7,6 +7,7 @@
 | ADR | 标题 | 状态 | 日期 |
 | --- | --- | --- | --- |
 | [0001](0001-build-ai-hub-windows-control-plane.md) | 构建 AI-Hub 桌面控制台 | 已接受 | 2026-03-07 |
+| [0002](0002-adopt-four-layer-workspace-onboarding.md) | 采用四层资源叠加与首次接管向导 | 已接受 | 2026-03-15 |
 
 ## 状态说明
 
