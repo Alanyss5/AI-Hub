@@ -24,22 +24,23 @@
 
 统一方案分三层:
 
-- 公司共享层: `skills`、`mcp`、`scripts`
-- Claude 专属适配层: `claude\commands`、`claude\agents`、`claude\settings`
+- 公司共享层: `skills`、`agents`、`mcp`、`scripts`
+- Claude 专属适配层: `claude\commands`、`claude\settings`
 - 个人专属层: `C:\Users\Administrator\AI-Personal\skills\global`
 
 原因:
 
-- Claude / Codex / Antigravity 的稳定共同交集是 `skills + MCP`
-- Claude 原生支持 `commands / agents / hooks`
-- Codex 当前主要依赖 `skills + MCP`
-- Antigravity 当前最稳的接法也是 `skills + MCP`
+- Claude / Codex / Antigravity 的稳定共同交集已经扩展到 `skills + agents + MCP`
+- Claude 仍原生支持 `commands / hooks`
+- Codex 当前公开稳定约定仍以 `AGENTS.md + skills + MCP` 为主
+- 共享 agent 内容需要在仓库层集中维护，再按客户端做入口适配
 - 个人 skill 不能直接写进共享库，否则会影响全公司
 
 因此:
 
 - 真正的工作流逻辑优先写进 `skills`
 - Claude 的 commands 只做快捷包装
+- 共享 agent 事实源统一维护在 `agents`
 - hooks 只做触发共享脚本，不承载核心逻辑
 - 公司共享内容维护在 `C:\AI-Hub`
 - 个人 skill 维护在 `AI-Personal`
@@ -50,16 +51,16 @@
 
 ```text
 C:\AI-Hub
+  agents
+    global
+    frontend
+    backend
   skills
     global
     frontend
     backend
   claude
     commands
-      global
-      frontend
-      backend
-    agents
       global
       frontend
       backend
@@ -115,8 +116,8 @@ C:\Users\Administrator\AI-Personal
 - `skills\global`: 所有项目通用的公司共享技能
 - `skills\frontend`: 前端类项目启用的公司共享技能
 - `skills\backend`: 后端类项目启用的公司共享技能
+- `agents\*`: Claude / Codex 共享的 agent 事实源
 - `claude\commands\*`: 只给 Claude 的 slash commands
-- `claude\agents\*`: 只给 Claude 的 subagents
 - `claude\settings\*`: Claude 的全局和项目模板配置
 - `mcp\manifest\*`: MCP 的单一事实源
 - `mcp\generated\*`: 生成给各客户端消费的配置
@@ -138,9 +139,9 @@ C:\Users\Administrator\AI-Personal
 - `后端\Skills` -> `skills\backend`
 - `Global\commands` -> `claude\commands\global`
 - `后端\commands` -> `claude\commands\backend`
-- `Global\agents` -> `claude\agents\global`
-- `前端\Agent` -> `claude\agents\frontend`
-- `后端\agents` -> `claude\agents\backend`
+- `Global\agents` -> `agents\global`
+- `前端\Agent` -> `agents\frontend`
+- `后端\agents` -> `agents\backend`
 - `McpServer` 中以下目录已复制进 `mcp\servers`:
   - `@upstash\context7-mcp`
   - `@modelcontextprotocol\server-github`
@@ -149,7 +150,8 @@ C:\Users\Administrator\AI-Personal
 迁移时的规则:
 
 - 共享流程尽量进入 `skills`
-- Claude 专属包装保留在 `claude\commands` 和 `claude\agents`
+- 共享 agent 统一收口到 `agents`
+- Claude 专属包装保留在 `claude\commands`
 - `node_modules` 不作为长期事实源保留
 
 ## 5. 当前机器上的真实接入状态
@@ -173,7 +175,8 @@ C:\Users\Administrator\.gemini\antigravity\skills
 其他用户级入口:
 
 - `C:\Users\Administrator\.claude\commands` -> `C:\AI-Hub\claude\commands\global`
-- `C:\Users\Administrator\.claude\agents` -> `C:\AI-Hub\claude\agents\global`
+- `C:\Users\Administrator\.claude\agents` -> `C:\AI-Hub\agents\global`
+- `C:\Users\Administrator\.agents\agents` -> `C:\AI-Hub\agents\global`
 - `C:\Users\Administrator\.claude\settings.json` 已由模板渲染生成
 
 Codex 兼容策略:
@@ -199,6 +202,7 @@ C:\Users\Administrator\.codex\skills
   - `.claude\skills`
   - `.claude\commands`
   - `.claude\agents`
+  - `.agents\agents`
   - `.agents\skills`
   - `.agent\skills`
   - `.claude\settings.json`
@@ -254,14 +258,16 @@ Claude 可直接消费:
 
 Codex 当前建议这样理解:
 
-- 主入口使用 `~/.agents/skills` 和 `项目\.agents\skills`
+- 主入口使用 `AGENTS.md`、`~/.agents\skills`、`项目\.agents\skills`
+- 共享 agent 目录使用 `~/.agents\agents` 和 `项目\.agents\agents`
 - 旧版兼容使用 `~/.codex/skills\ai-hub` 与 `~/.codex/skills\personal`
 
 推荐:
 
 - 把 `~/.agents/skills` 视为主要全局入口
 - 把 `项目\.agents\skills` 视为主要项目入口
-- 不要依赖 Claude 的 `commands`、`hooks`、`agents`
+- 把共享 agent 内容视为 `agents\*` 与 `AGENTS.md`
+- Claude 的 `commands`、`hooks` 仍属于 Claude 专属适配层
 - 个人 skill 一律放 `AI-Personal`，不要直接塞进 `.codex\skills` 根目录
 
 ### 7.3 Antigravity
@@ -417,6 +423,7 @@ powershell -ExecutionPolicy Bypass -File C:\AI-Hub\scripts\use-profile.ps1 -Proj
 - `~/.claude/skills\personal`
 - `~/.claude/commands`
 - `~/.claude/agents`
+- `~/.agents/agents`
 - `~/.agents/skills\company`
 - `~/.agents/skills\personal`
 - `~/.gemini/antigravity/skills\company`
@@ -429,6 +436,7 @@ powershell -ExecutionPolicy Bypass -File C:\AI-Hub\scripts\use-profile.ps1 -Proj
 - `项目\.claude\skills`
 - `项目\.claude\commands`
 - `项目\.claude\agents`
+- `项目\.agents\agents`
 - `项目\.agents\skills`
 - `项目\.agent\skills`
 - `项目\.mcp.json`
@@ -594,11 +602,11 @@ mcp/generated/
 
 请长期坚持:
 
-- 一切公司共享能力优先进入 `C:\AI-Hub\skills`
+- 一切公司共享能力优先进入 `C:\AI-Hub\skills` 和 `C:\AI-Hub\agents`
 - 一切个人专属 skill 只进入 `C:\Users\Administrator\AI-Personal\skills\global`
 - 一切外部工具入口优先进入 `mcp\manifest`
 - 一切自动化脚本优先进入 `scripts`
-- Claude 独有体验再放到 `claude\commands`、`claude\agents`、`claude\settings`
+- Claude 独有体验再放到 `claude\commands`、`claude\settings`
 - 所有生成文件都不手工长期维护
 - 任何项目接入都用脚本，不手工逐个点改
 

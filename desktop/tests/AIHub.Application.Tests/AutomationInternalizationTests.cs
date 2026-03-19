@@ -33,9 +33,9 @@ public sealed class AutomationInternalizationTests
     {
         using var scope = new TestHubRootScope();
         var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "agents", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
         await File.WriteAllTextAsync(
             Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
@@ -55,6 +55,10 @@ public sealed class AutomationInternalizationTests
         var content = await File.ReadAllTextAsync(settingsPath);
         Assert.Contains(scope.RootPath.Replace("\\", "\\\\", StringComparison.Ordinal), content, StringComparison.Ordinal);
         Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".claude", "commands"), StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".claude", "agents"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine("agents", "global"), StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".agents", "agents"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine("agents", "global"), StringComparison.OrdinalIgnoreCase));
         Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".codex", "skills", "ai-hub"), StringComparison.OrdinalIgnoreCase));
     }
 
@@ -64,9 +68,9 @@ public sealed class AutomationInternalizationTests
         using var scope = new TestHubRootScope();
         var projectPath = Path.Combine(scope.RootPath, "project-a");
         Directory.CreateDirectory(projectPath);
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "agents", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "generated", "claude"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "generated", "codex"));
@@ -76,8 +80,9 @@ public sealed class AutomationInternalizationTests
         Directory.CreateDirectory(Path.Combine(projectPath, ".codex"));
         await File.WriteAllTextAsync(Path.Combine(projectPath, ".mcp.json"), "old");
 
+        var linkService = new RecordingPlatformLinkService();
         var service = new NativeWorkspaceAutomationService(
-            new RecordingPlatformLinkService(),
+            linkService,
             new FakePlatformCapabilitiesService());
 
         var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, ProfileKind.Global);
@@ -87,6 +92,10 @@ public sealed class AutomationInternalizationTests
         Assert.Contains("mcp_servers.demo", await File.ReadAllTextAsync(Path.Combine(projectPath, ".codex", "config.toml")), StringComparison.Ordinal);
         Assert.Contains("hubRoot", await File.ReadAllTextAsync(Path.Combine(projectPath, ".claude", "settings.json")), StringComparison.Ordinal);
         Assert.Single(Directory.EnumerateFiles(projectPath, ".mcp.json.bak.*", SearchOption.TopDirectoryOnly));
+        Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".claude", "agents"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine("agents", "global"), StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".agents", "agents"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine("agents", "global"), StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -152,4 +161,3 @@ public sealed class AutomationInternalizationTests
         Assert.Contains("coplay-mcp", await File.ReadAllTextAsync(antigravityPath), StringComparison.Ordinal);
     }
 }
-

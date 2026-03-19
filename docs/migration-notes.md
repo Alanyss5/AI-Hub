@@ -9,9 +9,9 @@
 - `Desktop\整理后SKill\后端\Skills` 中的 Skills 已迁移到 `skills\backend`
 - `Global\commands` 中的 Claude commands 已迁移到 `claude\commands\global`
 - `后端\commands` 中的 Claude commands 已迁移到 `claude\commands\backend`
-- `Global\agents` 中的 Claude agents 已迁移到 `claude\agents\global`
-- `前端\Agent` 中的 Claude agents 已迁移到 `claude\agents\frontend`
-- `后端\agents` 中的 Claude agents 已迁移到 `claude\agents\backend`
+- `Global\agents` 中的 agents 已迁移到 `agents\global`
+- `前端\Agent` 中的 agents 已迁移到 `agents\frontend`
+- `后端\agents` 中的 agents 已迁移到 `agents\backend`
 - MCP 源目录已复制到 `mcp\servers`
 
 当前 AI-Hub 资源统计：
@@ -21,9 +21,9 @@
 - 后端 Skills：12
 - 全局 Claude commands：15
 - 后端 Claude commands：6
-- 全局 Claude agents：16
-- 前端 Claude agents：2
-- 后端 Claude agents：16
+- 全局共享 agents：16
+- 前端共享 agents：2
+- 后端共享 agents：16
 - MCP 服务源码目录：3
 
 当前默认启用的内容：
@@ -57,7 +57,8 @@
 
 - 用户级 `~/.claude/skills` 指向 AI-Hub 全局 Skills
 - 用户级 `~/.claude/commands` 指向 AI-Hub 全局 Claude commands
-- 用户级 `~/.claude/agents` 指向 AI-Hub 全局 Claude agents
+- 用户级 `~/.claude/agents` 指向 AI-Hub 全局共享 agents
+- 用户级 `~/.agents/agents` 指向 AI-Hub 全局共享 agents
 - 用户级 `~/.agents/skills` 指向 AI-Hub 全局 Skills
 - 用户级 `~/.gemini/antigravity/skills` 指向 AI-Hub 全局 Skills
 - 用户级 `~/.claude/settings.json` 使用 AI-Hub 渲染后的全局设置
@@ -71,7 +72,7 @@
 
 - 项目 profile：`frontend`
 - 项目 `.claude\skills`、`.claude\commands`、`.claude\agents` 已链接到 AI-Hub 前端 profile
-- 项目 `.agents\skills` 与 `.agent\skills` 已链接到 AI-Hub 前端 Skills
+- 项目 `.agents\skills`、`.agents\agents` 与 `.agent\skills` 已链接到 AI-Hub 前端共享入口
 - 项目 `.mcp.json` 当前写入的是合并后的前端 MCP 配置，并包含 Context7
 - 项目 `.codex\config.toml` 当前写入的是合并后的 Codex MCP 配置，并包含 Context7
 - 之前被覆盖的项目配置文件已使用 `.bak.<timestamp>` 后缀完成备份
@@ -79,5 +80,5 @@
 关于项目分类的说明：
 
 - `C:\OverSeaFramework` 更像是 Unity/C# 客户端项目，而不是 Web 前端仓库
-- 按你当前资源划分方式，`frontend` profile 仍然比 `backend` 更贴近这个项目，因为前端 agents 中包含 `csharp-pro.md` 与 `unity-developer.md`
+- 按你当前资源划分方式，`frontend` profile 仍然比 `backend` 更贴近这个项目，因为前端共享 agents 中包含 `csharp-pro.md` 与 `unity-developer.md`
 - `cclsp` 未被自动启用，因为 Unity 的安全默认配置取决于是否已经安装 `omnisharp` 或其他 C# LSP

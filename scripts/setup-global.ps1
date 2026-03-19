@@ -172,11 +172,13 @@ Ensure-StandardDirectory (Join-Path $PersonalRoot 'skills\global')
 
 $companySkills = Join-Path $HubRoot 'skills\global'
 $personalSkills = Join-Path $PersonalRoot 'skills\global'
+$sharedAgents = Join-Path $HubRoot 'agents\global'
 
 Ensure-SkillsOverlay (Join-Path $UserHome '.claude\skills') $companySkills $personalSkills
 Ensure-Junction (Join-Path $UserHome '.claude\commands') (Join-Path $HubRoot 'claude\commands\global')
-Ensure-Junction (Join-Path $UserHome '.claude\agents') (Join-Path $HubRoot 'claude\agents\global')
+Ensure-Junction (Join-Path $UserHome '.claude\agents') $sharedAgents
 Ensure-SkillsOverlay (Join-Path $UserHome '.agents\skills') $companySkills $personalSkills
+Ensure-Junction (Join-Path $UserHome '.agents\agents') $sharedAgents
 Ensure-SkillsOverlay (Join-Path $UserHome '.gemini\antigravity\skills') $companySkills $personalSkills
 
 Ensure-StandardDirectory (Join-Path $UserHome '.codex\skills')
