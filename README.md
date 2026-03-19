@@ -45,7 +45,9 @@ C:\Users\Administrator\.dotnet\dotnet.exe test C:\AI-Hub\desktop\AIHub.sln --no-
 
 ## 目录
 - `desktop/`：桌面端解决方案与源代码
+- `agents/`：跨 Claude / Codex 共享的 agent 事实源
 - `skills/`：Skills 目录、来源登记、覆盖层与缓存数据
+- `claude/`：Claude 专属 commands 与 settings 适配层
 - `mcp/`：MCP manifest、生成配置、运行时数据
 - `config/`：Hub 设置与 Skills 状态登记
 - `projects/`：项目注册表

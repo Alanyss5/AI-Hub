@@ -34,6 +34,7 @@ public sealed class NativeWorkspaceAutomationService : IWorkspaceAutomationServi
 
         var userHome = Path.GetFullPath(_userHomeResolver());
         var personalRoot = Path.Combine(userHome, "AI-Personal");
+        var sharedAgents = Path.Combine(hubRoot, "agents", "global");
         var companySkills = Path.Combine(hubRoot, "skills", "global");
         var personalSkills = Path.Combine(personalRoot, "skills", "global");
 
@@ -48,8 +49,9 @@ public sealed class NativeWorkspaceAutomationService : IWorkspaceAutomationServi
 
         EnsureSkillsOverlay(Path.Combine(userHome, ".claude", "skills"), companySkills, personalSkills);
         _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "commands"), Path.Combine(hubRoot, "claude", "commands", "global"));
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "agents"), Path.Combine(hubRoot, "claude", "agents", "global"));
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "agents"), sharedAgents);
         EnsureSkillsOverlay(Path.Combine(userHome, ".agents", "skills"), companySkills, personalSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".agents", "agents"), sharedAgents);
         EnsureSkillsOverlay(Path.Combine(userHome, ".gemini", "antigravity", "skills"), companySkills, personalSkills);
 
         _platformLinkService.EnsureDirectory(Path.Combine(userHome, ".codex", "skills"));
@@ -69,6 +71,7 @@ public sealed class NativeWorkspaceAutomationService : IWorkspaceAutomationServi
                 "用户目录：" + userHome,
                 "公司 Skills：" + companySkills,
                 "个人 Skills：" + personalSkills,
+                "共享 Agents：" + sharedAgents,
                 "Claude 设置：" + Path.Combine(userHome, ".claude", "settings.json")
             })));
     }
@@ -94,10 +97,12 @@ public sealed class NativeWorkspaceAutomationService : IWorkspaceAutomationServi
         _platformLinkService.EnsureDirectory(Path.Combine(normalizedProjectPath, ".codex"));
 
         var profileValue = profile.ToStorageValue();
+        var agentTarget = Path.Combine(hubRoot, "agents", profileValue);
         var skillTarget = Path.Combine(hubRoot, "skills", profileValue);
         _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".claude", "skills"), skillTarget);
         _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".claude", "commands"), Path.Combine(hubRoot, "claude", "commands", profileValue));
-        _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".claude", "agents"), Path.Combine(hubRoot, "claude", "agents", profileValue));
+        _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".claude", "agents"), agentTarget);
+        _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".agents", "agents"), agentTarget);
         _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".agents", "skills"), skillTarget);
         _platformLinkService.EnsureJunction(Path.Combine(normalizedProjectPath, ".agent", "skills"), skillTarget);
 
@@ -120,6 +125,7 @@ public sealed class NativeWorkspaceAutomationService : IWorkspaceAutomationServi
                 "项目目录：" + normalizedProjectPath,
                 "Profile：" + profile.ToDisplayName(),
                 "Skills 链接：" + skillTarget,
+                "Agents 链接：" + agentTarget,
                 "Claude MCP：" + Path.Combine(normalizedProjectPath, ".mcp.json"),
                 "Codex 配置：" + Path.Combine(normalizedProjectPath, ".codex", "config.toml")
             })));

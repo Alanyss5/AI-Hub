@@ -1,178 +1,138 @@
 # AI-Hub 快速操作手册
 
-更新日期：2026-03-08
+更新日期：2026-03-19
 
-这份文档只保留最常用的操作，不解释底层设计。
+这份手册只保留日常最常用的入口、检查点和判断规则。
 
 ## 1. 常用入口
 
 - 桌面程序：`C:\AI-Hub\desktop\apps\AIHub.Desktop\bin\Debug\net8.0\AIHub.Desktop.exe`
 - 兼容脚本目录：`C:\AI-Hub\scripts`
+- 共享 Skills：`C:\AI-Hub\skills`
+- 共享 Agents：`C:\AI-Hub\agents`
+- Claude 适配层：`C:\AI-Hub\claude`
 
-如果优先走图形界面，日常大多数操作都可以直接在桌面程序里完成。
+如果优先走图形界面，大多数日常操作都可以直接在桌面端完成。
 
-## 2. 当前仍然重要的 3 个脚本
+## 2. 当前仍重要的 3 个脚本
 
 - `C:\AI-Hub\scripts\sync-mcp.ps1`
-  - 作用：根据 `C:\AI-Hub\mcp\manifest` 生成 Claude / Codex / Antigravity 的 MCP 配置
+  - 作用：根据 `C:\AI-Hub\mcp\manifest` 生成 Claude / Codex / Antigravity 的 MCP 配置。
 
 - `C:\AI-Hub\scripts\setup-global.ps1`
-  - 作用：把当前电脑的全局入口接到 `C:\AI-Hub`
-  - 额外会建立个人 skills 根目录：`C:\Users\Administrator\AI-Personal\skills\global`
+  - 作用：把当前电脑的全局入口接到 `C:\AI-Hub`。
+  - 会建立共享入口：
+    - `~/.agents\skills`
+    - `~/.agents\agents`
+    - `~/.claude\agents` -> `C:\AI-Hub\agents\global`
+  - 也会建立个人 Skills 根目录：
+    - `C:\Users\Administrator\AI-Personal\skills\global`
 
 - `C:\AI-Hub\scripts\use-profile.ps1`
-  - 作用：把某个项目接到 `frontend` 或 `backend` profile
+  - 作用：把某个项目接到 `global` / `frontend` / `backend` profile。
+  - 会建立项目级共享入口：
+    - `项目\.agents\skills`
+    - `项目\.agents\agents`
+    - `项目\.claude\agents` -> `C:\AI-Hub\agents\<profile>`
 
-## 3. 日常最常见的 5 种操作
+## 3. 最常见的日常操作
 
-### 3.1 改了 MCP manifest 后
+### 3.1 改了 MCP manifest
 
-优先在桌面程序里做：
+优先在桌面端执行：
 
 1. 打开 `MCP 管理`
 2. 编辑 manifest
 3. 点击 `Generate Configs`
 4. 点击 `Validate Scope`
-5. 需要落地到当前作用域客户端时，再点 `Sync Clients`
+5. 如果要把结果同步到当前作用域客户端，再点击 `Sync Clients`
 
-如果临时只想走命令行，也可以执行：
+命令行等价操作：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\AI-Hub\scripts\sync-mcp.ps1
 ```
 
-### 3.2 导入现有客户端里的外部 MCP
+### 3.2 新电脑或重建全局入口
 
-1. 打开 `MCP 管理`
-2. 在 `配置与生成` 页点击 `Validate Scope`
-3. 在右侧 `外部 MCP 纳管` 区勾选要导入的服务
-4. 如果同名定义冲突，先选定要采用的客户端定义
-5. 点击 `Import Selected`
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\AI-Hub\scripts\setup-global.ps1
+```
 
-默认会在导入后立即同步当前作用域客户端。
+执行后重点检查：
 
-### 3.3 给某个 Skills 来源开运行期定时策略
+- `C:\Users\Administrator\.agents\skills`
+- `C:\Users\Administrator\.agents\agents`
+- `C:\Users\Administrator\.claude\commands`
+- `C:\Users\Administrator\.claude\agents`
+- `C:\Users\Administrator\.claude\settings.json`
 
-1. 打开 `Skills`
-2. 选中来源
-3. 在 `来源级定时策略` 里设置频率和动作
-4. 保存来源
-5. 如需立刻执行，点击 `立即执行该来源策略`
+### 3.3 给项目应用 profile
 
-策略只在 AI-Hub 桌面端打开或隐藏到托盘时运行。
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\AI-Hub\scripts\use-profile.ps1 -ProjectPath "C:\OverSeaFramework" -Profile frontend
+```
 
-### 3.4 处理 Overlay Skill 的来源变更
+执行后重点检查：
 
-1. 打开 `Skills`
-2. 选中一个 Overlay 模式且已登记的 Skill
-3. 点击 `Preview Merge`
-4. 按文件选择保留本地还是采用来源
-5. 点击 `Apply Merge`
+- `项目\.agents\skills`
+- `项目\.agents\agents`
+- `项目\.claude\commands`
+- `项目\.claude\agents`
+- `项目\.claude\settings.json`
+- `项目\.mcp.json`
+- `项目\.codex\config.toml`
 
-应用前会自动创建 `pre-merge` 备份。
+### 3.4 改了共享 Skills 或共享 Agents
 
-### 3.5 启动一个托管型 MCP
-
-直接在桌面程序里做：
-
-1. 打开 `MCP 管理`
-2. 切到 `托管进程` 子页
-3. 填写名称、命令、参数、工作目录
-4. 点击 `保存定义`
-5. 点击 `启动`
-
-这部分当前不依赖脚本。
-
-## 4. 日常维护时怎么判断该用桌面程序还是脚本
-
-### 场景 A：我只是改了 skill
-
-通常不用跑脚本，也不用重新生成。
+通常不需要重跑脚本。
 
 原因：
 
-- skill 目录本身已经通过 junction 直连到 `C:\AI-Hub` 或你的个人目录
-- 你改完 skill，三端下次读取时会直接看到
-
-### 场景 B：我改了 Claude command / agent / hook 脚本
-
-通常也不用跑脚本。
-
-原因：
-
-- Claude 的全局或项目入口已经直接指向 `C:\AI-Hub`
-- 只要你改的是已经被链接进去的目录，就会直接生效
+- `skills` 与 `agents` 入口本身就是 junction
+- 只要你改的是已接入目录，客户端下次读取时就会直接看到最新内容
 
 例外：
 
-- 如果你改了 `claude\settings\*.json` 模板，需要重新执行 `setup-global.ps1` 或 `use-profile.ps1`
+- 改了 `claude\settings\*.json` 模板，需要重跑 `setup-global.ps1` 或 `use-profile.ps1`
+- 改了 `mcp\manifest\*`，需要重跑 `sync-mcp.ps1` 或在桌面端重新生成
 
-### 场景 C：我改了 MCP 配置
-
-至少要重新生成；如果还要落地当前作用域客户端，再做一次体检和同步：
-
-- 图形界面：`Generate Configs -> Validate Scope -> Sync Clients`
-- 命令行：执行 `sync-mcp.ps1`
-
-### 场景 D：我新增了一个常驻型本地 MCP
-
-优先走桌面程序。
-
-原因：
-
-- 托管型 MCP 的定义、PID、状态和最后消息都由桌面程序维护
-- 这类运行态数据保存在 `C:\AI-Hub\mcp\runtime.json`
-
-### 场景 E：我想知道有没有异常
+### 3.5 想知道是否有异常
 
 先看：
 
 - 托盘摘要
-- MCP 管理页的体检结果
-- Skills 来源的最近定时结果
+- `MCP 管理` 页的体检结果
+- `Skills` 页的最近定时结果
 
-进入异常状态时，桌面端还会主动发 Windows 通知。
+进入异常状态时，桌面端还会主动弹出 Windows 通知。
 
-## 5. 当前你的实际情况
+## 4. 当前结构怎么理解
 
-已经完成：
+- 共享层：`skills`、`agents`、`mcp`、`scripts`
+- Claude 专属适配层：`claude\commands`、`claude\settings`
+- Claude 仍保留 `.claude\agents` 入口，但它现在指向共享 `agents\*`
+- Codex 当前优先使用 `AGENTS.md`、`.agents\skills`、`.agents\agents`、`.codex\config.toml`
 
-- 全局共享根目录：`C:\AI-Hub`
-- Claude 全局入口已接入
-- Codex 新版共享入口 `~/.agents/skills` 已接入
-- Antigravity 全局 skills 入口已接入
-- Claude / Codex / Antigravity 全局 MCP 配置都可由 AI-Hub 接管
-- 个人 skills 根目录已固定为 `C:\Users\Administrator\AI-Personal\skills\global`
-
-当前没自动启用的内容：
-
-- GitHub MCP
-- cclsp MCP
-
-原因：
-
-- GitHub MCP 需要 token
-- cclsp 对 Unity / C# 需要额外 LSP 环境，例如 `omnisharp`
-
-## 6. 哪些文件可以直接改
-
-你以后主要改这些地方：
+## 5. 你主要会改哪些地方
 
 - `C:\AI-Hub\skills\global`
 - `C:\AI-Hub\skills\frontend`
 - `C:\AI-Hub\skills\backend`
+- `C:\AI-Hub\agents\global`
+- `C:\AI-Hub\agents\frontend`
+- `C:\AI-Hub\agents\backend`
 - `C:\AI-Hub\claude\commands\*`
-- `C:\AI-Hub\claude\agents\*`
 - `C:\AI-Hub\claude\settings\*`
 - `C:\AI-Hub\mcp\manifest\*`
 - `C:\AI-Hub\mcp\runtime.json`
 - `C:\AI-Hub\scripts\hooks\*`
 - `C:\Users\Administrator\AI-Personal\skills\global`
 
-## 7. 最后记住一句话
+## 6. 最后记住 5 句话
 
-- 公司共享内容只维护 `C:\AI-Hub`
-- 你个人专属 skill 只维护 `C:\Users\Administrator\AI-Personal\skills\global`
+- 公司共享能力优先维护在 `C:\AI-Hub\skills` 和 `C:\AI-Hub\agents`
+- 个人专属 Skills 只维护在 `C:\Users\Administrator\AI-Personal\skills\global`
 - 改 `mcp\manifest` 后，优先走 `Generate Configs -> Validate Scope -> Sync Clients`
-- 需要常驻型本地 MCP 时，优先在桌面程序里维护托管进程
-- 改 `claude\settings` 模板后，要重新跑 `setup-global.ps1` 或 `use-profile.ps1`
+- 共享 agent 不再长期维护在 `claude\agents`
+- 改 `claude\settings` 模板后，要重跑 `setup-global.ps1` 或 `use-profile.ps1`

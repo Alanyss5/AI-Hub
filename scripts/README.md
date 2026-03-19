@@ -9,12 +9,14 @@
 - setup-global.ps1
   - 配置用户级入口。
   - 把 Claude、Codex 兼容客户端、Antigravity 的全局 Skills 指向 C:\AI-Hub。
+  - 建立共享 agent 入口 `~/.agents\agents`，并让 `~/.claude\agents` 指向共享 `agents\global`。
   - 生成或更新 Claude 用户级 settings.json。
 
 - use-profile.ps1
   - 配置项目级入口。
   - 把 global / frontend / backend Profile 应用到目标项目。
   - 按需要创建项目级 .claude、.agents、.agent、.codex 目录或文件。
+  - 建立项目级共享 agent 入口 `项目\.agents\agents`，并让 `项目\.claude\agents` 指向共享 `agents\<profile>`。
   - 写入项目级 .mcp.json、.codex\config.toml、.claude\settings.json。
 
 - sync-mcp.ps1

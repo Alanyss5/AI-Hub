@@ -171,9 +171,11 @@ Ensure-StandardDirectory (Join-Path $ProjectPath '.agents')
 Ensure-StandardDirectory (Join-Path $ProjectPath '.agent')
 Ensure-StandardDirectory (Join-Path $ProjectPath '.codex')
 
+${agentTarget} = Join-Path $HubRoot "agents\$Profile"
 Ensure-Junction (Join-Path $ProjectPath '.claude\skills') (Join-Path $HubRoot "skills\$Profile")
 Ensure-Junction (Join-Path $ProjectPath '.claude\commands') (Join-Path $HubRoot "claude\commands\$Profile")
-Ensure-Junction (Join-Path $ProjectPath '.claude\agents') (Join-Path $HubRoot "claude\agents\$Profile")
+Ensure-Junction (Join-Path $ProjectPath '.claude\agents') $agentTarget
+Ensure-Junction (Join-Path $ProjectPath '.agents\agents') $agentTarget
 Ensure-Junction (Join-Path $ProjectPath '.agents\skills') (Join-Path $HubRoot "skills\$Profile")
 Ensure-Junction (Join-Path $ProjectPath '.agent\skills') (Join-Path $HubRoot "skills\$Profile")
 
@@ -182,4 +184,3 @@ Ensure-TextCopy (Join-Path $HubRoot "mcp\generated\claude\$Profile.mcp.json") (J
 Ensure-TextCopy (Join-Path $HubRoot "mcp\generated\codex\$Profile.config.toml") (Join-Path $ProjectPath '.codex\config.toml')
 
 Write-Host "Project profile '$Profile' has been applied to $ProjectPath"
-
