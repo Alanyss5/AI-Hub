@@ -8,12 +8,12 @@ namespace AIHub.Infrastructure;
 
 public sealed partial class NativeWorkspaceAutomationService
 {
-    private void AddMcpCandidates(List<ScannedCandidate> candidates, WorkspaceScope scope, ProfileKind profile, string? projectPath, string hubRoot, string personalRoot, IEnumerable<McpTarget> targets)
+    private void AddMcpCandidates(List<ScannedCandidate> candidates, WorkspaceScope scope, string profileId, string? projectPath, string hubRoot, string personalRoot, IEnumerable<McpTarget> targets)
     {
         var variantsByName = new Dictionary<string, List<ScannedMcpVariant>>(StringComparer.OrdinalIgnoreCase);
-        var managedServers = LayeredWorkspaceMaterializer.BuildEffectiveServerMap(hubRoot, personalRoot, profile);
-        var companyManifestPath = Path.Combine(hubRoot, "mcp", "manifest", profile.ToStorageValue() + ".json");
-        var privateManifestPath = Path.Combine(personalRoot, "mcp", "manifest", profile.ToStorageValue() + ".json");
+        var managedServers = LayeredWorkspaceMaterializer.BuildEffectiveServerMap(hubRoot, personalRoot, profileId);
+        var companyManifestPath = Path.Combine(hubRoot, "mcp", "manifest", profileId + ".json");
+        var privateManifestPath = Path.Combine(personalRoot, "mcp", "manifest", profileId + ".json");
         var companyServers = ReadManifestServers(companyManifestPath);
         var privateServers = ReadManifestServers(privateManifestPath);
 
@@ -54,7 +54,7 @@ public sealed partial class NativeWorkspaceAutomationService
                 null,
                 false,
                 scope,
-                profile,
+                profileId,
                 projectPath,
                 entry.Value,
                 hasVariantConflict));
@@ -129,9 +129,9 @@ public sealed partial class NativeWorkspaceAutomationService
 
     private void LinkGlobalEntrypoints(string hubRoot, string userHome)
     {
-        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, ProfileKind.Global);
-        var companySkills = Path.Combine(hubRoot, "skills", ProfileKind.Global.ToStorageValue());
-        var privateSkills = Path.Combine(LayeredWorkspaceMaterializer.GetPersonalRoot(userHome), "skills", ProfileKind.Global.ToStorageValue());
+        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, WorkspaceProfiles.Global);
+        var companySkills = Path.Combine(hubRoot, "skills", WorkspaceProfiles.Global);
+        var privateSkills = Path.Combine(LayeredWorkspaceMaterializer.GetPersonalRoot(userHome), "skills", WorkspaceProfiles.Global);
         var effectiveCommands = Path.Combine(effectiveRoot, "claude", "commands");
         var effectiveAgents = Path.Combine(effectiveRoot, "claude", "agents");
 
@@ -165,9 +165,9 @@ public sealed partial class NativeWorkspaceAutomationService
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "antigravity.mcp.json"), Path.Combine(userHome, ".gemini", "antigravity", "mcp_config.json"));
     }
 
-    private void LinkProjectEntrypoints(string hubRoot, string projectPath, ProfileKind profile)
+    private void LinkProjectEntrypoints(string hubRoot, string projectPath, string profileId)
     {
-        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, profile);
+        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, profileId);
         _platformLinkService.EnsureDirectory(Path.Combine(projectPath, ".claude"));
         _platformLinkService.EnsureDirectory(Path.Combine(projectPath, ".agents"));
         _platformLinkService.EnsureDirectory(Path.Combine(projectPath, ".agent"));
@@ -184,10 +184,10 @@ public sealed partial class NativeWorkspaceAutomationService
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "codex.config.toml"), Path.Combine(projectPath, ".codex", "config.toml"));
     }
 
-    private static string BuildEffectiveSettingsPreview(string hubRoot, string personalRoot, ProfileKind profile)
+    private static string BuildEffectiveSettingsPreview(string hubRoot, string personalRoot, string profileId)
     {
-        LayeredWorkspaceMaterializer.MaterializeProfile(hubRoot, personalRoot, profile);
-        var effectiveSettingsPath = Path.Combine(LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, profile), "claude", "settings.json");
+        LayeredWorkspaceMaterializer.MaterializeProfile(hubRoot, personalRoot, profileId);
+        var effectiveSettingsPath = Path.Combine(LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, profileId), "claude", "settings.json");
         return File.ReadAllText(effectiveSettingsPath);
     }
 
@@ -262,7 +262,7 @@ public sealed partial class NativeWorkspaceAutomationService
         string? SourcePath,
         bool IsDirectory,
         WorkspaceScope Scope,
-        ProfileKind Profile,
+        string ProfileId,
         string? ProjectPath,
         IReadOnlyList<ScannedMcpVariant>? McpVariants = null,
         bool HasMcpVariantConflict = false);

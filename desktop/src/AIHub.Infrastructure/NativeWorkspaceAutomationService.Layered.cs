@@ -27,7 +27,7 @@ public sealed partial class NativeWorkspaceAutomationService
     private Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingCoreAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profileId,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -40,7 +40,8 @@ public sealed partial class NativeWorkspaceAutomationService
         var normalizedHubRoot = NormalizePath(hubRoot);
         var userHome = NormalizePath(_userHomeResolver());
         var personalRoot = LayeredWorkspaceMaterializer.GetPersonalRoot(userHome);
-        var candidates = SortCandidates(ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profile));
+        var candidates = SortCandidates(ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profileId));
+        ProfileKindExtensions.TryParse(profileId, out var profile);
 
         return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
             "项目接管扫描已完成。",
@@ -87,9 +88,9 @@ public sealed partial class NativeWorkspaceAutomationService
             normalizedHubRoot,
             personalRoot,
             allowPartialSuccess: true,
-            ProfileKind.Global,
-            ProfileKind.Frontend,
-            ProfileKind.Backend);
+            WorkspaceProfiles.Global,
+            WorkspaceProfiles.Frontend,
+            WorkspaceProfiles.Backend);
         if (!generateResult.Success)
         {
             return Task.FromResult(generateResult);
@@ -103,7 +104,7 @@ public sealed partial class NativeWorkspaceAutomationService
             string.Join(Environment.NewLine, new[]
             {
                 "用户目录：" + userHome,
-                "全局有效输出：" + LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, ProfileKind.Global),
+                "全局有效输出：" + LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, WorkspaceProfiles.Global),
                 "Claude 设置：" + Path.Combine(userHome, ".claude", "settings.json"),
                 "Claude MCP：" + Path.Combine(userHome, ".claude.json"),
                 generateResult.Details
@@ -113,7 +114,7 @@ public sealed partial class NativeWorkspaceAutomationService
     private Task<OperationResult> ApplyProjectProfileCoreAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profileId,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions,
         CancellationToken cancellationToken)
     {
@@ -139,7 +140,7 @@ public sealed partial class NativeWorkspaceAutomationService
         {
             var importResult = ExecuteImportDecisions(
                 importDecisions,
-                ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profile),
+                ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profileId),
                 cancellationToken);
             if (!importResult.Success)
             {
@@ -147,22 +148,22 @@ public sealed partial class NativeWorkspaceAutomationService
             }
         }
 
-        var generateResult = RefreshEffectiveOutputs(normalizedHubRoot, personalRoot, allowPartialSuccess: false, profile);
+        var generateResult = RefreshEffectiveOutputs(normalizedHubRoot, personalRoot, allowPartialSuccess: false, profileId);
         if (!generateResult.Success)
         {
             return Task.FromResult(generateResult);
         }
 
-        LinkProjectEntrypoints(normalizedHubRoot, normalizedProjectPath, profile);
-        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, profile);
+        LinkProjectEntrypoints(normalizedHubRoot, normalizedProjectPath, profileId);
+        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, profileId);
 
-        _diagnosticLogService?.RecordInfo("workspace-automation", "已完成四层项目 Profile 应用。", normalizedProjectPath + Environment.NewLine + profile.ToStorageValue());
+        _diagnosticLogService?.RecordInfo("workspace-automation", "已完成四层项目 Profile 应用。", normalizedProjectPath + Environment.NewLine + profileId);
         return Task.FromResult(OperationResult.Ok(
             "项目 Profile 已应用。",
             string.Join(Environment.NewLine, new[]
             {
                 "项目目录：" + normalizedProjectPath,
-                "Profile：" + profile.ToDisplayName(),
+                "Profile：" + WorkspaceProfiles.ToDisplayName(profileId),
                 "有效输出根目录：" + effectiveRoot,
                 ".claude\\skills -> " + Path.Combine(effectiveRoot, "skills"),
                 ".agents\\skills -> " + Path.Combine(effectiveRoot, "skills"),
@@ -179,9 +180,10 @@ public sealed partial class NativeWorkspaceAutomationService
         return capability.SupportsJunctionLinks ? null : OperationResult.Fail(capability.Summary);
     }
 
-    private static OperationResult RefreshEffectiveOutputs(string hubRoot, string personalRoot, bool allowPartialSuccess, params ProfileKind[] profiles)
+    private static OperationResult RefreshEffectiveOutputs(string hubRoot, string personalRoot, bool allowPartialSuccess, params string[] profiles)
     {
         var selectedProfiles = profiles
+            .Select(WorkspaceProfiles.Normalize)
             .Distinct()
             .ToArray();
         var details = new List<string>();
@@ -198,12 +200,12 @@ public sealed partial class NativeWorkspaceAutomationService
             }
             catch (Exception ex)
             {
-                if (!allowPartialSuccess || profile == ProfileKind.Global)
+                if (!allowPartialSuccess || WorkspaceProfiles.IsGlobal(profile))
                 {
-                    return OperationResult.Fail($"刷新 {profile.ToDisplayName()} 有效输出失败。", ex.Message);
+                    return OperationResult.Fail($"刷新 {WorkspaceProfiles.ToDisplayName(profile)} 有效输出失败。", ex.Message);
                 }
 
-                details.Add($"跳过 {profile.ToDisplayName()}：{ex.Message}");
+                details.Add($"跳过 {WorkspaceProfiles.ToDisplayName(profile)}：{ex.Message}");
             }
         }
 

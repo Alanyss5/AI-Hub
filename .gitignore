@@ -13,3 +13,4 @@ backups/
 **/.verify/
 *.log
 *.tmp
+.worktrees/

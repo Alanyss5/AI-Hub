@@ -72,7 +72,13 @@ public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationS
 
         return PowerShellScriptRunner.RunAsync(
             scriptPath,
-            ["-HubRoot", hubRoot, "-ProjectPath", projectPath, "-Profile", profile.ToStorageValue()],
+            ["-HubRoot", hubRoot, "-ProjectPath", projectPath, "-Profile", profile switch
+            {
+                ProfileKind.Global => WorkspaceProfiles.Global,
+                ProfileKind.Frontend => WorkspaceProfiles.Frontend,
+                ProfileKind.Backend => WorkspaceProfiles.Backend,
+                _ => WorkspaceProfiles.Global
+            }],
             "已执行项目 Profile 脚本。",
             "执行项目 Profile 脚本失败。",
             cancellationToken,
