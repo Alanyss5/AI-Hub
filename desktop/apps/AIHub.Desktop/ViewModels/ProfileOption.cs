@@ -1,16 +1,18 @@
-﻿using AIHub.Contracts;
+using AIHub.Contracts;
 
 namespace AIHub.Desktop.ViewModels;
 
 public sealed class ProfileOption
 {
-    public ProfileOption(ProfileKind value)
+    public ProfileOption(string value, string? displayName = null)
     {
-        Value = value;
-        DisplayName = value.ToDisplayName();
+        Value = WorkspaceProfiles.NormalizeId(value);
+        DisplayName = string.IsNullOrWhiteSpace(displayName)
+            ? WorkspaceProfiles.ToDisplayName(Value)
+            : displayName.Trim();
     }
 
-    public ProfileKind Value { get; }
+    public string Value { get; }
 
     public string DisplayName { get; }
 }

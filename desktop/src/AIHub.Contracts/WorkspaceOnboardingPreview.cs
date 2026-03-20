@@ -2,7 +2,7 @@ namespace AIHub.Contracts;
 
 public sealed record WorkspaceOnboardingPreview(
     WorkspaceScope Scope,
-    ProfileKind Profile,
+    string Profile,
     string? ProjectPath,
     bool IsFirstRun,
     bool RequiresDecision,

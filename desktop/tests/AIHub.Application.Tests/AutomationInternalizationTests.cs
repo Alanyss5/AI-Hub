@@ -421,7 +421,7 @@ public sealed class AutomationInternalizationTests
             new RecordingPlatformLinkService(),
             new FakePlatformCapabilitiesService());
 
-        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, ProfileKind.Global);
+        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, WorkspaceProfiles.GlobalId);
 
         Assert.True(result.Success, result.Details);
         Assert.Contains("demo", await File.ReadAllTextAsync(Path.Combine(projectPath, ".mcp.json")), StringComparison.Ordinal);
@@ -561,7 +561,7 @@ public sealed class AutomationInternalizationTests
             new FakePlatformCapabilitiesService(),
             userHomeResolver: () => userHome);
 
-        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, ProfileKind.Frontend);
+        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, WorkspaceProfiles.FrontendId);
 
         Assert.True(result.Success, result.Details);
         Assert.Contains("项目目录：" + projectPath, result.Details, StringComparison.Ordinal);
@@ -622,7 +622,7 @@ public sealed class AutomationInternalizationTests
             new RecordingPlatformLinkService(),
             new FakePlatformCapabilitiesService());
 
-        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, ProfileKind.Frontend);
+        var result = await service.ApplyProjectProfileAsync(scope.RootPath, projectPath, WorkspaceProfiles.FrontendId);
 
         Assert.True(result.Success, result.Details);
         Assert.Contains("frontend-ok", await File.ReadAllTextAsync(Path.Combine(projectPath, ".claude", "settings.json")), StringComparison.Ordinal);

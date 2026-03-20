@@ -37,11 +37,13 @@ public partial class App : Avalonia.Application
                 var workspaceAutomationService = new NativeWorkspaceAutomationService(platformLinkService, platformCapabilitiesService, diagnosticsService);
                 var mcpAutomationService = new NativeMcpAutomationService();
                 var mcpClientConfigService = new McpClientConfigService();
+                var mcpEffectiveConfigReader = new LayeredMcpEffectiveConfigReader();
                 var notificationService = new WindowsNotificationService(diagnosticsService);
                 var scriptExecutionService = new PowerShellScriptExecutionService(diagnosticsService);
 
                 Func<string?, JsonProjectRegistry> projectRegistryFactory = root => new JsonProjectRegistry(root, diagnosticsService);
                 Func<string?, JsonHubSettingsStore> hubSettingsStoreFactory = root => new JsonHubSettingsStore(root, diagnosticsService);
+                Func<string?, JsonWorkspaceProfileCatalogStore> profileCatalogStoreFactory = root => new JsonWorkspaceProfileCatalogStore(root);
                 Func<string?, JsonMcpProfileStore> mcpProfileStoreFactory = root => new JsonMcpProfileStore(root, diagnosticsService);
                 Func<string?, JsonMcpRuntimeStore> mcpRuntimeStoreFactory = root => new JsonMcpRuntimeStore(root, diagnosticsService);
 
@@ -49,8 +51,16 @@ public partial class App : Avalonia.Application
                     rootLocator,
                     projectRegistryFactory,
                     hubSettingsStoreFactory,
+                    profileCatalogStoreFactory,
                     workspaceAutomationService,
                     dashboardService);
+
+                var workspaceProfileService = new WorkspaceProfileService(
+                    rootLocator,
+                    profileCatalogStoreFactory,
+                    projectRegistryFactory,
+                    hubSettingsStoreFactory,
+                    mcpProfileStoreFactory);
 
                 var mcpProcessController = new LocalMcpProcessController(() =>
                 {
@@ -65,7 +75,8 @@ public partial class App : Avalonia.Application
                     mcpProcessController,
                     mcpAutomationService,
                     hubSettingsStoreFactory,
-                    mcpClientConfigService);
+                    mcpClientConfigService,
+                    mcpEffectiveConfigReader);
 
                 var skillsCatalogService = new SkillsCatalogService(rootLocator, hubSettingsStoreFactory);
                 var scriptCenterService = new ScriptCenterService(rootLocator, scriptExecutionService);
@@ -77,7 +88,8 @@ public partial class App : Avalonia.Application
                     mcpControlService,
                     skillsCatalogService,
                     scriptCenterService,
-                    fileDialogService);
+                    fileDialogService,
+                    workspaceProfileService);
                 viewModel.NotificationService = notificationService;
                 viewModel.DiagnosticLogService = diagnosticsService;
 

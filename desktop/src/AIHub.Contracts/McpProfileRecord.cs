@@ -1,7 +1,8 @@
 ﻿namespace AIHub.Contracts;
 
 public sealed record McpProfileRecord(
-    ProfileKind Profile,
+    string Profile,
+    string ProfileDisplayName,
     string ManifestPath,
     string RawJson,
     IReadOnlyList<string> ServerNames,

@@ -14,7 +14,7 @@ public sealed partial class MainWindowViewModel
             string.Join(Environment.NewLine, new[]
             {
                 Text.State.DetailProjectNameLabel + project.Name,
-                Text.State.DetailScopeLabel + project.Profile.ToDisplayName(),
+                Text.State.DetailScopeLabel + WorkspaceProfiles.ToDisplayName(project.Profile),
                 Text.State.DetailProjectPathLabel + project.Path
             }),
             ConfirmText: Text.Dialogs.DeleteProjectConfirmText);
@@ -205,9 +205,9 @@ public sealed partial class MainWindowViewModel
         return builder.ToString().TrimEnd();
     }
 
-    private string BuildMcpValidationScopeDisplay(WorkspaceScope scope, ProfileKind profile, string? projectPath)
+    private string BuildMcpValidationScopeDisplay(WorkspaceScope scope, string profileId, string? projectPath)
     {
-        return Text.State.McpValidationScope(scope, profile, projectPath);
+        return Text.State.McpValidationScope(scope, WorkspaceProfiles.NormalizeId(profileId), projectPath);
     }
 
     private string DescribeSkillMergeStatus(SkillMergeFileStatus status)

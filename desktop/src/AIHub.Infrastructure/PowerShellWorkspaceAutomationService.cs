@@ -5,83 +5,148 @@ namespace AIHub.Infrastructure;
 
 public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationService
 {
-    private readonly IDiagnosticLogService? _diagnosticLogService;
+    private readonly IScriptExecutionService _scriptExecutionService;
+    private readonly Func<string> _userHomeResolver;
 
-    public PowerShellWorkspaceAutomationService(IDiagnosticLogService? diagnosticLogService = null)
+    public PowerShellWorkspaceAutomationService(
+        IDiagnosticLogService? diagnosticLogService = null,
+        Func<string>? userHomeResolver = null)
+        : this(new PowerShellScriptExecutionService(diagnosticLogService), userHomeResolver)
     {
-        _diagnosticLogService = diagnosticLogService;
+    }
+
+    public PowerShellWorkspaceAutomationService(
+        IScriptExecutionService scriptExecutionService,
+        Func<string>? userHomeResolver = null)
+    {
+        _scriptExecutionService = scriptExecutionService;
+        _userHomeResolver = userHomeResolver
+            ?? (() => Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
     }
 
     public Task<WorkspaceOnboardingPreviewResult> PreviewGlobalOnboardingAsync(string hubRoot, CancellationToken cancellationToken = default)
     {
         return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
-            "当前 PowerShell 工作流不支持接管预检，已跳过。",
+            "Current PowerShell workflow does not support onboarding preview.",
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Global,
-                ProfileKind.Global,
+                WorkspaceProfiles.GlobalId,
                 null,
                 false,
                 false,
                 Array.Empty<WorkspaceOnboardingCandidate>(),
-                "当前自动化实现不提供接管向导。")));
+                "Current automation implementation does not provide onboarding guidance.")));
     }
 
     public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
-            "当前 PowerShell 工作流不支持接管预检，已跳过。",
+            "Current PowerShell workflow does not support onboarding preview.",
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Project,
-                profile,
+                WorkspaceProfiles.NormalizeId(profile),
                 projectPath,
                 false,
                 false,
                 Array.Empty<WorkspaceOnboardingCandidate>(),
-                "当前自动化实现不提供接管向导。")));
+                "Current automation implementation does not provide onboarding guidance.")));
     }
 
-    public Task<OperationResult> ApplyGlobalLinksAsync(
+    public async Task<OperationResult> ApplyGlobalLinksAsync(
         string hubRoot,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
     {
-        var scriptPath = Path.Combine(hubRoot, "scripts", "setup-global.ps1");
-        var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalizedHubRoot = Path.GetFullPath(hubRoot);
+        var userHome = Path.GetFullPath(_userHomeResolver());
+        var refreshResult = RefreshEffectiveOutputs(
+            normalizedHubRoot,
+            allowPartialSuccess: true,
+            LayeredWorkspaceMaterializer.GetKnownProfiles(normalizedHubRoot));
+        if (!refreshResult.Success)
+        {
+            return refreshResult;
+        }
 
-        return PowerShellScriptRunner.RunAsync(
+        var scriptPath = Path.Combine(normalizedHubRoot, "scripts", "setup-global.ps1");
+        return await _scriptExecutionService.RunAsync(
             scriptPath,
-            ["-HubRoot", hubRoot, "-UserHome", userHome],
-            "已执行全局链接脚本。",
-            "执行全局链接脚本失败。",
-            cancellationToken,
-            _diagnosticLogService);
+            ["-HubRoot", normalizedHubRoot, "-UserHome", userHome],
+            "Executed global linking script.",
+            "Global linking script failed.",
+            cancellationToken);
     }
 
-    public Task<OperationResult> ApplyProjectProfileAsync(
+    public async Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
     {
-        var scriptPath = Path.Combine(hubRoot, "scripts", "use-profile.ps1");
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalizedHubRoot = Path.GetFullPath(hubRoot);
+        var normalizedProjectPath = Path.GetFullPath(projectPath);
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
+        var refreshResult = RefreshEffectiveOutputs(
+            normalizedHubRoot,
+            allowPartialSuccess: false,
+            [normalizedProfile]);
+        if (!refreshResult.Success)
+        {
+            return refreshResult;
+        }
 
-        return PowerShellScriptRunner.RunAsync(
+        var scriptPath = Path.Combine(normalizedHubRoot, "scripts", "use-profile.ps1");
+        return await _scriptExecutionService.RunAsync(
             scriptPath,
-            ["-HubRoot", hubRoot, "-ProjectPath", projectPath, "-Profile", profile switch
+            ["-HubRoot", normalizedHubRoot, "-ProjectPath", normalizedProjectPath, "-Profile", normalizedProfile],
+            "Executed project profile script.",
+            "Project profile script failed.",
+            cancellationToken);
+    }
+
+    private OperationResult RefreshEffectiveOutputs(string hubRoot, bool allowPartialSuccess, IEnumerable<string> profiles)
+    {
+        var normalizedHubRoot = Path.GetFullPath(hubRoot);
+        var userHome = Path.GetFullPath(_userHomeResolver());
+        var personalRoot = LayeredWorkspaceMaterializer.GetPersonalRoot(userHome);
+        LayeredWorkspaceMaterializer.EnsurePrivateLayerStructure(normalizedHubRoot, personalRoot);
+
+        var selectedProfiles = profiles
+            .Select(WorkspaceProfiles.NormalizeId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var details = new List<string>();
+
+        foreach (var profile in selectedProfiles)
+        {
+            try
             {
-                ProfileKind.Global => WorkspaceProfiles.Global,
-                ProfileKind.Frontend => WorkspaceProfiles.Frontend,
-                ProfileKind.Backend => WorkspaceProfiles.Backend,
-                _ => WorkspaceProfiles.Global
-            }],
-            "已执行项目 Profile 脚本。",
-            "执行项目 Profile 脚本失败。",
-            cancellationToken,
-            _diagnosticLogService);
+                var result = LayeredWorkspaceMaterializer.GenerateLegacyMcpOutputs(normalizedHubRoot, personalRoot, [profile]);
+                if (!string.IsNullOrWhiteSpace(result.Details))
+                {
+                    details.Add(result.Details);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!allowPartialSuccess || WorkspaceProfiles.IsGlobal(profile))
+                {
+                    return OperationResult.Fail(
+                        $"Failed to refresh effective output for {WorkspaceProfiles.ToDisplayName(profile)}.",
+                        ex.Message);
+                }
+
+                details.Add($"Skipped {WorkspaceProfiles.ToDisplayName(profile)}: {ex.Message}");
+            }
+        }
+
+        return OperationResult.Ok("Effective outputs refreshed.", string.Join(Environment.NewLine, details));
     }
 }

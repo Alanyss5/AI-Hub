@@ -16,7 +16,7 @@ public sealed partial class NativeWorkspaceAutomationService
             "全局接管扫描已完成。",
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Global,
-                ProfileKind.Global,
+                WorkspaceProfiles.GlobalId,
                 null,
                 false,
                 false,
@@ -27,7 +27,7 @@ public sealed partial class NativeWorkspaceAutomationService
     private Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingCoreAsync(
         string hubRoot,
         string projectPath,
-        string profileId,
+        string profile,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -40,8 +40,7 @@ public sealed partial class NativeWorkspaceAutomationService
         var normalizedHubRoot = NormalizePath(hubRoot);
         var userHome = NormalizePath(_userHomeResolver());
         var personalRoot = LayeredWorkspaceMaterializer.GetPersonalRoot(userHome);
-        var candidates = SortCandidates(ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profileId));
-        ProfileKindExtensions.TryParse(profileId, out var profile);
+        var candidates = SortCandidates(ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profile));
 
         return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
             "项目接管扫描已完成。",
@@ -70,7 +69,7 @@ public sealed partial class NativeWorkspaceAutomationService
         var normalizedHubRoot = NormalizePath(hubRoot);
         var userHome = NormalizePath(_userHomeResolver());
         var personalRoot = LayeredWorkspaceMaterializer.GetPersonalRoot(userHome);
-        LayeredWorkspaceMaterializer.EnsurePrivateLayerStructure(personalRoot);
+        LayeredWorkspaceMaterializer.EnsurePrivateLayerStructure(normalizedHubRoot, personalRoot);
 
         if (importDecisions is { Count: > 0 })
         {
@@ -84,13 +83,12 @@ public sealed partial class NativeWorkspaceAutomationService
             }
         }
 
+        var generateProfiles = LayeredWorkspaceMaterializer.GetKnownProfiles(normalizedHubRoot).ToArray();
         var generateResult = RefreshEffectiveOutputs(
             normalizedHubRoot,
             personalRoot,
             allowPartialSuccess: true,
-            WorkspaceProfiles.Global,
-            WorkspaceProfiles.Frontend,
-            WorkspaceProfiles.Backend);
+            generateProfiles);
         if (!generateResult.Success)
         {
             return Task.FromResult(generateResult);
@@ -104,7 +102,7 @@ public sealed partial class NativeWorkspaceAutomationService
             string.Join(Environment.NewLine, new[]
             {
                 "用户目录：" + userHome,
-                "全局有效输出：" + LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, WorkspaceProfiles.Global),
+                "全局有效输出：" + LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, WorkspaceProfiles.GlobalId),
                 "Claude 设置：" + Path.Combine(userHome, ".claude", "settings.json"),
                 "Claude MCP：" + Path.Combine(userHome, ".claude.json"),
                 generateResult.Details
@@ -114,7 +112,7 @@ public sealed partial class NativeWorkspaceAutomationService
     private Task<OperationResult> ApplyProjectProfileCoreAsync(
         string hubRoot,
         string projectPath,
-        string profileId,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions,
         CancellationToken cancellationToken)
     {
@@ -134,13 +132,13 @@ public sealed partial class NativeWorkspaceAutomationService
 
         var userHome = NormalizePath(_userHomeResolver());
         var personalRoot = LayeredWorkspaceMaterializer.GetPersonalRoot(userHome);
-        LayeredWorkspaceMaterializer.EnsurePrivateLayerStructure(personalRoot);
+        LayeredWorkspaceMaterializer.EnsurePrivateLayerStructure(normalizedHubRoot, personalRoot);
 
         if (importDecisions is { Count: > 0 })
         {
             var importResult = ExecuteImportDecisions(
                 importDecisions,
-                ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profileId),
+                ScanProjectCandidates(normalizedHubRoot, userHome, personalRoot, normalizedProjectPath, profile),
                 cancellationToken);
             if (!importResult.Success)
             {
@@ -148,22 +146,22 @@ public sealed partial class NativeWorkspaceAutomationService
             }
         }
 
-        var generateResult = RefreshEffectiveOutputs(normalizedHubRoot, personalRoot, allowPartialSuccess: false, profileId);
+        var generateResult = RefreshEffectiveOutputs(normalizedHubRoot, personalRoot, allowPartialSuccess: false, profile);
         if (!generateResult.Success)
         {
             return Task.FromResult(generateResult);
         }
 
-        LinkProjectEntrypoints(normalizedHubRoot, normalizedProjectPath, profileId);
-        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, profileId);
+        LinkProjectEntrypoints(normalizedHubRoot, normalizedProjectPath, profile);
+        var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, profile);
 
-        _diagnosticLogService?.RecordInfo("workspace-automation", "已完成四层项目 Profile 应用。", normalizedProjectPath + Environment.NewLine + profileId);
+        _diagnosticLogService?.RecordInfo("workspace-automation", "已完成四层项目 Profile 应用。", normalizedProjectPath + Environment.NewLine + WorkspaceProfiles.NormalizeId(profile));
         return Task.FromResult(OperationResult.Ok(
             "项目 Profile 已应用。",
             string.Join(Environment.NewLine, new[]
             {
                 "项目目录：" + normalizedProjectPath,
-                "Profile：" + WorkspaceProfiles.ToDisplayName(profileId),
+                "Profile：" + WorkspaceProfiles.ToDisplayName(profile),
                 "有效输出根目录：" + effectiveRoot,
                 ".claude\\skills -> " + Path.Combine(effectiveRoot, "skills"),
                 ".agents\\skills -> " + Path.Combine(effectiveRoot, "skills"),
@@ -183,8 +181,7 @@ public sealed partial class NativeWorkspaceAutomationService
     private static OperationResult RefreshEffectiveOutputs(string hubRoot, string personalRoot, bool allowPartialSuccess, params string[] profiles)
     {
         var selectedProfiles = profiles
-            .Select(WorkspaceProfiles.Normalize)
-            .Distinct()
+            .Select(WorkspaceProfiles.NormalizeId).Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var details = new List<string>();
 

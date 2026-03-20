@@ -30,7 +30,7 @@ public sealed partial class SkillsCatalogService
 
     public async Task<SkillScheduledUpdateBatchResult> RunScheduledUpdateForSourceAsync(
         string localName,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
@@ -39,14 +39,15 @@ public sealed partial class SkillsCatalogService
             return SkillScheduledUpdateBatchResult.Empty;
         }
 
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
         var sources = (await LoadSourcesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profile));
+        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profileId));
         if (source is null)
         {
             return new SkillScheduledUpdateBatchResult(
             [
                 new SkillScheduledUpdateSourceResult(
-                    $"{localName} / {profile.ToDisplayName()}",
+                    $"{localName} / {WorkspaceProfiles.ToDisplayName(profileId)}",
                     false,
                     false,
                     "未找到要执行定时策略的来源。",
@@ -82,6 +83,9 @@ public sealed partial class SkillsCatalogService
                 .Where(install =>
                     install.CustomizationMode is SkillCustomizationMode.Managed or SkillCustomizationMode.Overlay &&
                     MatchesSource(preparedSource, install.SourceLocalName, install.SourceProfile))
+                .OrderBy(install => GetProfileSortOrder(install.Profile))
+                .ThenBy(install => install.Profile, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(install => install.InstalledRelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             var result = await ExecuteScheduledUpdateForSourceAsync(preparedSource, sourceInstalls, now, cancellationToken);
@@ -161,7 +165,10 @@ public sealed partial class SkillsCatalogService
         var failureCount = 0;
         MaintenanceAlertRecord? alert = null;
 
-        foreach (var install in installs.OrderBy(item => item.Profile).ThenBy(item => item.InstalledRelativePath, StringComparer.OrdinalIgnoreCase))
+        foreach (var install in installs
+                     .OrderBy(item => GetProfileSortOrder(item.Profile))
+                     .ThenBy(item => item.Profile, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(item => item.InstalledRelativePath, StringComparer.OrdinalIgnoreCase))
         {
             var installResult = await ExecuteScheduledUpdateForInstallAsync(source, install, now, cancellationToken);
             if (installResult.Success)
@@ -187,7 +194,7 @@ public sealed partial class SkillsCatalogService
                 alert = installResult.Alert;
             }
 
-            detailBuilder.AppendLine($"{install.Name} ({install.Profile.ToDisplayName()})");
+            detailBuilder.AppendLine($"{install.Name} ({WorkspaceProfiles.ToDisplayName(install.Profile)})");
             detailBuilder.AppendLine(installResult.Message);
             if (!string.IsNullOrWhiteSpace(installResult.Details))
             {

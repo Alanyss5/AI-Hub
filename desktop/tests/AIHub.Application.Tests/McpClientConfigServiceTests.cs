@@ -77,7 +77,7 @@ public sealed class McpClientConfigServiceTests
 
         var service = new McpClientConfigService(userHome);
 
-        var result = await service.SyncAsync(scope.RootPath, WorkspaceScope.Global, ProfileKind.Global, null, managedServers);
+        var result = await service.SyncAsync(scope.RootPath, WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, managedServers);
 
         Assert.True(result.Success, result.Details);
 
@@ -153,7 +153,7 @@ public sealed class McpClientConfigServiceTests
         var snapshot = await service.InspectAsync(
             scope.RootPath,
             WorkspaceScope.Project,
-            ProfileKind.Frontend,
+            WorkspaceProfiles.FrontendId,
             projectPath,
             managedServers);
 
@@ -190,7 +190,7 @@ public sealed class McpClientConfigServiceTests
 
         var service = new McpClientConfigService(userHome);
 
-        var result = await service.SyncAsync(scope.RootPath, WorkspaceScope.Global, ProfileKind.Global, null, managedServers);
+        var result = await service.SyncAsync(scope.RootPath, WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, managedServers);
 
         Assert.True(result.Success, result.Details);
         var codexText = await File.ReadAllTextAsync(Path.Combine(userHome, ".codex", "config.toml"));
@@ -232,7 +232,7 @@ public sealed class McpClientConfigServiceTests
         var snapshot = await service.InspectAsync(
             scope.RootPath,
             WorkspaceScope.Project,
-            ProfileKind.Frontend,
+            WorkspaceProfiles.FrontendId,
             projectPath,
             managedServers);
 

@@ -17,14 +17,14 @@ public sealed class NoticeDialogWindow : Window
         MinHeight = 320;
         CanResize = true;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = new SolidColorBrush(Color.Parse("#F5F1E8"));
+        Background = ResolveBrush("WindowBackgroundBrush", "#0B1020");
 
         var confirmButton = new Button
         {
             Content = request.ConfirmText,
             MinWidth = 108,
-            Background = new SolidColorBrush(Color.Parse("#285E61")),
-            Foreground = Brushes.White
+            Background = ResolveBrush("InfoBrush", "#38BDF8"),
+            Foreground = ResolveBrush("AccentForegroundBrush", "#08101E")
         };
         confirmButton.Click += (_, _) => Close();
 
@@ -47,13 +47,13 @@ public sealed class NoticeDialogWindow : Window
                                 Text = request.Message,
                                 FontSize = 20,
                                 FontWeight = FontWeight.SemiBold,
-                                Foreground = new SolidColorBrush(Color.Parse("#102A43")),
+                                Foreground = ResolveBrush("TextPrimaryBrush", "#EAF0FF"),
                                 TextWrapping = TextWrapping.Wrap
                             },
                             new TextBlock
                             {
                                 Text = request.Title,
-                                Foreground = new SolidColorBrush(Color.Parse("#486581")),
+                                Foreground = ResolveBrush("TextSecondaryBrush", "#A8B3C7"),
                                 TextWrapping = TextWrapping.Wrap
                             }
                         }
@@ -65,8 +65,8 @@ public sealed class NoticeDialogWindow : Window
                         IsReadOnly = true,
                         AcceptsReturn = true,
                         TextWrapping = TextWrapping.Wrap,
-                        Background = new SolidColorBrush(Color.Parse("#FFFDF8")),
-                        BorderBrush = new SolidColorBrush(Color.Parse("#D9E2EC"))
+                        Background = ResolveBrush("SurfaceBrush", "#111A2E"),
+                        BorderBrush = ResolveBrush("OutlineBrush", "#32415E")
                     },
                     new StackPanel
                     {
@@ -81,5 +81,15 @@ public sealed class NoticeDialogWindow : Window
                 }
             }
         };
+    }
+
+    private static IBrush ResolveBrush(string key, string fallback)
+    {
+        if (Avalonia.Application.Current?.TryFindResource(key, out var value) == true && value is IBrush brush)
+        {
+            return brush;
+        }
+
+        return new SolidColorBrush(Color.Parse(fallback));
     }
 }

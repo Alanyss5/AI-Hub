@@ -6,5 +6,5 @@ public interface IMcpProfileStore
 {
     Task<IReadOnlyList<McpProfileRecord>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    Task SaveManifestAsync(ProfileKind profile, string rawJson, CancellationToken cancellationToken = default);
+    Task SaveManifestAsync(string profile, string rawJson, CancellationToken cancellationToken = default);
 }

@@ -11,7 +11,7 @@ public sealed partial class McpControlService
 {
     public async Task<McpValidationSnapshot> ValidateCurrentScopeAsync(
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         CancellationToken cancellationToken = default)
     {
@@ -29,7 +29,7 @@ public sealed partial class McpControlService
 
         var targetProfile = ResolveScopeProfile(scope, profile);
         var profileRecords = await _mcpProfileStoreFactory(resolution.RootPath).GetAllAsync(cancellationToken);
-        var managedServers = BuildEffectiveServerMap(profileRecords, targetProfile);
+        var managedServers = await _mcpEffectiveConfigReader.GetEffectiveServersAsync(resolution.RootPath, targetProfile, cancellationToken);
         var inspection = await _mcpClientConfigService.InspectAsync(
             resolution.RootPath,
             scope,
@@ -54,7 +54,7 @@ public sealed partial class McpControlService
 
     public async Task<OperationResult> SyncCurrentScopeClientsAsync(
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         CancellationToken cancellationToken = default)
     {
@@ -71,8 +71,7 @@ public sealed partial class McpControlService
         }
 
         var targetProfile = ResolveScopeProfile(scope, profile);
-        var profileRecords = await _mcpProfileStoreFactory(resolution.RootPath).GetAllAsync(cancellationToken);
-        var managedServers = BuildEffectiveServerMap(profileRecords, targetProfile);
+        var managedServers = await _mcpEffectiveConfigReader.GetEffectiveServersAsync(resolution.RootPath, targetProfile, cancellationToken);
         var syncResult = await _mcpClientConfigService.SyncAsync(
             resolution.RootPath,
             scope,
@@ -91,7 +90,7 @@ public sealed partial class McpControlService
             string.Join(Environment.NewLine, new[]
             {
                 $"作用域：{(scope == WorkspaceScope.Project ? "项目级" : "全局级")}",
-                $"Profile：{targetProfile.ToDisplayName()}",
+                $"Profile：{WorkspaceProfiles.ToDisplayName(targetProfile)}",
                 string.IsNullOrWhiteSpace(projectPath) ? null : "项目路径：" + projectPath,
                 generateResult.Details,
                 syncResult.Details
@@ -100,7 +99,7 @@ public sealed partial class McpControlService
 
     public async Task<OperationResult> ImportExternalServersAsync(
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyList<McpExternalServerImportDecision> decisions,
         bool syncClients,
@@ -120,7 +119,7 @@ public sealed partial class McpControlService
         var targetProfile = ResolveScopeProfile(scope, profile);
         var profileStore = _mcpProfileStoreFactory(resolution.RootPath);
         var profileRecords = await profileStore.GetAllAsync(cancellationToken);
-        var managedServers = BuildEffectiveServerMap(profileRecords, targetProfile);
+        var managedServers = await _mcpEffectiveConfigReader.GetEffectiveServersAsync(resolution.RootPath, targetProfile, cancellationToken);
         var inspection = await _mcpClientConfigService.InspectAsync(
             resolution.RootPath,
             scope,
@@ -137,7 +136,7 @@ public sealed partial class McpControlService
         foreach (var decision in decisions)
         {
             var preview = inspection.ExternalServers.FirstOrDefault(item =>
-                string.Equals(item.Name, decision.Name, StringComparison.OrdinalIgnoreCase));
+                string.Equals(item.Name, McpServerNameAliases.ToCanonical(decision.Name), StringComparison.OrdinalIgnoreCase));
             if (preview is null)
             {
                 return OperationResult.Fail("要导入的外部 MCP 不存在于当前体检结果中。", decision.Name);
@@ -149,7 +148,7 @@ public sealed partial class McpControlService
                 return OperationResult.Fail("所选来源客户端未提供该 MCP 定义。", decision.Name);
             }
 
-            manifestServers[decision.Name] = CreateJsonServerDefinition(selectedVariant.Definition);
+            manifestServers[McpServerNameAliases.ToCanonical(decision.Name)] = CreateJsonServerDefinition(selectedVariant.Definition);
         }
 
         var saveResult = await SaveManifestAsync(targetProfile, manifestRoot.ToJsonString(new JsonSerializerOptions
@@ -190,7 +189,7 @@ public sealed partial class McpControlService
             string.Join(Environment.NewLine, new[]
             {
                 $"导入数量：{decisions.Count}",
-                $"目标 Profile：{targetProfile.ToDisplayName()}",
+                $"目标 Profile：{WorkspaceProfiles.ToDisplayName(targetProfile)}",
                 generateResult.Details
             }.Where(value => !string.IsNullOrWhiteSpace(value))));
     }
@@ -252,11 +251,11 @@ public sealed partial class McpControlService
 
     private static IReadOnlyList<McpValidationIssueRecord> ValidateGeneratedConfigs(
         IReadOnlyList<McpProfileRecord> profiles,
-        ProfileKind profile,
+        string profile,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers)
     {
         var issues = new List<McpValidationIssueRecord>();
-        var targetProfile = profiles.FirstOrDefault(item => item.Profile == profile);
+        var targetProfile = profiles.FirstOrDefault(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase));
         if (targetProfile is null)
         {
             issues.Add(new McpValidationIssueRecord(
@@ -311,18 +310,19 @@ public sealed partial class McpControlService
 
     private static Dictionary<string, McpServerDefinitionRecord> BuildEffectiveServerMap(
         IReadOnlyList<McpProfileRecord> profiles,
-        ProfileKind targetProfile)
+        string targetProfile)
     {
-        var globalRecord = profiles.FirstOrDefault(item => item.Profile == ProfileKind.Global);
+        var normalizedTargetProfile = WorkspaceProfiles.NormalizeId(targetProfile);
+        var globalRecord = profiles.FirstOrDefault(item => string.Equals(item.Profile, WorkspaceProfiles.GlobalId, StringComparison.OrdinalIgnoreCase));
         var globalServers = globalRecord is null
             ? new Dictionary<string, McpServerDefinitionRecord>(StringComparer.OrdinalIgnoreCase)
             : ParseJsonServerDefinitions(globalRecord.RawJson);
-        if (targetProfile == ProfileKind.Global)
+        if (WorkspaceProfiles.IsGlobal(normalizedTargetProfile))
         {
             return globalServers;
         }
 
-        var profileRecord = profiles.FirstOrDefault(item => item.Profile == targetProfile);
+        var profileRecord = profiles.FirstOrDefault(item => string.Equals(item.Profile, normalizedTargetProfile, StringComparison.OrdinalIgnoreCase));
         if (profileRecord is null)
         {
             return globalServers;
@@ -368,7 +368,7 @@ public sealed partial class McpControlService
                 }
             }
 
-            servers[entry.Key] = new McpServerDefinitionRecord(
+            servers[McpServerNameAliases.ToCanonical(entry.Key)] = new McpServerDefinitionRecord(
                 currentObject["command"]?.GetValue<string>() ?? string.Empty,
                 args,
                 env);
@@ -405,7 +405,7 @@ public sealed partial class McpControlService
                 }
             }
 
-            servers[entry.Key] = new McpServerDefinitionRecord(
+            servers[McpServerNameAliases.ToCanonical(entry.Key)] = new McpServerDefinitionRecord(
                 currentTable.TryGetValue("command", out var rawCommand) ? Convert.ToString(rawCommand) ?? string.Empty : string.Empty,
                 args,
                 env);
@@ -478,9 +478,9 @@ public sealed partial class McpControlService
         return true;
     }
 
-    private static ProfileKind ResolveScopeProfile(WorkspaceScope scope, ProfileKind profile)
+    private static string ResolveScopeProfile(WorkspaceScope scope, string profile)
     {
-        return scope == WorkspaceScope.Global ? ProfileKind.Global : profile;
+        return scope == WorkspaceScope.Global ? WorkspaceProfiles.GlobalId : WorkspaceProfiles.NormalizeId(profile);
     }
 
     private static bool TryResolveCommandPath(string command, out string resolvedPath)
@@ -545,7 +545,7 @@ public sealed partial class McpControlService
         public Task<McpValidationSnapshot> InspectAsync(
             string hubRoot,
             WorkspaceScope scope,
-            ProfileKind profile,
+            string profile,
             string? projectPath,
             IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
             CancellationToken cancellationToken = default)
@@ -562,7 +562,7 @@ public sealed partial class McpControlService
         public Task<OperationResult> SyncAsync(
             string hubRoot,
             WorkspaceScope scope,
-            ProfileKind profile,
+            string profile,
             string? projectPath,
             IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
             CancellationToken cancellationToken = default)

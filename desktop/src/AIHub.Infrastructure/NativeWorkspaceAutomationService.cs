@@ -29,15 +29,9 @@ public sealed partial class NativeWorkspaceAutomationService : IWorkspaceAutomat
     public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
-        => PreviewProjectOnboardingCoreAsync(hubRoot, projectPath, profile switch
-        {
-            ProfileKind.Global => WorkspaceProfiles.Global,
-            ProfileKind.Frontend => WorkspaceProfiles.Frontend,
-            ProfileKind.Backend => WorkspaceProfiles.Backend,
-            _ => WorkspaceProfiles.Global
-        }, cancellationToken);
+        => PreviewProjectOnboardingCoreAsync(hubRoot, projectPath, WorkspaceProfiles.NormalizeId(profile), cancellationToken);
 
     public Task<OperationResult> ApplyGlobalLinksAsync(
         string hubRoot,
@@ -48,16 +42,15 @@ public sealed partial class NativeWorkspaceAutomationService : IWorkspaceAutomat
     public Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
-        => ApplyProjectProfileCoreAsync(hubRoot, projectPath, profile switch
-        {
-            ProfileKind.Global => WorkspaceProfiles.Global,
-            ProfileKind.Frontend => WorkspaceProfiles.Frontend,
-            ProfileKind.Backend => WorkspaceProfiles.Backend,
-            _ => WorkspaceProfiles.Global
-        }, importDecisions, cancellationToken);
+        => ApplyProjectProfileCoreAsync(
+            hubRoot,
+            projectPath,
+            WorkspaceProfiles.NormalizeId(profile),
+            importDecisions,
+            cancellationToken);
 
     private void EnsureSkillsOverlay(string rootPath, string companyTarget, string personalTarget)
     {

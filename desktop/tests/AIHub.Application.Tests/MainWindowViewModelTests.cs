@@ -16,7 +16,7 @@ public sealed class MainWindowViewModelTests
         viewModel.SelectedSkillSource = new SkillSourceRecord
         {
             LocalName = "demo-source",
-            Profile = ProfileKind.Global,
+            Profile = WorkspaceProfiles.GlobalId,
             Kind = SkillSourceKind.GitRepository,
             Location = "https://example.invalid/repo.git",
             Reference = "main",
@@ -66,7 +66,7 @@ public sealed class MainWindowViewModelTests
         var viewModel = await CreateWorkspaceViewModelAsync(
             scope.RootPath,
             automation,
-            new ProjectRecord("OverSeaFramework", registeredPath, ProfileKind.Frontend));
+            new ProjectRecord("OverSeaFramework", registeredPath, WorkspaceProfiles.FrontendId));
         viewModel.ProjectPath = draftPath;
 
         NoticeDialogRequest? notice = null;
@@ -99,9 +99,9 @@ public sealed class MainWindowViewModelTests
         {
             ProjectPreviewResult = WorkspaceOnboardingPreviewResult.Ok(
                 "ok",
-                new WorkspaceOnboardingPreview(
-                    WorkspaceScope.Project,
-                    ProfileKind.Backend,
+                    new WorkspaceOnboardingPreview(
+                        WorkspaceScope.Project,
+                    WorkspaceProfiles.BackendId,
                     projectPath,
                     false,
                     false,
@@ -112,7 +112,7 @@ public sealed class MainWindowViewModelTests
         var viewModel = await CreateWorkspaceViewModelAsync(
             scope.RootPath,
             automation,
-            new ProjectRecord("OverSeaFramework", projectPath, ProfileKind.Backend));
+            new ProjectRecord("OverSeaFramework", projectPath, WorkspaceProfiles.BackendId));
 
         NoticeDialogRequest? notice = null;
         viewModel.NoticeDialogHandler = request =>
@@ -128,7 +128,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(viewModel.Text.Dialogs.RescanResultTitle, notice!.Title);
         Assert.Contains(viewModel.Text.State.NoProjectReimportableResources, notice.Message, StringComparison.Ordinal);
         Assert.Contains(projectPath, notice.Details, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(ProfileKind.Backend.ToDisplayName(), notice.Details, StringComparison.Ordinal);
+        Assert.Contains(WorkspaceProfiles.BackendDisplayName, notice.Details, StringComparison.Ordinal);
     }
 
     private static async Task<MainWindowViewModel> CreateWorkspaceViewModelAsync(

@@ -1,19 +1,14 @@
-﻿param(
+param(
   [Parameter(Mandatory = $true)]
   [string]$ProjectPath,
 
   [Parameter(Mandatory = $true)]
-  [ValidateSet("global", "frontend", "backend")]
   [string]$Profile,
 
   [string]$HubRoot = "C:\AI-Hub"
 )
 
 $ErrorActionPreference = "Stop"
-
-if (-not (Test-Path -LiteralPath $ProjectPath)) {
-  throw "Project path does not exist: $ProjectPath"
-}
 
 function Normalize-Path {
   param([string]$Path)
@@ -23,6 +18,31 @@ function Normalize-Path {
   }
 
   return ([System.IO.Path]::GetFullPath($Path)).TrimEnd('\')
+}
+
+function Normalize-ProfileId {
+  param([string]$Value)
+
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return "global"
+  }
+
+  $trimmed = $Value.Trim().ToLowerInvariant()
+  switch ($trimmed) {
+    "global" { return "global" }
+    "frontend" { return "frontend" }
+    "backend" { return "backend" }
+    "全局" { return "global" }
+    "前端" { return "frontend" }
+    "后端" { return "backend" }
+  }
+
+  $normalized = [System.Text.RegularExpressions.Regex]::Replace($trimmed, '[^a-z0-9]+', '-').Trim('-')
+  if ([string]::IsNullOrWhiteSpace($normalized)) {
+    return "global"
+  }
+
+  return $normalized
 }
 
 function Paths-Match {
@@ -74,21 +94,15 @@ function Get-LinkTarget {
 
   $item = Get-Item -LiteralPath $Path -Force
   $isReparsePoint = ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
-
   if (-not $isReparsePoint) {
     return $null
   }
 
-  $targetValue = $item.Target
-  if ($null -eq $targetValue) {
-    return $null
+  if ($item.Target -is [System.Array]) {
+    return [string]$item.Target[0]
   }
 
-  if ($targetValue -is [System.Array]) {
-    return [string]$targetValue[0]
-  }
-
-  return [string]$targetValue
+  return [string]$item.Target
 }
 
 function Ensure-Junction {
@@ -115,33 +129,6 @@ function Ensure-Junction {
   New-Item -ItemType Junction -Path $LinkPath -Target $TargetPath | Out-Null
 }
 
-function Ensure-RenderedTemplate {
-  param(
-    [string]$TemplatePath,
-    [string]$DestinationPath,
-    [string]$HubRootValue
-  )
-
-  if (-not (Test-Path -LiteralPath $TemplatePath)) {
-    return
-  }
-
-  $content = Get-Content -LiteralPath $TemplatePath -Raw
-  $hubRootJson = $HubRootValue -replace '\\', '\\\\'
-  $content = $content.Replace('__AI_HUB_ROOT_JSON__', $hubRootJson)
-
-  if (Test-Path -LiteralPath $DestinationPath) {
-    $existingContent = Get-Content -LiteralPath $DestinationPath -Raw
-    if ($existingContent -eq $content) {
-      return
-    }
-
-    Backup-IfExists $DestinationPath
-  }
-
-  Set-Content -Path $DestinationPath -Value $content -Encoding UTF8 -NoNewline
-}
-
 function Ensure-TextCopy {
   param(
     [string]$SourcePath,
@@ -163,24 +150,36 @@ function Ensure-TextCopy {
     Backup-IfExists $DestinationPath
   }
 
+  Ensure-StandardDirectory (Split-Path -Parent $DestinationPath)
   Set-Content -LiteralPath $DestinationPath -Value $sourceContent -Encoding UTF8 -NoNewline
 }
 
-Ensure-StandardDirectory (Join-Path $ProjectPath '.claude')
-Ensure-StandardDirectory (Join-Path $ProjectPath '.agents')
-Ensure-StandardDirectory (Join-Path $ProjectPath '.agent')
-Ensure-StandardDirectory (Join-Path $ProjectPath '.codex')
+$normalizedProjectPath = Normalize-Path $ProjectPath
+if (-not (Test-Path -LiteralPath $normalizedProjectPath)) {
+  throw "Project path does not exist: $normalizedProjectPath"
+}
 
-${agentTarget} = Join-Path $HubRoot "agents\$Profile"
-Ensure-Junction (Join-Path $ProjectPath '.claude\skills') (Join-Path $HubRoot "skills\$Profile")
-Ensure-Junction (Join-Path $ProjectPath '.claude\commands') (Join-Path $HubRoot "claude\commands\$Profile")
-Ensure-Junction (Join-Path $ProjectPath '.claude\agents') $agentTarget
-Ensure-Junction (Join-Path $ProjectPath '.agents\agents') $agentTarget
-Ensure-Junction (Join-Path $ProjectPath '.agents\skills') (Join-Path $HubRoot "skills\$Profile")
-Ensure-Junction (Join-Path $ProjectPath '.agent\skills') (Join-Path $HubRoot "skills\$Profile")
+$normalizedProfile = Normalize-ProfileId $Profile
+$normalizedHubRoot = Normalize-Path $HubRoot
+$effectiveRoot = Join-Path $normalizedHubRoot ".runtime\effective\$normalizedProfile"
 
-Ensure-RenderedTemplate (Join-Path $HubRoot "claude\settings\$Profile.settings.json") (Join-Path $ProjectPath '.claude\settings.json') $HubRoot
-Ensure-TextCopy (Join-Path $HubRoot "mcp\generated\claude\$Profile.mcp.json") (Join-Path $ProjectPath '.mcp.json')
-Ensure-TextCopy (Join-Path $HubRoot "mcp\generated\codex\$Profile.config.toml") (Join-Path $ProjectPath '.codex\config.toml')
+if (-not (Test-Path -LiteralPath $effectiveRoot)) {
+  throw "Effective profile output does not exist: $effectiveRoot"
+}
 
-Write-Host "Project profile '$Profile' has been applied to $ProjectPath"
+Ensure-StandardDirectory (Join-Path $normalizedProjectPath '.claude')
+Ensure-StandardDirectory (Join-Path $normalizedProjectPath '.agents')
+Ensure-StandardDirectory (Join-Path $normalizedProjectPath '.agent')
+Ensure-StandardDirectory (Join-Path $normalizedProjectPath '.codex')
+
+Ensure-Junction (Join-Path $normalizedProjectPath '.claude\skills') (Join-Path $effectiveRoot 'skills')
+Ensure-Junction (Join-Path $normalizedProjectPath '.claude\commands') (Join-Path $effectiveRoot 'claude\commands')
+Ensure-Junction (Join-Path $normalizedProjectPath '.claude\agents') (Join-Path $effectiveRoot 'claude\agents')
+Ensure-Junction (Join-Path $normalizedProjectPath '.agents\skills') (Join-Path $effectiveRoot 'skills')
+Ensure-Junction (Join-Path $normalizedProjectPath '.agent\skills') (Join-Path $effectiveRoot 'skills')
+
+Ensure-TextCopy (Join-Path $effectiveRoot 'claude\settings.json') (Join-Path $normalizedProjectPath '.claude\settings.json')
+Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\claude.mcp.json') (Join-Path $normalizedProjectPath '.mcp.json')
+Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\codex.config.toml') (Join-Path $normalizedProjectPath '.codex\config.toml')
+
+Write-Host "Project profile '$normalizedProfile' has been applied to $normalizedProjectPath"

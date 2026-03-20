@@ -115,10 +115,10 @@ public sealed partial class MainWindowViewModel
         var hubRoot = ResolveDiagnosticHubRoot();
         var effectiveSkillsRoot = hubRoot is null
             ? null
-            : Path.Combine(hubRoot, ".runtime", "effective", project.Profile.ToStorageValue(), "skills");
+            : Path.Combine(hubRoot, ".runtime", "effective", WorkspaceProfiles.NormalizeId(project.Profile), "skills");
         var legacySkillsRoot = hubRoot is null
             ? null
-            : Path.Combine(hubRoot, "skills", project.Profile.ToStorageValue());
+            : Path.Combine(hubRoot, "skills", WorkspaceProfiles.NormalizeId(project.Profile));
         var mode = ClassifyBindingMode(entrypoints, effectiveSkillsRoot, legacySkillsRoot);
 
         ProjectWorkspaceBindingModeDisplay = mode switch
@@ -132,7 +132,7 @@ public sealed partial class MainWindowViewModel
         ProjectWorkspaceBindingDetails = string.Join(Environment.NewLine, new[]
         {
             Text.State.DetailProjectPathLabel + project.Path,
-            Text.State.CurrentProfileLabel + project.Profile.ToDisplayName(),
+            Text.State.CurrentProfileLabel + WorkspaceProfiles.ToDisplayName(project.Profile),
             Text.State.EffectiveOutputRootLabel + (effectiveSkillsRoot is null ? Text.State.NotSet : Path.GetDirectoryName(effectiveSkillsRoot)!),
             ".claude\\skills -> " + entrypoints[0].DisplayTarget,
             ".agents\\skills -> " + entrypoints[1].DisplayTarget,

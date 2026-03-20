@@ -1,23 +1,25 @@
-﻿using AIHub.Contracts;
+using AIHub.Contracts;
 
 namespace AIHub.Desktop.ViewModels;
 
 public sealed class McpProfileListItem
 {
-    public McpProfileListItem(ProfileKind profile, IReadOnlyList<string> serverNames)
+    public McpProfileListItem(string profile, IReadOnlyList<string> serverNames, string? displayName = null)
     {
-        Profile = profile;
-        DisplayName = profile.ToDisplayName();
+        Profile = WorkspaceProfiles.NormalizeId(profile);
+        DisplayName = string.IsNullOrWhiteSpace(displayName)
+            ? WorkspaceProfiles.ToDisplayName(Profile)
+            : displayName.Trim();
         ServerNames = serverNames;
     }
 
-    public ProfileKind Profile { get; }
+    public string Profile { get; }
 
     public string DisplayName { get; }
 
     public IReadOnlyList<string> ServerNames { get; }
 
-    public string ServerCountDisplay => ServerNames.Count == 0 ? "未配置服务器" : $"{ServerNames.Count} 个服务器";
+    public string ServerCountDisplay => ServerNames.Count == 0 ? "\u672a\u914d\u7f6e\u670d\u52a1\u5668" : $"{ServerNames.Count} \u4e2a\u670d\u52a1\u5668";
 
-    public string ServerNamesSummary => ServerNames.Count == 0 ? "空配置" : string.Join("、", ServerNames);
+    public string ServerNamesSummary => ServerNames.Count == 0 ? "\u7a7a\u914d\u7f6e" : string.Join("\u3001", ServerNames);
 }

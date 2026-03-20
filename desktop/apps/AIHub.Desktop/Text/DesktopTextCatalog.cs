@@ -949,10 +949,10 @@ public sealed class DesktopTextCatalog
         public string McpValidationSummary(int clientCount, int issueCount, int errorCount, int warningCount, int infoCount, int externalCount) =>
             $"客户端：{clientCount} / 问题：{issueCount} / 错误：{errorCount} / 警告：{warningCount} / 信息：{infoCount} / 外部 MCP：{externalCount}";
 
-        public string McpValidationScope(WorkspaceScope scope, ProfileKind profile, string? projectPath) =>
+        public string McpValidationScope(WorkspaceScope scope, string profile, string? projectPath) =>
             scope == WorkspaceScope.Project
-                ? $"体检作用域：项目级 / {profile.ToDisplayName()} / {projectPath ?? "未选择项目"}"
-                : $"体检作用域：全局级 / {profile.ToDisplayName()}";
+                ? $"体检作用域：项目级 / {WorkspaceProfiles.ToDisplayName(profile)} / {projectPath ?? "未选择项目"}"
+                : $"体检作用域：全局级 / {WorkspaceProfiles.ToDisplayName(profile)}";
 
         public string ExternalMcpDisplay(string name, bool hasConflict) => name + (hasConflict ? ExternalMcpConflictSuffix : string.Empty);
 

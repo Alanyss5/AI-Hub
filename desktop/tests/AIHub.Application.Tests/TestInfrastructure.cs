@@ -86,7 +86,7 @@ internal sealed class NoOpWorkspaceAutomationService : IWorkspaceAutomationServi
             "ok",
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Global,
-                ProfileKind.Global,
+                WorkspaceProfiles.GlobalId,
                 null,
                 false,
                 false,
@@ -96,7 +96,7 @@ internal sealed class NoOpWorkspaceAutomationService : IWorkspaceAutomationServi
     public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
         => Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
             "ok",
@@ -118,7 +118,7 @@ internal sealed class NoOpWorkspaceAutomationService : IWorkspaceAutomationServi
     public Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
         => Task.FromResult(OperationResult.Ok("ok", projectPath));
@@ -136,11 +136,11 @@ internal sealed class RecordingWorkspaceAutomationService : IWorkspaceAutomation
 
     public WorkspaceOnboardingPreviewResult GlobalPreviewResult { get; set; } = WorkspaceOnboardingPreviewResult.Ok(
         "ok",
-        new WorkspaceOnboardingPreview(WorkspaceScope.Global, ProfileKind.Global, null, false, false, Array.Empty<WorkspaceOnboardingCandidate>(), "ok"));
+        new WorkspaceOnboardingPreview(WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, false, false, Array.Empty<WorkspaceOnboardingCandidate>(), "ok"));
 
     public WorkspaceOnboardingPreviewResult ProjectPreviewResult { get; set; } = WorkspaceOnboardingPreviewResult.Ok(
         "ok",
-        new WorkspaceOnboardingPreview(WorkspaceScope.Project, ProfileKind.Global, null, false, false, Array.Empty<WorkspaceOnboardingCandidate>(), "ok"));
+        new WorkspaceOnboardingPreview(WorkspaceScope.Project, WorkspaceProfiles.GlobalId, null, false, false, Array.Empty<WorkspaceOnboardingCandidate>(), "ok"));
 
     public OperationResult ApplyGlobalLinksResult { get; set; } = OperationResult.Ok("ok");
 
@@ -155,7 +155,7 @@ internal sealed class RecordingWorkspaceAutomationService : IWorkspaceAutomation
     public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         PreviewProjectOnboardingCallCount++;
@@ -185,7 +185,7 @@ internal sealed class RecordingWorkspaceAutomationService : IWorkspaceAutomation
     public Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
     {
@@ -204,6 +204,27 @@ internal sealed class NoOpScriptExecutionService : IScriptExecutionService
 {
     public Task<OperationResult> RunAsync(string scriptPath, IReadOnlyList<string> arguments, string successMessage, string failureMessage, CancellationToken cancellationToken = default)
         => Task.FromResult(OperationResult.Ok(successMessage, scriptPath + Environment.NewLine + string.Join(' ', arguments)));
+}
+
+internal sealed class RecordingScriptExecutionService : IScriptExecutionService
+{
+    public List<(string ScriptPath, IReadOnlyList<string> Arguments, string SuccessMessage, string FailureMessage)> Calls { get; } = new();
+
+    public OperationResult Result { get; set; } = OperationResult.Ok("ok");
+
+    public Action<string, IReadOnlyList<string>>? OnRun { get; set; }
+
+    public Task<OperationResult> RunAsync(
+        string scriptPath,
+        IReadOnlyList<string> arguments,
+        string successMessage,
+        string failureMessage,
+        CancellationToken cancellationToken = default)
+    {
+        OnRun?.Invoke(scriptPath, arguments);
+        Calls.Add((scriptPath, arguments.ToArray(), successMessage, failureMessage));
+        return Task.FromResult(Result);
+    }
 }
 
 internal sealed class PassthroughMcpProcessController : IMcpProcessController

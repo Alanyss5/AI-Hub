@@ -6,7 +6,9 @@ public sealed record InstalledSkillRecord
 {
     public string Name { get; init; } = string.Empty;
 
-    public ProfileKind Profile { get; init; } = ProfileKind.Global;
+    public string Profile { get; init; } = WorkspaceProfiles.GlobalId;
+
+    public string ProfileDisplayName { get; init; } = string.Empty;
 
     public string DirectoryPath { get; init; } = string.Empty;
 
@@ -24,7 +26,9 @@ public sealed record InstalledSkillRecord
 
     public string? SourceLocalName { get; init; }
 
-    public ProfileKind? SourceProfile { get; init; }
+    public string? SourceProfile { get; init; }
+
+    public string SourceProfileDisplayName { get; init; } = string.Empty;
 
     public string? SourceSkillPath { get; init; }
 
@@ -40,7 +44,9 @@ public sealed record InstalledSkillRecord
 
     public IReadOnlyList<SkillBackupRecord> BackupRecords { get; init; } = Array.Empty<SkillBackupRecord>();
 
-    public string ProfileDisplay => Profile.ToDisplayName();
+    public string ProfileDisplay => string.IsNullOrWhiteSpace(ProfileDisplayName)
+        ? WorkspaceProfiles.ToDisplayName(Profile)
+        : ProfileDisplayName;
 
     public string ManifestDisplay => HasManifest ? "已检测到 SKILL.md" : "目录中缺少 SKILL.md";
 
@@ -57,7 +63,11 @@ public sealed record InstalledSkillRecord
                 return CustomizationMode == SkillCustomizationMode.Local ? "本地技能" : "未绑定来源";
             }
 
-            var profileDisplay = SourceProfile.HasValue ? SourceProfile.Value.ToDisplayName() : "未指定";
+            var profileDisplay = string.IsNullOrWhiteSpace(SourceProfile)
+                ? "未指定"
+                : (string.IsNullOrWhiteSpace(SourceProfileDisplayName)
+                    ? WorkspaceProfiles.ToDisplayName(SourceProfile)
+                    : SourceProfileDisplayName);
             return $"{SourceLocalName} / {profileDisplay}";
         }
     }

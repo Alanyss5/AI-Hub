@@ -155,7 +155,7 @@ public sealed partial class MainWindowViewModel
     private async Task ShowRescanEmptyNoticeAsync(
         WorkspaceScope scope,
         string checkedPath,
-        ProfileKind? profile,
+        string? profileId,
         string summary,
         string message)
     {
@@ -165,9 +165,9 @@ public sealed partial class MainWindowViewModel
             Text.State.CheckedPathLabel + checkedPath
         };
 
-        if (scope == WorkspaceScope.Project && profile.HasValue)
+        if (scope == WorkspaceScope.Project && !string.IsNullOrWhiteSpace(profileId))
         {
-            details.Add(Text.State.CurrentProfileLabel + profile.Value.ToDisplayName());
+            details.Add(Text.State.CurrentProfileLabel + WorkspaceProfiles.ToDisplayName(profileId));
         }
 
         if (!string.IsNullOrWhiteSpace(summary))

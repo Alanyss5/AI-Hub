@@ -11,7 +11,7 @@ public sealed partial class SkillsCatalogService
 
     public async Task<OperationResult> CheckSourceVersionsAsync(
         string localName,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
@@ -20,8 +20,9 @@ public sealed partial class SkillsCatalogService
             return OperationResult.Fail("AI-Hub 根目录无效，无法检查 Skills 版本。", string.Join(Environment.NewLine, resolution.Errors));
         }
 
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
         var sources = (await LoadSourcesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profile));
+        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profileId));
         if (source is null)
         {
             return OperationResult.Fail("未找到要检查版本的 Skills 来源。", localName);
@@ -38,7 +39,7 @@ public sealed partial class SkillsCatalogService
 
     public async Task<OperationResult> UpgradeSourceVersionAsync(
         string localName,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
@@ -47,8 +48,9 @@ public sealed partial class SkillsCatalogService
             return OperationResult.Fail("AI-Hub 根目录无效，无法升级 Skills 来源。", string.Join(Environment.NewLine, resolution.Errors));
         }
 
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
         var sources = (await LoadSourcesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profile));
+        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profileId));
         if (source is null)
         {
             return OperationResult.Fail("未找到要升级的 Skills 来源。", localName);
@@ -84,7 +86,8 @@ public sealed partial class SkillsCatalogService
         var targetInstalls = installs
             .Where(install => install.CustomizationMode is SkillCustomizationMode.Managed or SkillCustomizationMode.Overlay)
             .Where(install => MatchesSource(upgradedSource, install.SourceLocalName, install.SourceProfile))
-            .OrderBy(install => install.Profile)
+            .OrderBy(install => GetProfileSortOrder(install.Profile))
+            .ThenBy(install => install.Profile, StringComparer.OrdinalIgnoreCase)
             .ThenBy(install => install.InstalledRelativePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -113,7 +116,7 @@ public sealed partial class SkillsCatalogService
                 failed++;
             }
 
-            detailLines.Add($"{install.Name} ({install.Profile.ToDisplayName()})");
+            detailLines.Add($"{install.Name} ({WorkspaceProfiles.ToDisplayName(install.Profile)})");
             detailLines.Add(result.Message);
             if (!string.IsNullOrWhiteSpace(result.Details))
             {

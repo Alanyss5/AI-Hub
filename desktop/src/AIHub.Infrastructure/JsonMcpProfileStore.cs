@@ -7,20 +7,15 @@ namespace AIHub.Infrastructure;
 
 public sealed class JsonMcpProfileStore : IMcpProfileStore
 {
-    private static readonly ProfileKind[] Profiles =
-    [
-        ProfileKind.Global,
-        ProfileKind.Frontend,
-        ProfileKind.Backend
-    ];
-
     private readonly string? _hubRoot;
     private readonly IDiagnosticLogService? _diagnosticLogService;
+    private readonly IWorkspaceProfileCatalogStore _profileCatalogStore;
 
     public JsonMcpProfileStore(string? hubRoot, IDiagnosticLogService? diagnosticLogService = null)
     {
         _hubRoot = hubRoot;
         _diagnosticLogService = diagnosticLogService;
+        _profileCatalogStore = new JsonWorkspaceProfileCatalogStore(hubRoot);
     }
 
     public Task<IReadOnlyList<McpProfileRecord>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -32,11 +27,13 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
             return Task.FromResult<IReadOnlyList<McpProfileRecord>>(Array.Empty<McpProfileRecord>());
         }
 
-        var profiles = Profiles.Select(CreateProfileRecord).ToArray();
+        var profiles = _profileCatalogStore.LoadAsync(cancellationToken).GetAwaiter().GetResult()
+            .Select(CreateProfileRecord)
+            .ToArray();
         return Task.FromResult<IReadOnlyList<McpProfileRecord>>(profiles);
     }
 
-    public Task SaveManifestAsync(ProfileKind profile, string rawJson, CancellationToken cancellationToken = default)
+    public Task SaveManifestAsync(string profile, string rawJson, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -49,9 +46,9 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
         return Task.CompletedTask;
     }
 
-    private McpProfileRecord CreateProfileRecord(ProfileKind profile)
+    private McpProfileRecord CreateProfileRecord(WorkspaceProfileRecord profile)
     {
-        var manifestPath = GetManifestPath(profile);
+        var manifestPath = GetManifestPath(profile.Id);
         var rawJson = File.Exists(manifestPath)
             ? File.ReadAllText(manifestPath)
             : DefaultManifestJson();
@@ -59,13 +56,14 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
         var serverNames = ParseServerNames(rawJson);
         var generatedClients = new[]
         {
-            CreateGeneratedClient("Claude", Path.Combine(_hubRoot!, "mcp", "generated", "claude", profile.ToStorageValue() + ".mcp.json")),
-            CreateGeneratedClient("Codex", Path.Combine(_hubRoot!, "mcp", "generated", "codex", profile.ToStorageValue() + ".config.toml")),
-            CreateGeneratedClient("Antigravity", Path.Combine(_hubRoot!, "mcp", "generated", "antigravity", profile.ToStorageValue() + ".mcp.json"))
+            CreateGeneratedClient("Claude", Path.Combine(_hubRoot!, "mcp", "generated", "claude", profile.Id + ".mcp.json")),
+            CreateGeneratedClient("Codex", Path.Combine(_hubRoot!, "mcp", "generated", "codex", profile.Id + ".config.toml")),
+            CreateGeneratedClient("Antigravity", Path.Combine(_hubRoot!, "mcp", "generated", "antigravity", profile.Id + ".mcp.json"))
         };
 
         return new McpProfileRecord(
-            profile,
+            profile.Id,
+            profile.DisplayName,
             manifestPath,
             rawJson,
             serverNames,
@@ -81,9 +79,9 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
         return new McpGeneratedClientConfig(clientName, filePath, content);
     }
 
-    private string GetManifestPath(ProfileKind profile)
+    private string GetManifestPath(string profile)
     {
-        return Path.Combine(_hubRoot!, "mcp", "manifest", profile.ToStorageValue() + ".json");
+        return Path.Combine(_hubRoot!, "mcp", "manifest", WorkspaceProfiles.NormalizeId(profile) + ".json");
     }
 
     private static string[] ParseServerNames(string rawJson)

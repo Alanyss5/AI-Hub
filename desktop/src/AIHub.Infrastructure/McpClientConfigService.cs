@@ -25,7 +25,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
     public Task<McpValidationSnapshot> InspectAsync(
         string hubRoot,
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
         CancellationToken cancellationToken = default)
@@ -131,7 +131,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
 
         return Task.FromResult(new McpValidationSnapshot(
             scope,
-            profile,
+            WorkspaceProfiles.NormalizeId(profile),
             projectPath,
             statuses,
             issues,
@@ -141,7 +141,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
     public async Task<OperationResult> SyncAsync(
         string hubRoot,
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
         CancellationToken cancellationToken = default)
@@ -318,7 +318,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 }
             }
 
-            servers[entry.Key] = new McpServerDefinitionRecord(command, args, env);
+            servers[McpServerNameAliases.ToCanonical(entry.Key)] = new McpServerDefinitionRecord(command, args, env);
         }
 
         return servers;
@@ -354,7 +354,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 }
             }
 
-            servers[GetCanonicalCodexServerName(entry.Key)] = new McpServerDefinitionRecord(command, arguments, environment);
+            servers[McpServerNameAliases.ToCanonical(entry.Key)] = new McpServerDefinitionRecord(command, arguments, environment);
         }
 
         return servers;
@@ -448,25 +448,11 @@ public sealed class McpClientConfigService : IMcpClientConfigService
                 itemTable["env"] = envTable;
             }
 
-            serverTable[GetCodexServerKey(entry.Key)] = itemTable;
+            serverTable[McpServerNameAliases.ToCodexKey(entry.Key)] = itemTable;
         }
 
         root["mcp_servers"] = serverTable;
         return Toml.FromModel(root);
-    }
-
-    private static string GetCanonicalCodexServerName(string serverName)
-    {
-        return string.Equals(serverName, "coplay_mcp", StringComparison.OrdinalIgnoreCase)
-            ? "coplay-mcp"
-            : serverName;
-    }
-
-    private static string GetCodexServerKey(string serverName)
-    {
-        return string.Equals(serverName, "coplay-mcp", StringComparison.OrdinalIgnoreCase)
-            ? "coplay_mcp"
-            : serverName;
     }
 
     private static TomlTable? CloneTomlTable(TomlTable? source)

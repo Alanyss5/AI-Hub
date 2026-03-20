@@ -49,7 +49,7 @@ public sealed class SkillsCatalogServiceTests
             {
                 new SkillInstallStateRecord
                 {
-                    Profile = ProfileKind.Global,
+                    Profile = WorkspaceProfiles.GlobalId,
                     InstalledRelativePath = "demo-skill",
                     BaselineFiles = new List<SkillFileFingerprintRecord>()
                 }
@@ -59,7 +59,7 @@ public sealed class SkillsCatalogServiceTests
 
         var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
 
-        var result = await service.RollbackInstalledSkillAsync(ProfileKind.Global, "demo-skill", selectedBackupDirectory);
+        var result = await service.RollbackInstalledSkillAsync(WorkspaceProfiles.GlobalId, "demo-skill", selectedBackupDirectory);
 
         Assert.True(result.Success, result.Details);
         Assert.Equal("backup-version", await File.ReadAllTextAsync(Path.Combine(installDirectory, "SKILL.md")));
@@ -78,7 +78,7 @@ public sealed class SkillsCatalogServiceTests
               "sources": [
                 {
                   "localName": "legacy-source",
-                  "profile": "Global",
+                  "profile": "global",
                   "kind": "LocalDirectory",
                   "location": "C:\\legacy-source",
                   "reference": "",
@@ -114,7 +114,7 @@ public sealed class SkillsCatalogServiceTests
                     new
                     {
                         localName = "due-source",
-                        profile = "Global",
+                        profile = WorkspaceProfiles.GlobalId,
                         kind = "LocalDirectory",
                         location = "C:\\due-source",
                         reference = "",
@@ -127,7 +127,7 @@ public sealed class SkillsCatalogServiceTests
                     new
                     {
                         localName = "not-due-source",
-                        profile = "Global",
+                        profile = WorkspaceProfiles.GlobalId,
                         kind = "LocalDirectory",
                         location = "C:\\not-due-source",
                         reference = "",
@@ -182,11 +182,11 @@ public sealed class SkillsCatalogServiceTests
         var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
         var saveSourceResult = await service.SaveSourceAsync(
             null,
-            null,
+            (string?)null,
             new SkillSourceRecord
             {
                 LocalName = "local-source",
-                Profile = ProfileKind.Global,
+                Profile = WorkspaceProfiles.GlobalId,
                 Kind = SkillSourceKind.LocalDirectory,
                 Location = sourceRoot,
                 CatalogPath = "catalog",
@@ -200,10 +200,10 @@ public sealed class SkillsCatalogServiceTests
         var saveInstallResult = await service.SaveInstallAsync(new SkillInstallRecord
         {
             Name = "demo-skill",
-            Profile = ProfileKind.Global,
+            Profile = WorkspaceProfiles.GlobalId,
             InstalledRelativePath = "demo-skill",
             SourceLocalName = "local-source",
-            SourceProfile = ProfileKind.Global,
+            SourceProfile = WorkspaceProfiles.GlobalId,
             SourceSkillPath = "demo-skill",
             CustomizationMode = SkillCustomizationMode.Overlay
         });
@@ -217,7 +217,7 @@ public sealed class SkillsCatalogServiceTests
         await File.WriteAllTextAsync(Path.Combine(installDirectory, "conflict.txt"), "local-conflict");
         await File.WriteAllTextAsync(Path.Combine(installDirectory, "local-only.txt"), "local-only");
 
-        var preview = await service.PreviewOverlayMergeAsync(ProfileKind.Global, "demo-skill");
+        var preview = await service.PreviewOverlayMergeAsync(WorkspaceProfiles.GlobalId, "demo-skill");
 
         Assert.NotNull(preview);
         Assert.True(preview!.HasChanges);
@@ -228,7 +228,7 @@ public sealed class SkillsCatalogServiceTests
         Assert.Contains(preview.Files, item => item.RelativePath == "local-only.txt" && item.Status == SkillMergeFileStatus.LocalOnly && item.SuggestedDecision == SkillMergeDecisionMode.KeepLocal);
 
         var applyResult = await service.ApplyOverlayMergeAsync(
-            ProfileKind.Global,
+            WorkspaceProfiles.GlobalId,
             "demo-skill",
             new[]
             {
@@ -279,11 +279,11 @@ public sealed class SkillsCatalogServiceTests
         var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
         var saveResult = await service.SaveSourceAsync(
             null,
-            null,
+            (string?)null,
             new SkillSourceRecord
             {
                 LocalName = "git-source",
-                Profile = ProfileKind.Global,
+                Profile = WorkspaceProfiles.GlobalId,
                 Kind = SkillSourceKind.GitRepository,
                 Location = repositoryPath,
                 Reference = "v1.0.0",
@@ -292,7 +292,7 @@ public sealed class SkillsCatalogServiceTests
             });
         Assert.True(saveResult.Success, saveResult.Details);
 
-        var checkResult = await service.CheckSourceVersionsAsync("git-source", ProfileKind.Global);
+        var checkResult = await service.CheckSourceVersionsAsync("git-source", WorkspaceProfiles.GlobalId);
         Assert.True(checkResult.Success, checkResult.Details);
 
         var source = Assert.Single((await service.LoadAsync()).Sources);
@@ -302,7 +302,7 @@ public sealed class SkillsCatalogServiceTests
         Assert.DoesNotContain("v1.1.0-beta", source.AvailableVersionTags, StringComparer.OrdinalIgnoreCase);
         Assert.True(source.HasPendingVersionUpgrade);
 
-        var upgradeResult = await service.UpgradeSourceVersionAsync("git-source", ProfileKind.Global);
+        var upgradeResult = await service.UpgradeSourceVersionAsync("git-source", WorkspaceProfiles.GlobalId);
         Assert.True(upgradeResult.Success, upgradeResult.Details);
 
         source = Assert.Single((await service.LoadAsync()).Sources);
@@ -323,11 +323,11 @@ public sealed class SkillsCatalogServiceTests
         var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
         var saveResult = await service.SaveSourceAsync(
             null,
-            null,
+            (string?)null,
             new SkillSourceRecord
             {
                 LocalName = "legacy-fallback",
-                Profile = ProfileKind.Global,
+                Profile = WorkspaceProfiles.GlobalId,
                 Kind = SkillSourceKind.GitRepository,
                 Location = repositoryPath,
                 Reference = "main",
@@ -336,13 +336,138 @@ public sealed class SkillsCatalogServiceTests
             });
         Assert.True(saveResult.Success, saveResult.Details);
 
-        var checkResult = await service.CheckSourceVersionsAsync("legacy-fallback", ProfileKind.Global);
+        var checkResult = await service.CheckSourceVersionsAsync("legacy-fallback", WorkspaceProfiles.GlobalId);
         Assert.True(checkResult.Success, checkResult.Details);
 
         var source = Assert.Single((await service.LoadAsync()).Sources);
         Assert.Equal(SkillVersionTrackingMode.FollowReferenceLegacy, source.VersionTrackingMode);
         Assert.Empty(source.AvailableVersionTags);
         Assert.False(source.HasPendingVersionUpgrade);
+    }
+
+    [Fact]
+    public async Task LoadAsync_And_DeleteSourceAsync_Scope_Same_LocalName_By_Profile()
+    {
+        using var scope = new TestHubRootScope();
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "skills", "sources.json"),
+            JsonSerializer.Serialize(new
+            {
+                sources = new[]
+                {
+                    new SkillSourceRecord
+                    {
+                        LocalName = "shared-source",
+                        Profile = WorkspaceProfiles.GlobalId,
+                        Kind = SkillSourceKind.LocalDirectory,
+                        Location = "C:\\global"
+                    },
+                    new SkillSourceRecord
+                    {
+                        LocalName = "shared-source",
+                        Profile = WorkspaceProfiles.FrontendId,
+                        Kind = SkillSourceKind.LocalDirectory,
+                        Location = "C:\\frontend"
+                    }
+                }
+            }));
+
+        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+
+        var snapshot = await service.LoadAsync();
+        Assert.Equal(2, snapshot.Sources.Count(item => item.LocalName == "shared-source"));
+        Assert.Contains(snapshot.Sources, item => item.Profile == WorkspaceProfiles.GlobalId && item.Location == "C:\\global");
+        Assert.Contains(snapshot.Sources, item => item.Profile == WorkspaceProfiles.FrontendId && item.Location == "C:\\frontend");
+
+        var deleteResult = await service.DeleteSourceAsync("shared-source", WorkspaceProfiles.FrontendId);
+        Assert.True(deleteResult.Success, deleteResult.Details);
+
+        snapshot = await service.LoadAsync();
+        Assert.Single(snapshot.Sources.Where(item => item.LocalName == "shared-source"));
+        Assert.Contains(snapshot.Sources, item => item.Profile == WorkspaceProfiles.GlobalId);
+    }
+
+    [Fact]
+    public async Task SaveSkillBindingsAsync_Fans_Out_And_Removes_Profile_Copies()
+    {
+        using var scope = new TestHubRootScope();
+        var globalSkillDirectory = Path.Combine(scope.RootPath, "skills", "global", "demo-skill");
+        Directory.CreateDirectory(globalSkillDirectory);
+        await File.WriteAllTextAsync(Path.Combine(globalSkillDirectory, "SKILL.md"), "demo");
+
+        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        await service.SaveInstallAsync(new SkillInstallRecord
+        {
+            Name = "demo-skill",
+            Profile = WorkspaceProfiles.GlobalId,
+            InstalledRelativePath = "demo-skill",
+            CustomizationMode = SkillCustomizationMode.Local
+        });
+        await service.CaptureBaselineAsync(WorkspaceProfiles.GlobalId, "demo-skill");
+
+        var bindResult = await service.SaveSkillBindingsAsync(
+            WorkspaceProfiles.GlobalId,
+            "demo-skill",
+            new[] { WorkspaceProfiles.GlobalId, WorkspaceProfiles.FrontendId });
+
+        Assert.True(bindResult.Success, bindResult.Details);
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "frontend", "demo-skill", "SKILL.md")));
+
+        var snapshot = await service.LoadAsync();
+        Assert.Contains(snapshot.InstalledSkills, item => item.Profile == WorkspaceProfiles.FrontendId && item.RelativePath == "demo-skill");
+
+        var removeResult = await service.SaveSkillBindingsAsync(
+            WorkspaceProfiles.GlobalId,
+            "demo-skill",
+            new[] { WorkspaceProfiles.GlobalId });
+
+        Assert.True(removeResult.Success, removeResult.Details);
+        Assert.False(Directory.Exists(Path.Combine(scope.RootPath, "skills", "frontend", "demo-skill")));
+    }
+
+    [Fact]
+    public async Task SaveSkillGroupBindingsAsync_Replicates_Repository_Folder()
+    {
+        using var scope = new TestHubRootScope();
+        var repoRoot = Path.Combine(scope.RootPath, "skills", "global", "superpowers");
+        var brainstormingDirectory = Path.Combine(repoRoot, "brainstorming");
+        var dispatchingDirectory = Path.Combine(repoRoot, "dispatching-parallel-agents");
+        Directory.CreateDirectory(brainstormingDirectory);
+        Directory.CreateDirectory(dispatchingDirectory);
+        await File.WriteAllTextAsync(Path.Combine(repoRoot, "README.md"), "repo-root");
+        await File.WriteAllTextAsync(Path.Combine(brainstormingDirectory, "SKILL.md"), "brainstorming");
+        await File.WriteAllTextAsync(Path.Combine(dispatchingDirectory, "SKILL.md"), "dispatching");
+
+        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        await service.SaveInstallAsync(new SkillInstallRecord
+        {
+            Name = "brainstorming",
+            Profile = WorkspaceProfiles.GlobalId,
+            InstalledRelativePath = "superpowers/brainstorming",
+            CustomizationMode = SkillCustomizationMode.Local
+        });
+        await service.SaveInstallAsync(new SkillInstallRecord
+        {
+            Name = "dispatching-parallel-agents",
+            Profile = WorkspaceProfiles.GlobalId,
+            InstalledRelativePath = "superpowers/dispatching-parallel-agents",
+            CustomizationMode = SkillCustomizationMode.Local
+        });
+
+        var result = await service.SaveSkillGroupBindingsAsync(
+            WorkspaceProfiles.GlobalId,
+            "superpowers",
+            new[] { WorkspaceProfiles.GlobalId, WorkspaceProfiles.BackendId });
+
+        Assert.True(result.Success, result.Details);
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "backend", "superpowers", "README.md")));
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "backend", "superpowers", "brainstorming", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "backend", "superpowers", "dispatching-parallel-agents", "SKILL.md")));
+
+        var snapshot = await service.LoadAsync();
+        Assert.Contains(snapshot.InstalledSkills, item => item.Profile == WorkspaceProfiles.BackendId && item.RelativePath == "superpowers/brainstorming");
+        Assert.Contains(snapshot.InstalledSkills, item => item.Profile == WorkspaceProfiles.BackendId && item.RelativePath == "superpowers/dispatching-parallel-agents");
     }
 
     private static void InitializeGitRepository(string repositoryPath)
@@ -381,4 +506,3 @@ public sealed class SkillsCatalogServiceTests
         Assert.True(process.ExitCode == 0, string.IsNullOrWhiteSpace(standardError) ? standardOutput : standardError);
     }
 }
-
