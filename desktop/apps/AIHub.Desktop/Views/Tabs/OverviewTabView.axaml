@@ -1,21 +1,21 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AIHub.Desktop.Views.Tabs.OverviewTabView">
   <ScrollViewer Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
     <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
       <StackPanel Grid.Column="0" Spacing="16">
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="10">
             <TextBlock Text="{Binding Text.Shell.HubWorkspaceTitle}" FontSize="16" FontWeight="SemiBold" />
             <TextBlock Text="{Binding HubRootDisplay}" TextWrapping="Wrap" />
             <TextBlock Text="{Binding ProjectCountDisplay}" />
-            <TextBlock Text="{Binding Text.Shell.DefaultProfileLabel}" FontSize="12" Foreground="#486581" />
+            <TextBlock Text="{Binding Text.Shell.DefaultProfileLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
             <TextBlock Text="{Binding DefaultProfileDisplay}" />
-            <TextBlock Text="{Binding Text.Shell.RecentProjectLabel}" FontSize="12" Foreground="#486581" />
+            <TextBlock Text="{Binding Text.Shell.RecentProjectLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
             <TextBlock Text="{Binding LastOpenedProjectDisplay}" TextWrapping="Wrap" />
           </StackPanel>
         </Border>
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="8">
             <TextBlock Text="{Binding Text.Shell.PreferredClientsTitle}" FontSize="16" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding EnabledClients}">
@@ -32,7 +32,7 @@
         </Border>
       </StackPanel>
       <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="16">
-        <Border Grid.Row="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="8">
             <TextBlock Text="{Binding Text.Shell.EnabledModulesTitle}" FontSize="16" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding Modules}">
@@ -47,20 +47,20 @@
             </ItemsControl>
           </StackPanel>
         </Border>
-        <Border Grid.Row="1" Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="10">
             <TextBlock Text="已收口能力" FontSize="16" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding ReadinessItems}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Border Background="#F8F4EA" CornerRadius="14" Padding="12" Margin="0,0,0,8">
+                  <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                       <StackPanel Spacing="4">
                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                       </StackPanel>
-                      <Border Grid.Column="1" Background="#D9F2E6" CornerRadius="999" Padding="10,4" VerticalAlignment="Top" IsVisible="{Binding IsComplete}">
-                        <TextBlock Text="已完成" Foreground="#276749" FontSize="12" FontWeight="SemiBold" />
+                      <Border Grid.Column="1" Background="{DynamicResource SuccessBrush}" CornerRadius="999" Padding="10,4" VerticalAlignment="Top" IsVisible="{Binding IsComplete}">
+                        <TextBlock Text="已完成" Foreground="{DynamicResource SuccessBrush}" FontSize="12" FontWeight="SemiBold" />
                       </Border>
                     </Grid>
                   </Border>
@@ -69,16 +69,16 @@
             </ItemsControl>
           </StackPanel>
         </Border>
-        <Border Grid.Row="2" Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="10">
             <TextBlock Text="剩余正式使用门槛" FontSize="16" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding RemainingGates}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                  <Border Background="#FFF8E1" CornerRadius="14" Padding="12" Margin="0,0,0,8">
+                  <Border Background="{DynamicResource WarningBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
                     <StackPanel Spacing="4">
                       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#7C5E10" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                   </Border>
                 </DataTemplate>
@@ -86,7 +86,7 @@
             </ItemsControl>
           </StackPanel>
         </Border>
-        <Border Grid.Row="3" Background="#FFF8E1" CornerRadius="20" Padding="20" IsVisible="{Binding HasValidationErrors}">
+        <Border Grid.Row="3" Background="{DynamicResource WarningBrush}" CornerRadius="20" Padding="20" IsVisible="{Binding HasValidationErrors}">
           <StackPanel Spacing="8">
             <TextBlock Text="{Binding Text.Shell.ValidationHintsTitle}" FontSize="16" FontWeight="SemiBold" />
             <ItemsControl ItemsSource="{Binding ValidationErrors}">

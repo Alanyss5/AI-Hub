@@ -17,7 +17,7 @@ public sealed class ConfirmationDialogWindow : Window
         MinHeight = 320;
         CanResize = true;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = new SolidColorBrush(Color.Parse("#F5F1E8"));
+        Background = ResolveBrush("WindowBackgroundBrush", "#0B1020");
 
         var detailBox = new TextBox
         {
@@ -26,15 +26,15 @@ public sealed class ConfirmationDialogWindow : Window
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             MinHeight = 180,
-            Background = new SolidColorBrush(Color.Parse("#FFFDF8"))
+            Background = ResolveBrush("SurfaceBrush", "#111A2E")
         };
 
         var cancelButton = new Button
         {
             Content = request.CancelText,
             MinWidth = 96,
-            Background = new SolidColorBrush(Color.Parse("#D9E2EC")),
-            Foreground = new SolidColorBrush(Color.Parse("#102A43"))
+            Background = ResolveBrush("NeutralButtonBrush", "#18233A"),
+            Foreground = ResolveBrush("TextPrimaryBrush", "#EAF0FF")
         };
         cancelButton.Click += (_, _) => Close(false);
 
@@ -42,8 +42,8 @@ public sealed class ConfirmationDialogWindow : Window
         {
             Content = request.ConfirmText,
             MinWidth = 120,
-            Background = new SolidColorBrush(Color.Parse(request.IsDangerous ? "#B44D12" : "#2F855A")),
-            Foreground = Brushes.White
+            Background = ResolveBrush(request.IsDangerous ? "DangerBrush" : "SuccessBrush", request.IsDangerous ? "#F87171" : "#34D399"),
+            Foreground = ResolveBrush("AccentForegroundBrush", "#08101E")
         };
         confirmButton.Click += (_, _) => Close(true);
 
@@ -61,19 +61,19 @@ public sealed class ConfirmationDialogWindow : Window
                         Text = request.Title,
                         FontSize = 22,
                         FontWeight = FontWeight.SemiBold,
-                        Foreground = new SolidColorBrush(Color.Parse("#102A43"))
+                        Foreground = ResolveBrush("TextPrimaryBrush", "#EAF0FF")
                     },
                     new TextBlock
                     {
                         [Grid.RowProperty] = 1,
                         Text = request.Message,
                         TextWrapping = TextWrapping.Wrap,
-                        Foreground = new SolidColorBrush(Color.Parse("#486581"))
+                        Foreground = ResolveBrush("TextSecondaryBrush", "#A8B3C7")
                     },
                     new Border
                     {
                         [Grid.RowProperty] = 2,
-                        Background = new SolidColorBrush(Color.Parse("#FFFDF8")),
+                        Background = ResolveBrush("SurfaceBrush", "#111A2E"),
                         CornerRadius = new CornerRadius(12),
                         Padding = new Thickness(12),
                         Child = detailBox
@@ -93,5 +93,15 @@ public sealed class ConfirmationDialogWindow : Window
                 }
             }
         };
+    }
+
+    private static IBrush ResolveBrush(string key, string fallback)
+    {
+        if (Avalonia.Application.Current?.TryFindResource(key, out var value) == true && value is IBrush brush)
+        {
+            return brush;
+        }
+
+        return new SolidColorBrush(Color.Parse(fallback));
     }
 }

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -12,12 +12,9 @@ namespace AIHub.Application.Services;
 public sealed partial class SkillsCatalogService
 {
     private static readonly JsonSerializerOptions SerializerOptions = CreateSerializerOptions();
-    private static readonly ProfileKind[] Profiles =
-    [
-        ProfileKind.Global,
-        ProfileKind.Frontend,
-        ProfileKind.Backend
-    ];
+    private static readonly IReadOnlyDictionary<string, int> ProfileSortOrder = WorkspaceProfiles.CreateDefaultCatalog()
+        .Select((profile, index) => new KeyValuePair<string, int>(profile.Id, index))
+        .ToDictionary(item => item.Key, item => item.Value, StringComparer.OrdinalIgnoreCase);
 
     private readonly IHubRootLocator _hubRootLocator;
     private readonly Func<string?, IHubSettingsStore>? _hubSettingsStoreFactory;
@@ -58,14 +55,14 @@ public sealed partial class SkillsCatalogService
 
     public async Task<OperationResult> SaveSourceAsync(
         string? originalLocalName,
-        ProfileKind? originalProfile,
+        string? originalProfile,
         SkillSourceRecord draft,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶淇濆瓨 Skills 鏉ユ簮。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《娣囨繂鐡?Skills 閺夈儲绨€?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var normalized = NormalizeSource(draft);
@@ -76,39 +73,41 @@ public sealed partial class SkillsCatalogService
         }
 
         var sources = (await LoadSourcesAsync(resolution.RootPath, cancellationToken)).ToList();
-        sources.RemoveAll(source => MatchesSource(source, originalLocalName, originalProfile));
+        var originalProfileId = string.IsNullOrWhiteSpace(originalProfile) ? null : WorkspaceProfiles.NormalizeId(originalProfile);
+        sources.RemoveAll(source => MatchesSource(source, originalLocalName, originalProfileId));
 
         if (sources.Any(source => MatchesSource(source, normalized.LocalName, normalized.Profile)))
         {
-            return OperationResult.Fail("宸插瓨鍦ㄥ悓鍚嶅悓浣滅敤鍩熺殑 Skills 鏉ユ簮。", normalized.SourceDisplayName);
+            return OperationResult.Fail("瀹告彃鐡ㄩ崷銊ユ倱閸氬秴鎮撴担婊呮暏閸╃喓娈?Skills 閺夈儲绨€?, normalized.SourceDisplayName");
         }
 
         sources.Add(normalized);
         await SaveSourcesAsync(resolution.RootPath, sources, cancellationToken);
 
-        return OperationResult.Ok("Skills 来源已保存。", GetSourcesPath(resolution.RootPath));
+        return OperationResult.Ok("Skills 鏉ユ簮宸蹭繚瀛樸€?, GetSourcesPath(resolution.RootPath)");
     }
 
     public async Task<OperationResult> DeleteSourceAsync(
         string localName,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鍒犻櫎 Skills 鏉ユ簮。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《閸掔娀娅?Skills 閺夈儲绨€?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var sources = (await LoadSourcesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var removed = sources.RemoveAll(source => MatchesSource(source, localName, profile));
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var removed = sources.RemoveAll(source => MatchesSource(source, localName, profileId));
         if (removed == 0)
         {
-            return OperationResult.Fail("鏈壘鍒拌鍒犻櫎鐨?Skills 鏉ユ簮。", localName);
+            return OperationResult.Fail("閺堫亝澹橀崚鎷岊洣閸掔娀娅庨惃?Skills 閺夈儲绨€?, localName");
         }
 
         await SaveSourcesAsync(resolution.RootPath, sources, cancellationToken);
-        return OperationResult.Ok("Skills 来源已删除。", GetSourcesPath(resolution.RootPath));
+        return OperationResult.Ok("Skills 鏉ユ簮宸插垹闄ゃ€?, GetSourcesPath(resolution.RootPath)");
     }
 
     public async Task<OperationResult> SaveInstallAsync(
@@ -118,7 +117,7 @@ public sealed partial class SkillsCatalogService
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶淇濆瓨 Skill 瀹夎鐧昏。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《娣囨繂鐡?Skill 鐎瑰顥婇惂鏄忣唶銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var normalized = NormalizeInstall(draft);
@@ -132,12 +131,12 @@ public sealed partial class SkillsCatalogService
         var skillDirectory = GetInstalledSkillDirectory(resolution.RootPath, normalized.Profile, normalized.InstalledRelativePath);
         if (!Directory.Exists(skillDirectory))
         {
-            return OperationResult.Fail("要登记的 Skill 目录不存在。", skillDirectory);
+            return OperationResult.Fail("瑕佺櫥璁扮殑 Skill 鐩綍涓嶅瓨鍦ㄣ€?, skillDirectory");
         }
 
         if (!File.Exists(Path.Combine(skillDirectory, "SKILL.md")))
         {
-            return OperationResult.Fail("鐩爣鐩綍涓己灏?SKILL.md锛屾棤娉曠櫥璁颁负 Skill。", skillDirectory);
+            return OperationResult.Fail("閻╊喗鐖ｉ惄顔肩秿娑擃厾宸辩亸?SKILL.md閿涘本妫ゅ▔鏇犳鐠侀璐?Skill銆?, skillDirectory");
         }
 
         var installs = (await LoadInstallsAsync(resolution.RootPath, cancellationToken)).ToList();
@@ -154,94 +153,251 @@ public sealed partial class SkillsCatalogService
             states.RemoveAll(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == installKey);
             states.Add(CreateStateRecord(normalized.Profile, normalized.InstalledRelativePath, skillDirectory));
             await SaveStatesAsync(resolution.RootPath, states, cancellationToken);
-            return OperationResult.Ok("Skill 安装登记已保存，并已为当前内容建立基线。", GetInstallsPath(resolution.RootPath));
+            return OperationResult.Ok("Skill 瀹夎鐧昏宸蹭繚瀛橈紝骞跺凡涓哄綋鍓嶅唴瀹瑰缓绔嬪熀绾裤€?, GetInstallsPath(resolution.RootPath)");
         }
 
-        return OperationResult.Ok("Skill 安装登记已保存。", GetInstallsPath(resolution.RootPath));
+        return OperationResult.Ok("Skill 瀹夎鐧昏宸蹭繚瀛樸€?, GetInstallsPath(resolution.RootPath)");
     }
 
     public async Task<OperationResult> DeleteInstallAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鍒犻櫎 Skill 鐧昏。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《閸掔娀娅?Skill 閻ф槒顔囥€?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var normalizedRelativePath = NormalizePath(relativePath);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
         var installs = (await LoadInstallsAsync(resolution.RootPath, cancellationToken)).ToList();
         var states = (await LoadStatesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var installKey = GetInstallKey(profile, normalizedRelativePath);
+        var installKey = GetInstallKey(profileId, normalizedRelativePath);
 
         var removedInstalls = installs.RemoveAll(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == installKey);
         var removedStates = states.RemoveAll(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == installKey);
         if (removedInstalls == 0 && removedStates == 0)
         {
-            return OperationResult.Fail("鏈壘鍒拌鍒犻櫎鐨?Skill 鐧昏。", normalizedRelativePath);
+            return OperationResult.Fail("閺堫亝澹橀崚鎷岊洣閸掔娀娅庨惃?Skill 閻ф槒顔囥€?, normalizedRelativePath");
         }
 
         await SaveInstallsAsync(resolution.RootPath, installs, cancellationToken);
         await SaveStatesAsync(resolution.RootPath, states, cancellationToken);
-        return OperationResult.Ok("Skill 鐧昏涓庡熀绾垮凡鍒犻櫎。", GetInstallsPath(resolution.RootPath));
+        return OperationResult.Ok("Skill 閻ф槒顔囨稉搴＄唨缁惧灝鍑￠崚鐘绘珟銆?, GetInstallsPath(resolution.RootPath)");
     }
 
+    public async Task<OperationResult> SaveSkillBindingsAsync(
+        string sourceProfile,
+        string relativePath,
+        IReadOnlyList<string> targetProfiles,
+        CancellationToken cancellationToken = default)
+    {
+        var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
+        if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
+        {
+            return OperationResult.Fail("AI-Hub hub root is invalid. Skill bindings could not be saved.", string.Join(Environment.NewLine, resolution.Errors));
+        }
+        var normalizedSourceProfile = WorkspaceProfiles.NormalizeId(sourceProfile);
+        var normalizedRelativePath = NormalizePath(relativePath);
+        if (string.IsNullOrWhiteSpace(normalizedRelativePath))
+        {
+            return OperationResult.Fail("Select a skill before editing bindings.");
+        }
+        var normalizedTargets = NormalizeProfiles(targetProfiles);
+        var installs = (await LoadInstallsAsync(resolution.RootPath, cancellationToken)).ToList();
+        var states = (await LoadStatesAsync(resolution.RootPath, cancellationToken)).ToList();
+        var sourceDirectory = GetInstalledSkillDirectory(resolution.RootPath, normalizedSourceProfile, normalizedRelativePath);
+        var existingProfiles = GetExistingSkillProfiles(resolution.RootPath, installs, states, normalizedRelativePath);
+        var impactedProfiles = existingProfiles
+            .Concat(normalizedTargets)
+            .Append(normalizedSourceProfile)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedTargets.Count > 0 && !Directory.Exists(sourceDirectory))
+        {
+            return OperationResult.Fail("The selected skill source directory does not exist.", sourceDirectory);
+        }
+        var sourceInstall = installs.FirstOrDefault(item =>
+            string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.InstalledRelativePath, normalizedRelativePath, StringComparison.OrdinalIgnoreCase));
+        var sourceState = states.FirstOrDefault(item =>
+            string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(item.InstalledRelativePath, normalizedRelativePath, StringComparison.OrdinalIgnoreCase));
+        foreach (var profile in impactedProfiles)
+        {
+            var destinationDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedRelativePath);
+            var isSelected = normalizedTargets.Contains(profile, StringComparer.OrdinalIgnoreCase);
+            if (isSelected)
+            {
+                if (!string.Equals(profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase))
+                {
+                    ReplaceDirectoryWithSource(sourceDirectory, destinationDirectory);
+                }
+                installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
+                if (sourceInstall is not null)
+                {
+                    installs.Add(sourceInstall with { Profile = profile });
+                }
+                states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
+                if (sourceState is not null)
+                {
+                    states.Add(sourceState with { Profile = profile });
+                }
+            }
+            else
+            {
+                installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
+                states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
+                if (Directory.Exists(destinationDirectory))
+                {
+                    DeleteDirectory(destinationDirectory);
+                }
+            }
+        }
+        await SaveInstallsAsync(resolution.RootPath, installs, cancellationToken);
+        await SaveStatesAsync(resolution.RootPath, states, cancellationToken);
+        return OperationResult.Ok(
+            "Skill bindings saved.",
+            $"{normalizedRelativePath}{Environment.NewLine}{string.Join(Environment.NewLine, normalizedTargets)}");
+    }
+    public async Task<OperationResult> SaveSkillGroupBindingsAsync(
+        string sourceProfile,
+        string relativeGroupPath,
+        IReadOnlyList<string> targetProfiles,
+        CancellationToken cancellationToken = default)
+    {
+        var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
+        if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
+        {
+            return OperationResult.Fail("AI-Hub hub root is invalid. Skill folder bindings could not be saved.", string.Join(Environment.NewLine, resolution.Errors));
+        }
+        var normalizedSourceProfile = WorkspaceProfiles.NormalizeId(sourceProfile);
+        var normalizedGroupPath = NormalizePath(relativeGroupPath);
+        if (string.IsNullOrWhiteSpace(normalizedGroupPath))
+        {
+            return OperationResult.Fail("Select a skill repository or folder before editing bindings.");
+        }
+        var normalizedTargets = NormalizeProfiles(targetProfiles);
+        var installs = (await LoadInstallsAsync(resolution.RootPath, cancellationToken)).ToList();
+        var states = (await LoadStatesAsync(resolution.RootPath, cancellationToken)).ToList();
+        var sourceGroupDirectory = GetInstalledSkillDirectory(resolution.RootPath, normalizedSourceProfile, normalizedGroupPath);
+        var existingProfiles = GetExistingGroupProfiles(resolution.RootPath, installs, states, normalizedGroupPath);
+        var impactedProfiles = existingProfiles
+            .Concat(normalizedTargets)
+            .Append(normalizedSourceProfile)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (normalizedTargets.Count > 0 && !Directory.Exists(sourceGroupDirectory))
+        {
+            return OperationResult.Fail("The selected skill repository or folder does not exist.", sourceGroupDirectory);
+        }
+        var sourceInstalls = installs
+            .Where(item => string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase)
+                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath))
+            .Select(item => item with { })
+            .ToArray();
+        var sourceStates = states
+            .Where(item => string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase)
+                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath))
+            .Select(item => item with { })
+            .ToArray();
+        foreach (var profile in impactedProfiles)
+        {
+            var destinationDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedGroupPath);
+            var isSelected = normalizedTargets.Contains(profile, StringComparer.OrdinalIgnoreCase);
+            if (isSelected)
+            {
+                if (!string.Equals(profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Directory.Exists(destinationDirectory))
+                    {
+                        DeleteDirectory(destinationDirectory);
+                    }
+                    CopyDirectory(sourceGroupDirectory, destinationDirectory);
+                }
+                installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
+                installs.AddRange(sourceInstalls.Select(item => item with { Profile = profile }));
+                states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                         && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
+                states.AddRange(sourceStates.Select(item => item with { Profile = profile }));
+            }
+            else
+            {
+                installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
+                states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                         && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
+                if (Directory.Exists(destinationDirectory))
+                {
+                    DeleteDirectory(destinationDirectory);
+                }
+            }
+        }
+        await SaveInstallsAsync(resolution.RootPath, installs, cancellationToken);
+        await SaveStatesAsync(resolution.RootPath, states, cancellationToken);
+        return OperationResult.Ok(
+            "Skill repository bindings saved.",
+            $"{normalizedGroupPath}{Environment.NewLine}{string.Join(Environment.NewLine, normalizedTargets)}");
+    }
     public async Task<OperationResult> CaptureBaselineAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶閲嶅缓 Skill 鍩虹嚎。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《闁插秴缂?Skill 閸╄櫣鍤庛€?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var normalizedRelativePath = NormalizePath(relativePath);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
         var installs = await LoadInstallsAsync(resolution.RootPath, cancellationToken);
-        if (!installs.Any(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == GetInstallKey(profile, normalizedRelativePath)))
+        if (!installs.Any(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == GetInstallKey(profileId, normalizedRelativePath)))
         {
-            return OperationResult.Fail("请先保存该 Skill 的登记信息，再建立基线。", normalizedRelativePath);
+            return OperationResult.Fail("璇峰厛淇濆瓨璇?Skill 鐨勭櫥璁颁俊鎭紝鍐嶅缓绔嬪熀绾裤€?, normalizedRelativePath");
         }
 
-        var skillDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedRelativePath);
+        var skillDirectory = GetInstalledSkillDirectory(resolution.RootPath, profileId, normalizedRelativePath);
         if (!Directory.Exists(skillDirectory))
         {
-            return OperationResult.Fail("目标 Skill 目录不存在。", skillDirectory);
+            return OperationResult.Fail("鐩爣 Skill 鐩綍涓嶅瓨鍦ㄣ€?, skillDirectory");
         }
 
         var states = (await LoadStatesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var installKey = GetInstallKey(profile, normalizedRelativePath);
+        var installKey = GetInstallKey(profileId, normalizedRelativePath);
         states.RemoveAll(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == installKey);
-        states.Add(CreateStateRecord(profile, normalizedRelativePath, skillDirectory));
+        states.Add(CreateStateRecord(profileId, normalizedRelativePath, skillDirectory));
         await SaveStatesAsync(resolution.RootPath, states, cancellationToken);
 
-        return OperationResult.Ok("Skill 基线已重建。", GetStatesPath(resolution.RootPath));
+        return OperationResult.Ok("Skill 鍩虹嚎宸查噸寤恒€?, GetStatesPath(resolution.RootPath)");
     }
 
     public async Task<OperationResult> ScanSourceAsync(
         string localName,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鎵弿 Skills 鏉ユ簮。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《閹殿偅寮?Skills 閺夈儲绨€?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var sources = await LoadSourcesAsync(resolution.RootPath, cancellationToken);
-        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profile));
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var source = sources.FirstOrDefault(item => MatchesSource(item, localName, profileId));
         if (source is null)
         {
-            return OperationResult.Fail("鏈壘鍒拌鎵弿鐨?Skills 鏉ユ簮。", localName);
+            return OperationResult.Fail("閺堫亝澹橀崚鎷岊洣閹殿偅寮块惃?Skills 閺夈儲绨€?, localName");
         }
 
         if (!source.IsEnabled)
         {
-            return OperationResult.Fail("褰撳墠鏉ユ簮宸茬鐢紝鏃犳硶鎵弿。", source.SourceDisplayName);
+            return OperationResult.Fail("瑜版挸澧犻弶銉︾爱瀹歌尙顩﹂悽顭掔礉閺冪姵纭堕幍顐ｅ伎銆?, source.SourceDisplayName");
         }
 
         try
@@ -253,7 +409,7 @@ public sealed partial class SkillsCatalogService
             if (discoveredSkills.Count == 0)
             {
                 return OperationResult.Fail(
-                    "鏉ユ簮鎵弿瀹屾垚锛屼絾娌℃湁鍙戠幇浠讳綍 Skill。",
+                    "閺夈儲绨幍顐ｅ伎鐎瑰本鍨氶敍灞肩稻濞屸剝婀侀崣鎴犲箛娴犺缍?Skill銆?",
                     BuildSourceDetails(source, resolvedSource, Array.Empty<string>()));
             }
 
@@ -262,21 +418,22 @@ public sealed partial class SkillsCatalogService
                 .ToArray();
 
             return OperationResult.Ok(
-                "鏉ユ簮鎵弿瀹屾垚。",
+                "閺夈儲绨幍顐ｅ伎鐎瑰本鍨氥€?",
                 BuildSourceDetails(source, resolvedSource, detailLines));
         }
         catch (Exception exception)
         {
-            return OperationResult.Fail("鎵弿鏉ユ簮澶辫触。", exception.Message);
+            return OperationResult.Fail("The skill source could not be scanned.", exception.Message);
         }
     }
 
     public async Task<OperationResult> CheckForUpdatesAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         CancellationToken cancellationToken = default)
     {
-        var contextResult = await TryCreateInstallContextAsync(profile, relativePath, refreshRemote: true, cancellationToken);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var contextResult = await TryCreateInstallContextAsync(profileId, relativePath, refreshRemote: true, cancellationToken);
         if (!contextResult.Success || contextResult.Context is null)
         {
             return contextResult.Result;
@@ -291,22 +448,22 @@ public sealed partial class SkillsCatalogService
         var hasUpdate = baselineSource.Count == 0 || !FingerprintsEqual(baselineSource, context.SourceFingerprints);
         var blockedReason = GetSyncBlockedReason(context, force: false);
 
-        var message = hasUpdate ? "检测到可用更新。" : "当前已与来源基线一致。";
+        var message = hasUpdate ? "Updates are available." : "Installed files already match the source baseline.";
         if (!string.IsNullOrWhiteSpace(blockedReason))
         {
-            message += " 浣嗗綋鍓嶇姸鎬佷笉閫傚悎鐩存帴鍚屾。";
+            message += " Sync is currently blocked by local state.";
         }
 
         return OperationResult.Ok(message, BuildUpdateDetails(context, hasUpdate, blockedReason));
     }
 
-    
     public async Task<OperationResult> PreviewInstalledSkillDiffAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         CancellationToken cancellationToken = default)
     {
-        var contextResult = await TryCreateInstallContextAsync(profile, relativePath, refreshRemote: true, cancellationToken);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var contextResult = await TryCreateInstallContextAsync(profileId, relativePath, refreshRemote: true, cancellationToken);
         if (!contextResult.Success || contextResult.Context is null)
         {
             return contextResult.Result;
@@ -341,19 +498,20 @@ public sealed partial class SkillsCatalogService
 
         var hasSourceDiff = sourceAdded.Length > 0 || sourceRemoved.Length > 0 || sourceChanged.Length > 0;
         var blockedReason = GetSyncBlockedReason(context, force: false);
-        var message = hasSourceDiff ? "已生成差异预览。" : "当前安装内容与来源一致。";
+        var message = hasSourceDiff ? "A diff preview has been generated." : "Installed files already match the source.";
 
         return OperationResult.Ok(
             message,
             BuildDiffPreviewDetails(context, blockedReason, sourceAdded, sourceChanged, sourceRemoved, localAdded, localChanged, localRemoved));
     }
     public async Task<OperationResult> SyncInstalledSkillAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         bool force,
         CancellationToken cancellationToken = default)
     {
-        var contextResult = await TryCreateInstallContextAsync(profile, relativePath, refreshRemote: true, cancellationToken);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var contextResult = await TryCreateInstallContextAsync(profileId, relativePath, refreshRemote: true, cancellationToken);
         if (!contextResult.Success || contextResult.Context is null)
         {
             return contextResult.Result;
@@ -370,7 +528,7 @@ public sealed partial class SkillsCatalogService
         var hasUpdate = baselineSource.Count == 0 || !FingerprintsEqual(baselineSource, context.SourceFingerprints);
         if (!hasUpdate && !force)
         {
-            return OperationResult.Ok("褰撳墠宸叉槸鏈€鏂板唴瀹癸紝鏃犻渶鍚屾。", BuildUpdateDetails(context, hasUpdate: false, blockedReason: null));
+            return OperationResult.Ok("瑜版挸澧犲鍙夋Ц閺堚偓閺傛澘鍞寸€圭櫢绱濋弮鐘绘付閸氬本顒炪€?, BuildUpdateDetails(context, hasUpdate: false, blockedReason: null)");
         }
 
         var backupPath = CreateBackupSnapshot(context.HubRoot, context.Install.Profile, context.Install.InstalledRelativePath, context.InstalledSkillDirectory, "sync");
@@ -397,49 +555,50 @@ public sealed partial class SkillsCatalogService
         var detailBuilder = new StringBuilder();
         detailBuilder.AppendLine(BuildUpdateDetails(context, hasUpdate: true, blockedReason: null));
         detailBuilder.AppendLine();
-        detailBuilder.AppendLine("澶囦唤璺緞：" + backupPath);
-        detailBuilder.AppendLine("鍚屾鏂瑰紡：" + (force ? "寮哄埗鍚屾" : "瀹夊叏鍚屾"));
+        detailBuilder.AppendLine("Backup snapshot: " + backupPath);
+        detailBuilder.AppendLine("Sync mode: " + (force ? "force" : "safe"));
         if (!overlaySnapshot.IsEmpty)
         {
-            detailBuilder.AppendLine("覆盖层已重放：" + overlaySnapshot.FileCount + " 个文件 / 删除 " + overlaySnapshot.DeletedFiles.Count + " 项");
+            detailBuilder.AppendLine("Overlay reapplied: " + overlaySnapshot.FileCount + " files / deleted " + overlaySnapshot.DeletedFiles.Count + " entries");
         }
 
-        return OperationResult.Ok(force ? "Skill 已强制同步。" : "Skill 已安全同步。", detailBuilder.ToString().TrimEnd());
+        return OperationResult.Ok(force ? "Skill force sync completed." : "Skill safe sync completed.", detailBuilder.ToString().TrimEnd());
     }
 
     public async Task<OperationResult> RollbackInstalledSkillAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鍥炴粴 Skill。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 閺嶅湱娲拌ぐ鏇熸￥閺佸牞绱濋弮鐘崇《閸ョ偞绮?Skill銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var normalizedRelativePath = NormalizePath(relativePath);
-        var installDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedRelativePath);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var installDirectory = GetInstalledSkillDirectory(resolution.RootPath, profileId, normalizedRelativePath);
         if (!Directory.Exists(installDirectory))
         {
-            return OperationResult.Fail("目标 Skill 目录不存在。", installDirectory);
+            return OperationResult.Fail("鐩爣 Skill 鐩綍涓嶅瓨鍦ㄣ€?, installDirectory");
         }
 
         var states = (await LoadStatesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var installKey = GetInstallKey(profile, normalizedRelativePath);
+        var installKey = GetInstallKey(profileId, normalizedRelativePath);
         var state = states.FirstOrDefault(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == installKey);
         if (state is null)
         {
-            return OperationResult.Fail("璇?Skill 杩樻病鏈夊悓姝ョ姸鎬侊紝鏃犳硶鍥炴粴。", normalizedRelativePath);
+            return OperationResult.Fail("鐠?Skill 鏉╂ɑ鐥呴張澶婃倱濮濄儳濮搁幀渚婄礉閺冪姵纭堕崶鐐寸泊銆?, normalizedRelativePath");
         }
 
-        var backupPath = ResolveRollbackBackupPath(resolution.RootPath, state, profile, normalizedRelativePath);
+        var backupPath = ResolveRollbackBackupPath(resolution.RootPath, state, profileId, normalizedRelativePath);
         if (string.IsNullOrWhiteSpace(backupPath) || !Directory.Exists(backupPath))
         {
-            return OperationResult.Fail("没有可用的回滚备份。", normalizedRelativePath);
+            return OperationResult.Fail("娌℃湁鍙敤鐨勫洖婊氬浠姐€?, normalizedRelativePath");
         }
 
-        var currentSnapshotBackupPath = CreateBackupSnapshot(resolution.RootPath, profile, normalizedRelativePath, installDirectory, "pre-rollback");
+        var currentSnapshotBackupPath = CreateBackupSnapshot(resolution.RootPath, profileId, normalizedRelativePath, installDirectory, "pre-rollback");
         ReplaceDirectoryWithSource(backupPath, installDirectory);
 
         var currentFingerprints = CaptureFingerprints(installDirectory);
@@ -456,65 +615,66 @@ public sealed partial class SkillsCatalogService
         await UpsertStateAsync(resolution.RootPath, states, updatedState, cancellationToken);
 
         var detailBuilder = new StringBuilder();
-        detailBuilder.AppendLine("宸蹭粠澶囦唤鍥炴粴 Skill。");
-        detailBuilder.AppendLine("鍥炴粴鏉ユ簮：" + backupPath);
-        detailBuilder.AppendLine("褰撳墠鍐呭澶囦唤：" + currentSnapshotBackupPath);
-        detailBuilder.AppendLine("瀹夎鐩綍：" + installDirectory);
+        detailBuilder.AppendLine("瀹歌弓绮犳径鍥﹀敜閸ョ偞绮?Skill銆?");
+        detailBuilder.AppendLine("閸ョ偞绮撮弶銉︾爱锛? + backupPath");
+        detailBuilder.AppendLine("瑜版挸澧犻崘鍛啇婢跺洣鍞わ細" + currentSnapshotBackupPath);
+        detailBuilder.AppendLine("鐎瑰顥婇惄顔肩秿锛? + installDirectory");
 
-        return OperationResult.Ok("Skill 已回滚到最近备份。", detailBuilder.ToString().TrimEnd());
+        return OperationResult.Ok("Skill 宸插洖婊氬埌鏈€杩戝浠姐€?, detailBuilder.ToString().TrimEnd()");
     }
 
     private async Task<SkillContextResult> TryCreateInstallContextAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         bool refreshRemote,
         CancellationToken cancellationToken)
     {
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return SkillContextResult.Fail(OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶澶勭悊 Skill。", string.Join(Environment.NewLine, resolution.Errors)));
+            return SkillContextResult.Fail(OperationResult.Fail("AI-Hub hub root is invalid. Skill context could not be created.", string.Join(Environment.NewLine, resolution.Errors)));
         }
 
         var normalizedRelativePath = NormalizePath(relativePath);
         if (string.IsNullOrWhiteSpace(normalizedRelativePath))
         {
-            return SkillContextResult.Fail(OperationResult.Fail("Skill 路径不能为空。"));
+            return SkillContextResult.Fail(OperationResult.Fail("Skill path cannot be empty."));
         }
 
         var installs = await LoadInstallsAsync(resolution.RootPath, cancellationToken);
-        var install = installs.FirstOrDefault(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == GetInstallKey(profile, normalizedRelativePath));
+        var install = installs.FirstOrDefault(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == GetInstallKey(profileId, normalizedRelativePath));
         if (install is null)
         {
-            return SkillContextResult.Fail(OperationResult.Fail("该 Skill 尚未登记来源与同步策略。", normalizedRelativePath));
+            return SkillContextResult.Fail(OperationResult.Fail("The skill is not registered yet.", normalizedRelativePath));
         }
 
         if (install.CustomizationMode == SkillCustomizationMode.Local)
         {
-            return SkillContextResult.Fail(OperationResult.Fail("本地模式的 Skill 不参与上游同步。", normalizedRelativePath));
+            return SkillContextResult.Fail(OperationResult.Fail("Local-mode skills do not participate in upstream sync.", normalizedRelativePath));
         }
 
-        if (string.IsNullOrWhiteSpace(install.SourceLocalName) || !install.SourceProfile.HasValue)
+        if (string.IsNullOrWhiteSpace(install.SourceLocalName) || string.IsNullOrWhiteSpace(install.SourceProfile))
         {
-            return SkillContextResult.Fail(OperationResult.Fail("璇?Skill 灏氭湭缁戝畾鏉ユ簮。", normalizedRelativePath));
+            return SkillContextResult.Fail(OperationResult.Fail("The skill is missing a bound source.", normalizedRelativePath));
         }
 
         var sources = await LoadSourcesAsync(resolution.RootPath, cancellationToken);
         var source = sources.FirstOrDefault(item => MatchesSource(item, install.SourceLocalName, install.SourceProfile));
         if (source is null)
         {
-            return SkillContextResult.Fail(OperationResult.Fail("绑定的来源不存在，请先检查来源清单。", install.SourceLocalName));
+            return SkillContextResult.Fail(OperationResult.Fail("The bound source does not exist.", install.SourceLocalName));
         }
 
         if (!source.IsEnabled)
         {
-            return SkillContextResult.Fail(OperationResult.Fail("缁戝畾鐨勬潵婧愬綋鍓嶅凡绂佺敤。", source.SourceDisplayName));
+            return SkillContextResult.Fail(OperationResult.Fail("The bound source is disabled.", source.SourceDisplayName));
         }
 
         var installedSkillDirectory = GetInstalledSkillDirectory(resolution.RootPath, install.Profile, install.InstalledRelativePath);
         if (!Directory.Exists(installedSkillDirectory))
         {
-            return SkillContextResult.Fail(OperationResult.Fail("安装目录不存在。", installedSkillDirectory));
+            return SkillContextResult.Fail(OperationResult.Fail("The installed skill directory does not exist.", installedSkillDirectory));
         }
 
         try
@@ -524,10 +684,10 @@ public sealed partial class SkillsCatalogService
             var sourceFingerprints = CaptureFingerprints(sourceSkillDirectory);
             var installedFingerprints = CaptureFingerprints(installedSkillDirectory);
             var states = await LoadStatesAsync(resolution.RootPath, cancellationToken);
-            var state = states.FirstOrDefault(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == GetInstallKey(profile, normalizedRelativePath))
+            var state = states.FirstOrDefault(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == GetInstallKey(profileId, normalizedRelativePath))
                 ?? new SkillInstallStateRecord
                 {
-                    Profile = profile,
+                    Profile = profileId,
                     InstalledRelativePath = normalizedRelativePath
                 };
 
@@ -546,7 +706,7 @@ public sealed partial class SkillsCatalogService
         }
         catch (Exception exception)
         {
-            return SkillContextResult.Fail(OperationResult.Fail("瑙ｆ瀽 Skill 鏉ユ簮澶辫触。", exception.Message));
+            return SkillContextResult.Fail(OperationResult.Fail("The skill source could not be resolved.", exception.Message));
         }
     }
 
@@ -570,14 +730,17 @@ public sealed partial class SkillsCatalogService
             item => item,
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (var profile in Profiles)
+        var skillsRoot = Path.Combine(hubRoot, "skills");
+        if (!Directory.Exists(skillsRoot))
         {
-            var profileRoot = Path.Combine(hubRoot, "skills", profile.ToStorageValue());
-            if (!Directory.Exists(profileRoot))
-            {
-                continue;
-            }
+            return [];
+        }
 
+        foreach (var profileRoot in Directory.EnumerateDirectories(skillsRoot)
+                     .OrderBy(path => GetProfileSortOrder(Path.GetFileName(path)))
+                     .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase))
+        {
+            var profile = WorkspaceProfiles.NormalizeId(Path.GetFileName(profileRoot));
             foreach (var manifestPath in Directory.EnumerateFiles(profileRoot, "SKILL.md", SearchOption.AllDirectories))
             {
                 var skillDirectory = Path.GetDirectoryName(manifestPath);
@@ -593,9 +756,9 @@ public sealed partial class SkillsCatalogService
 
                 SkillSourceRecord? source = null;
                 var sourceMissing = false;
-                if (!string.IsNullOrWhiteSpace(install?.SourceLocalName) && install.SourceProfile.HasValue)
+                if (!string.IsNullOrWhiteSpace(install?.SourceLocalName) && !string.IsNullOrWhiteSpace(install.SourceProfile))
                 {
-                    sourceMap.TryGetValue(GetSourceKey(install.SourceLocalName, install.SourceProfile.Value), out source);
+                    sourceMap.TryGetValue(GetSourceKey(install.SourceLocalName, install.SourceProfile), out source);
                     sourceMissing = source is null;
                 }
 
@@ -615,6 +778,7 @@ public sealed partial class SkillsCatalogService
                 {
                     Name = Path.GetFileName(skillDirectory),
                     Profile = profile,
+                    ProfileDisplayName = WorkspaceProfiles.ToDisplayName(profile),
                     DirectoryPath = skillDirectory,
                     RelativePath = relativePath,
                     HasManifest = true,
@@ -624,10 +788,11 @@ public sealed partial class SkillsCatalogService
                     IsDirty = isDirty,
                     SourceLocalName = install?.SourceLocalName,
                     SourceProfile = install?.SourceProfile,
+                    SourceProfileDisplayName = string.IsNullOrWhiteSpace(install?.SourceProfile) ? string.Empty : WorkspaceProfiles.ToDisplayName(install.SourceProfile),
                     SourceSkillPath = install?.SourceSkillPath,
                     BaselineDisplay = hasBaseline
-                        ? "鏈€杩戝熀绾匡細" + state!.BaselineCapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
-                        : "灏氭湭寤虹珛鍩虹嚎",
+                        ? "Baseline captured: " + state!.BaselineCapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        : "No baseline captured yet",
                     StatusDisplay = BuildStatusText(install is not null, mode, hasBaseline, isDirty, sourceMissing),
                     LastSyncDisplay = BuildLastSyncDisplay(state),
                     BackupSummaryDisplay = BuildBackupSummary(backupPaths),
@@ -639,7 +804,8 @@ public sealed partial class SkillsCatalogService
 
         return installedSkills
             .DistinctBy(skill => GetInstallKey(skill.Profile, skill.RelativePath), StringComparer.OrdinalIgnoreCase)
-            .OrderBy(skill => skill.Profile)
+            .OrderBy(skill => GetProfileSortOrder(skill.Profile))
+            .ThenBy(skill => skill.Profile, StringComparer.OrdinalIgnoreCase)
             .ThenBy(skill => skill.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -653,46 +819,46 @@ public sealed partial class SkillsCatalogService
     {
         if (!isRegistered)
         {
-            return "鏈櫥璁版潵婧愪笌鏇存柊绛栫暐";
+            return "閺堫亞娅ョ拋鐗堟降濠ф劒绗岄弴瀛樻煀缁涙牜鏆?";
         }
 
         if (sourceMissing && mode != SkillCustomizationMode.Local)
         {
-            return "已登记，但绑定的来源记录不存在";
+            return "宸茬櫥璁帮紝浣嗙粦瀹氱殑鏉ユ簮璁板綍涓嶅瓨鍦?";
         }
 
         if (!hasBaseline)
         {
-            return "宸茬櫥璁帮紝灏氭湭寤虹珛鍩虹嚎";
+            return "瀹歌尙娅ョ拋甯礉鐏忔碍婀铏圭彌閸╄櫣鍤?";
         }
 
         if (isDirty)
         {
             return mode switch
             {
-                SkillCustomizationMode.Managed => "鎵樼妯″紡锛屾娴嬪埌鏈湴淇敼",
-                SkillCustomizationMode.Overlay => "瑕嗙洊灞傛ā寮忥紝瀛樺湪鏈湴瑕嗙洊鏀瑰姩",
-                SkillCustomizationMode.Fork => "Fork 模式，存在新的本地修改",
-                SkillCustomizationMode.Local => "本地模式，存在新的本地修改",
-                _ => "瀛樺湪鏈湴淇敼"
+                SkillCustomizationMode.Managed => "閹垫顓稿Ο鈥崇础閿涘本顥呭ù瀣煂閺堫剙婀存穱顔芥暭",
+                SkillCustomizationMode.Overlay => "鐟曞棛娲婄仦鍌浤佸蹇ョ礉鐎涙ê婀張顒€婀寸憰鍡欐磰閺€鐟板З",
+                SkillCustomizationMode.Fork => "Fork 妯″紡锛屽瓨鍦ㄦ柊鐨勬湰鍦颁慨鏀?",
+                SkillCustomizationMode.Local => "鏈湴妯″紡锛屽瓨鍦ㄦ柊鐨勬湰鍦颁慨鏀?",
+                _ => "鐎涙ê婀張顒€婀存穱顔芥暭"
             };
         }
 
         return mode switch
         {
-            SkillCustomizationMode.Managed => "托管模式，与基线一致",
-            SkillCustomizationMode.Overlay => "覆盖层模式，与基线一致",
-            SkillCustomizationMode.Fork => "Fork 模式，与基线一致",
-            SkillCustomizationMode.Local => "本地模式，与基线一致",
-            _ => "与基线一致"
+            SkillCustomizationMode.Managed => "Managed mode, in sync with baseline",
+            SkillCustomizationMode.Overlay => "Overlay mode, in sync with baseline",
+            SkillCustomizationMode.Fork => "Fork mode, in sync with baseline",
+            SkillCustomizationMode.Local => "Local mode, in sync with baseline",
+            _ => "In sync with baseline"
         };
     }
 
-    private static SkillInstallStateRecord CreateStateRecord(ProfileKind profile, string relativePath, string skillDirectory)
+    private static SkillInstallStateRecord CreateStateRecord(string profile, string relativePath, string skillDirectory)
     {
         return new SkillInstallStateRecord
         {
-            Profile = profile,
+            Profile = WorkspaceProfiles.NormalizeId(profile),
             InstalledRelativePath = NormalizePath(relativePath),
             BaselineCapturedAt = DateTimeOffset.UtcNow,
             BaselineFiles = CaptureFingerprints(skillDirectory).ToList()
@@ -780,7 +946,7 @@ public sealed partial class SkillsCatalogService
 
         if (source.Kind == SkillSourceKind.LocalDirectory)
         {
-            var workingRootPath = NormalizeExistingDirectory(source.Location, "鏉ユ簮鐩綍涓嶅瓨鍦細");
+            var workingRootPath = NormalizeExistingDirectory(source.Location, "閺夈儲绨惄顔肩秿娑撳秴鐡ㄩ崷顭掔窗");
             var catalogRootPath = ResolveCatalogRootPath(workingRootPath, source.CatalogPath);
             return new ResolvedSkillSource(workingRootPath, catalogRootPath, "local");
         }
@@ -797,19 +963,19 @@ public sealed partial class SkillsCatalogService
         IReadOnlyList<string> detailLines)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("鏉ユ簮：" + source.SourceDisplayName);
-        builder.AppendLine("绫诲瀷：" + source.KindDisplay);
-        builder.AppendLine("瑙ｆ瀽鐩綍：" + resolvedSource.WorkingRootPath);
-        builder.AppendLine("鐩綍鑼冨洿：" + resolvedSource.CatalogRootPath);
-        builder.AppendLine("褰撳墠寮曠敤：" + resolvedSource.ResolvedReference);
+        builder.AppendLine("閺夈儲绨細" + source.SourceDisplayName);
+        builder.AppendLine("缁鐎凤細" + source.KindDisplay);
+        builder.AppendLine("鐟欙絾鐎介惄顔肩秿锛? + resolvedSource.WorkingRootPath");
+        builder.AppendLine("閻╊喖缍嶉懠鍐ㄦ纯锛? + resolvedSource.CatalogRootPath");
+        builder.AppendLine("瑜版挸澧犲鏇犳暏锛? + resolvedSource.ResolvedReference");
 
         if (detailLines.Count == 0)
         {
-            builder.AppendLine("鏈彂鐜颁换浣?Skill。");
+            builder.AppendLine("閺堫亜褰傞悳棰佹崲娴?Skill銆?");
         }
         else
         {
-            builder.AppendLine("发现的 Skills：");
+            builder.AppendLine("鍙戠幇鐨?Skills锛?");
             foreach (var line in detailLines)
             {
                 builder.AppendLine(line);
@@ -822,33 +988,33 @@ public sealed partial class SkillsCatalogService
     private static string BuildUpdateDetails(SkillInstallContext context, bool hasUpdate, string? blockedReason)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("Skill：" + context.Install.Name);
-        builder.AppendLine("瀹夎璺緞：" + context.InstalledSkillDirectory);
-        builder.AppendLine("鏉ユ簮：" + context.Source.SourceDisplayName);
-        builder.AppendLine("鏉ユ簮鐩綍：" + context.SourceSkillDirectory);
-        builder.AppendLine("褰撳墠妯″紡：" + context.Install.CustomizationMode.ToDisplayName());
-        builder.AppendLine("本地状态：" + (context.IsDirty ? "检测到本地修改" : "与基线一致"));
-        builder.AppendLine("褰撳墠寮曠敤：" + context.ResolvedSource.ResolvedReference);
-        builder.AppendLine("上游状态：" + (hasUpdate ? "检测到可用更新" : "与来源基线一致"));
+        builder.AppendLine("Skill: " + context.Install.Name);
+        builder.AppendLine("Installed directory: " + context.InstalledSkillDirectory);
+        builder.AppendLine("Source: " + context.Source.SourceDisplayName);
+        builder.AppendLine("Source directory: " + context.SourceSkillDirectory);
+        builder.AppendLine("Mode: " + context.Install.CustomizationMode.ToDisplayName());
+        builder.AppendLine("Local state: " + (context.IsDirty ? "Local modifications detected" : "Matches baseline"));
+        builder.AppendLine("Resolved source ref: " + context.ResolvedSource.ResolvedReference);
+        builder.AppendLine("Upstream state: " + (hasUpdate ? "Updates available" : "Matches source baseline"));
 
         if (!string.IsNullOrWhiteSpace(context.State.LastAppliedReference))
         {
-            builder.AppendLine("涓婃鍚屾寮曠敤：" + context.State.LastAppliedReference);
+            builder.AppendLine("娑撳﹥顐奸崥灞绢劄瀵洜鏁わ細" + context.State.LastAppliedReference);
         }
 
         if (context.State.LastSyncAt.HasValue)
         {
-            builder.AppendLine("涓婃鍚屾鏃堕棿：" + context.State.LastSyncAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
+            builder.AppendLine("娑撳﹥顐奸崥灞绢劄閺冨爼妫匡細" + context.State.LastSyncAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"));
         }
 
         if (!string.IsNullOrWhiteSpace(context.State.LastBackupPath))
         {
-            builder.AppendLine("鏈€杩戝浠斤細" + context.State.LastBackupPath);
+            builder.AppendLine("閺堚偓鏉╂垵顦禒鏂ょ窗" + context.State.LastBackupPath);
         }
 
         if (!string.IsNullOrWhiteSpace(blockedReason))
         {
-            builder.AppendLine("鍚屾闄愬埗：" + blockedReason);
+            builder.AppendLine("閸氬本顒為梽鎰煑锛? + blockedReason");
         }
 
         return builder.ToString().TrimEnd();
@@ -858,17 +1024,17 @@ public sealed partial class SkillsCatalogService
     {
         if (context.Install.CustomizationMode == SkillCustomizationMode.Local)
         {
-            return "本地模式的 Skill 不参与上游同步。";
+            return "鏈湴妯″紡鐨?Skill 涓嶅弬涓庝笂娓稿悓姝ャ€?";
         }
 
         if (context.Install.CustomizationMode == SkillCustomizationMode.Overlay && context.State.BaselineFiles.Count == 0)
         {
-            return "覆盖层模式需要先建立基线，才能安全重放本地覆盖内容。";
+            return "瑕嗙洊灞傛ā寮忛渶瑕佸厛寤虹珛鍩虹嚎锛屾墠鑳藉畨鍏ㄩ噸鏀炬湰鍦拌鐩栧唴瀹广€?";
         }
 
         if (context.Install.CustomizationMode == SkillCustomizationMode.Fork && !force)
         {
-            return "Fork 妯″紡榛樿涓嶈嚜鍔ㄨ鐩栵紝璇锋敼鐢ㄥ己鍒跺悓姝ユ垨鎵嬪伐澶勭悊。";
+            return "Fork 濡€崇础姒涙顓绘稉宥堝殰閸斻劏顩惄鏍电礉鐠囬攱鏁奸悽銊ュ繁閸掕泛鎮撳銉﹀灗閹靛浼愭径鍕倞銆?";
         }
 
         if (context.Install.CustomizationMode == SkillCustomizationMode.Overlay)
@@ -878,7 +1044,7 @@ public sealed partial class SkillsCatalogService
 
         if (context.IsDirty && !force)
         {
-            return "检测到本地修改，默认不会覆盖。请先重建基线、调整模式，或改用强制同步。";
+            return "妫€娴嬪埌鏈湴淇敼锛岄粯璁や笉浼氳鐩栥€傝鍏堥噸寤哄熀绾裤€佽皟鏁存ā寮忥紝鎴栨敼鐢ㄥ己鍒跺悓姝ャ€?";
         }
 
         return null;
@@ -904,7 +1070,7 @@ public sealed partial class SkillsCatalogService
     private static string ResolveRollbackBackupPath(
         string hubRoot,
         SkillInstallStateRecord state,
-        ProfileKind profile,
+        string profile,
         string relativePath)
     {
         if (!string.IsNullOrWhiteSpace(state.LastBackupPath) && Directory.Exists(state.LastBackupPath))
@@ -926,7 +1092,7 @@ public sealed partial class SkillsCatalogService
 
     private static string CreateBackupSnapshot(
         string hubRoot,
-        ProfileKind profile,
+        string profile,
         string relativePath,
         string sourceDirectory,
         string reason)
@@ -944,13 +1110,13 @@ public sealed partial class SkillsCatalogService
         return backupDirectory;
     }
 
-    private static string GetBackupRoot(string hubRoot, ProfileKind profile, string relativePath)
+    private static string GetBackupRoot(string hubRoot, string profile, string relativePath)
     {
         return Path.Combine(
             hubRoot,
             "backups",
             "skills",
-            profile.ToStorageValue(),
+            WorkspaceProfiles.NormalizeId(profile),
             SanitizePathSegment(relativePath));
     }
 
@@ -966,6 +1132,16 @@ public sealed partial class SkillsCatalogService
         }
 
         CopyDirectory(sourceDirectory, destinationDirectory);
+    }
+
+    private static void DeleteDirectory(string directory)
+    {
+        foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
+        Directory.Delete(directory, recursive: true);
     }
 
     private static void DeleteDirectoryContents(string directory)
@@ -1036,7 +1212,7 @@ public sealed partial class SkillsCatalogService
                 "git",
                 ["clone", source.Location, cacheDirectory],
                 workingDirectory: null,
-                failureMessage: "鍒濆鍖?Git 鏉ユ簮缂撳瓨澶辫触。",
+                failureMessage: "閸掓繂顫愰崠?Git 閺夈儲绨紓鎾崇摠婢惰精瑙︺€?",
                 cancellationToken);
         }
         else if (refreshRemote)
@@ -1045,7 +1221,7 @@ public sealed partial class SkillsCatalogService
                 "git",
                 ["-C", cacheDirectory, "fetch", "--all", "--tags", "--prune"],
                 workingDirectory: null,
-                failureMessage: "鏇存柊 Git 鏉ユ簮缂撳瓨澶辫触。",
+                failureMessage: "閺囧瓨鏌?Git 閺夈儲绨紓鎾崇摠婢惰精瑙︺€?",
                 cancellationToken);
         }
 
@@ -1054,7 +1230,7 @@ public sealed partial class SkillsCatalogService
             "git",
             ["-C", cacheDirectory, "checkout", "--force", reference],
             workingDirectory: null,
-            failureMessage: "鍒囨崲鍒版寚瀹?Git 寮曠敤澶辫触。",
+            failureMessage: "閸掑洦宕查崚鐗堝瘹鐎?Git 瀵洜鏁ゆ径杈Е銆?",
             cancellationToken);
 
         var remoteReference = "origin/" + reference;
@@ -1065,7 +1241,7 @@ public sealed partial class SkillsCatalogService
                 "git",
                 ["-C", cacheDirectory, "reset", "--hard", remoteReference],
                 workingDirectory: null,
-                failureMessage: "鍚屾杩滅鍒嗘敮澶辫触。",
+                failureMessage: "閸氬本顒炴潻婊咁伂閸掑棙鏁径杈Е銆?",
                 cancellationToken);
         }
 
@@ -1186,7 +1362,7 @@ public sealed partial class SkillsCatalogService
 
         if (!Directory.Exists(catalogRootPath))
         {
-            throw new InvalidOperationException("鏉ユ簮鐩綍鑼冨洿涓嶅瓨鍦細" + catalogRootPath);
+            throw new InvalidOperationException("閺夈儲绨惄顔肩秿閼煎啫娲挎稉宥呯摠閸︻煉绱? + catalogRootPath");
         }
 
         return catalogRootPath;
@@ -1237,7 +1413,7 @@ public sealed partial class SkillsCatalogService
             return relativePathMatches[0].SkillDirectory;
         }
 
-        throw new InvalidOperationException("鏃犳硶纭畾鏉ユ簮涓殑 Skill 鐩綍锛岃鍦ㄦ潵婧愪腑鐨勬妧鑳借矾寰勪腑鏄庣‘濉啓。");
+        throw new InvalidOperationException("閺冪姵纭剁涵顔肩暰閺夈儲绨稉顓犳畱 Skill 閻╊喖缍嶉敍宀冾嚞閸︺劍娼靛┃鎰厬閻ㄥ嫭濡ч懗鍊熺熅瀵板嫪鑵戦弰搴ｂ€樻繅顐㈠晸銆?");
     }
 
     private static string CombineCandidatePath(string rootPath, string relativePath)
@@ -1334,7 +1510,8 @@ public sealed partial class SkillsCatalogService
         }
 
         return sources
-            .OrderBy(source => source.Profile)
+            .OrderBy(source => GetProfileSortOrder(source.Profile))
+            .ThenBy(source => source.Profile, StringComparer.OrdinalIgnoreCase)
             .ThenBy(source => source.LocalName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -1357,7 +1534,8 @@ public sealed partial class SkillsCatalogService
         return new SkillSourceRecord
         {
             LocalName = ReadString(element, "localName") ?? string.Empty,
-            Profile = ReadProfile(element, "profile", ProfileKind.Global),
+            Profile = ReadProfile(element, "profile", WorkspaceProfiles.GlobalId),
+            ProfileDisplayName = ReadString(element, "profileDisplayName") ?? string.Empty,
             Kind = kind,
             Location = location ?? string.Empty,
             CatalogPath = catalogPath,
@@ -1417,7 +1595,8 @@ public sealed partial class SkillsCatalogService
         var document = JsonSerializer.Deserialize<SkillInstallsDocument>(json, SerializerOptions) ?? new SkillInstallsDocument();
         return document.Installs
             .Select(NormalizeInstall)
-            .OrderBy(item => item.Profile)
+            .OrderBy(item => GetProfileSortOrder(item.Profile))
+            .ThenBy(item => item.Profile, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.InstalledRelativePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -1459,7 +1638,8 @@ public sealed partial class SkillsCatalogService
         var document = JsonSerializer.Deserialize<SkillInstallStatesDocument>(json, SerializerOptions) ?? new SkillInstallStatesDocument();
         return document.States
             .Select(NormalizeState)
-            .OrderBy(item => item.Profile)
+            .OrderBy(item => GetProfileSortOrder(item.Profile))
+            .ThenBy(item => item.Profile, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.InstalledRelativePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -1516,6 +1696,8 @@ public sealed partial class SkillsCatalogService
 
         return record with
         {
+            Profile = WorkspaceProfiles.NormalizeId(record.Profile),
+            ProfileDisplayName = WorkspaceProfiles.NormalizeDisplayName(record.ProfileDisplayName, record.Profile),
             LocalName = record.LocalName.Trim(),
             Location = record.Location.Trim(),
             CatalogPath = string.IsNullOrWhiteSpace(record.CatalogPath) ? null : NormalizePath(record.CatalogPath),
@@ -1539,9 +1721,11 @@ public sealed partial class SkillsCatalogService
         var normalizedRelativePath = NormalizePath(record.InstalledRelativePath);
         return record with
         {
+            Profile = WorkspaceProfiles.NormalizeId(record.Profile),
             Name = string.IsNullOrWhiteSpace(record.Name) ? Path.GetFileName(normalizedRelativePath) : record.Name.Trim(),
             InstalledRelativePath = normalizedRelativePath,
             SourceLocalName = string.IsNullOrWhiteSpace(record.SourceLocalName) ? null : record.SourceLocalName.Trim(),
+            SourceProfile = string.IsNullOrWhiteSpace(record.SourceProfile) ? null : WorkspaceProfiles.NormalizeId(record.SourceProfile),
             SourceSkillPath = string.IsNullOrWhiteSpace(record.SourceSkillPath) ? null : NormalizePath(record.SourceSkillPath)
         };
     }
@@ -1550,6 +1734,7 @@ public sealed partial class SkillsCatalogService
     {
         return record with
         {
+            Profile = WorkspaceProfiles.NormalizeId(record.Profile),
             InstalledRelativePath = NormalizePath(record.InstalledRelativePath),
             BaselineFiles = record.BaselineFiles
                 .Select(item => item with { RelativePath = NormalizePath(item.RelativePath) })
@@ -1562,12 +1747,12 @@ public sealed partial class SkillsCatalogService
     {
         if (string.IsNullOrWhiteSpace(record.LocalName))
         {
-            return "鏉ユ簮鍚嶇О涓嶈兘涓虹┖。";
+            return "閺夈儲绨崥宥囆炴稉宥堝厴娑撹櫣鈹栥€?";
         }
 
         if (string.IsNullOrWhiteSpace(record.Location))
         {
-            return "鏉ユ簮鍦板潃涓嶈兘涓虹┖。";
+            return "閺夈儲绨崷鏉挎絻娑撳秷鍏樻稉铏光敄銆?";
         }
 
         return null;
@@ -1577,7 +1762,7 @@ public sealed partial class SkillsCatalogService
     {
         if (string.IsNullOrWhiteSpace(record.InstalledRelativePath))
         {
-            return "Skill 的安装路径不能为空。";
+            return "Skill 鐨勫畨瑁呰矾寰勪笉鑳戒负绌恒€?";
         }
 
         if (record.CustomizationMode == SkillCustomizationMode.Local)
@@ -1585,33 +1770,33 @@ public sealed partial class SkillsCatalogService
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(record.SourceLocalName) || !record.SourceProfile.HasValue)
+        if (string.IsNullOrWhiteSpace(record.SourceLocalName) || string.IsNullOrWhiteSpace(record.SourceProfile))
         {
-            return "除“本地”模式外，其它模式都需要绑定一个来源。";
+            return "闄も€滄湰鍦扳€濇ā寮忓锛屽叾瀹冩ā寮忛兘闇€瑕佺粦瀹氫竴涓潵婧愩€?";
         }
 
         if (!sources.Any(source => MatchesSource(source, record.SourceLocalName, record.SourceProfile)))
         {
-            return "所选来源不存在，请先保存来源清单。";
+            return "鎵€閫夋潵婧愪笉瀛樺湪锛岃鍏堜繚瀛樻潵婧愭竻鍗曘€?";
         }
 
         return null;
     }
 
-    private static bool MatchesSource(SkillSourceRecord source, string? localName, ProfileKind? profile)
+    private static bool MatchesSource(SkillSourceRecord source, string? localName, string? profile)
     {
         return !string.IsNullOrWhiteSpace(localName)
-            && profile.HasValue
-            && source.Profile == profile.Value
+            && !string.IsNullOrWhiteSpace(profile)
+            && string.Equals(source.Profile, WorkspaceProfiles.NormalizeId(profile), StringComparison.OrdinalIgnoreCase)
             && string.Equals(source.LocalName, localName.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string GetInstalledSkillDirectory(string hubRoot, ProfileKind profile, string relativePath)
+    private static string GetInstalledSkillDirectory(string hubRoot, string profile, string relativePath)
     {
         return Path.Combine(
             hubRoot,
             "skills",
-            profile.ToStorageValue(),
+            WorkspaceProfiles.NormalizeId(profile),
             NormalizePath(relativePath).Replace('/', Path.DirectorySeparatorChar));
     }
 
@@ -1629,33 +1814,136 @@ public sealed partial class SkillsCatalogService
             .TrimEnd('/');
     }
 
-    private static string GetInstallKey(ProfileKind profile, string relativePath)
+    private static int GetProfileSortOrder(string? profile)
     {
-        return profile + ":" + NormalizePath(relativePath);
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
+        return ProfileSortOrder.TryGetValue(normalizedProfile, out var sortOrder)
+            ? sortOrder
+            : ProfileSortOrder.Count;
     }
 
-    private static string GetSourceKey(string localName, ProfileKind profile)
+    private static string GetInstallKey(string profile, string relativePath)
     {
-        return profile + ":" + localName.Trim();
+        return WorkspaceProfiles.NormalizeId(profile) + ":" + NormalizePath(relativePath);
+    }
+
+    private static List<string> NormalizeProfiles(IEnumerable<string> profiles)
+    {
+        return profiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile))
+            .Select(WorkspaceProfiles.NormalizeId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(GetProfileSortOrder)
+            .ThenBy(profile => profile, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<string> GetExistingSkillProfiles(
+        string hubRoot,
+        IReadOnlyList<SkillInstallRecord> installs,
+        IReadOnlyList<SkillInstallStateRecord> states,
+        string relativePath)
+    {
+        var normalizedRelativePath = NormalizePath(relativePath);
+        var profiles = installs
+            .Where(item => string.Equals(item.InstalledRelativePath, normalizedRelativePath, StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Profile)
+            .Concat(states
+                .Where(item => string.Equals(item.InstalledRelativePath, normalizedRelativePath, StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.Profile))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var skillsRoot = Path.Combine(hubRoot, "skills");
+        if (Directory.Exists(skillsRoot))
+        {
+            foreach (var profileRoot in Directory.EnumerateDirectories(skillsRoot))
+            {
+                var profile = WorkspaceProfiles.NormalizeId(Path.GetFileName(profileRoot));
+                var directory = GetInstalledSkillDirectory(hubRoot, profile, normalizedRelativePath);
+                if (Directory.Exists(directory))
+                {
+                    profiles.Add(profile);
+                }
+            }
+        }
+
+        return profiles.ToArray();
+    }
+
+    private static IReadOnlyList<string> GetExistingGroupProfiles(
+        string hubRoot,
+        IReadOnlyList<SkillInstallRecord> installs,
+        IReadOnlyList<SkillInstallStateRecord> states,
+        string groupPath)
+    {
+        var normalizedGroupPath = NormalizePath(groupPath);
+        var profiles = installs
+            .Where(item => IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath))
+            .Select(item => item.Profile)
+            .Concat(states
+                .Where(item => IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath))
+                .Select(item => item.Profile))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var skillsRoot = Path.Combine(hubRoot, "skills");
+        if (Directory.Exists(skillsRoot))
+        {
+            foreach (var profileRoot in Directory.EnumerateDirectories(skillsRoot))
+            {
+                var profile = WorkspaceProfiles.NormalizeId(Path.GetFileName(profileRoot));
+                var directory = GetInstalledSkillDirectory(hubRoot, profile, normalizedGroupPath);
+                if (Directory.Exists(directory))
+                {
+                    profiles.Add(profile);
+                }
+            }
+        }
+
+        return profiles.ToArray();
+    }
+
+    private static bool IsSkillInstall(SkillInstallRecord record, string profile, string relativePath)
+    {
+        return string.Equals(record.Profile, WorkspaceProfiles.NormalizeId(profile), StringComparison.OrdinalIgnoreCase)
+               && string.Equals(record.InstalledRelativePath, NormalizePath(relativePath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsSkillState(SkillInstallStateRecord record, string profile, string relativePath)
+    {
+        return string.Equals(record.Profile, WorkspaceProfiles.NormalizeId(profile), StringComparison.OrdinalIgnoreCase)
+               && string.Equals(record.InstalledRelativePath, NormalizePath(relativePath), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPathWithinScope(string relativePath, string groupPath)
+    {
+        var normalizedPath = NormalizePath(relativePath);
+        var normalizedGroupPath = NormalizePath(groupPath);
+        return string.Equals(normalizedPath, normalizedGroupPath, StringComparison.OrdinalIgnoreCase)
+               || normalizedPath.StartsWith(normalizedGroupPath + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetSourceKey(string localName, string profile)
+    {
+        return WorkspaceProfiles.NormalizeId(profile) + ":" + localName.Trim();
     }
 
     private static string? ReadString(JsonElement element, string propertyName)
     {
-        return element.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+        return TryGetPropertyCaseInsensitive(element, propertyName, out var property) && property.ValueKind == JsonValueKind.String
             ? property.GetString()
             : null;
     }
 
     private static bool ReadBoolean(JsonElement element, string propertyName, bool fallback)
     {
-        return element.TryGetProperty(propertyName, out var property) && property.ValueKind is JsonValueKind.True or JsonValueKind.False
+        return TryGetPropertyCaseInsensitive(element, propertyName, out var property) && property.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? property.GetBoolean()
             : fallback;
     }
 
     private static int? ReadNullableInt(JsonElement element, string propertyName)
     {
-        if (!element.TryGetProperty(propertyName, out var property))
+        if (!TryGetPropertyCaseInsensitive(element, propertyName, out var property))
         {
             return null;
         }
@@ -1673,10 +1961,10 @@ public sealed partial class SkillsCatalogService
         return null;
     }
 
-    private static ProfileKind ReadProfile(JsonElement element, string propertyName, ProfileKind fallback)
+    private static string ReadProfile(JsonElement element, string propertyName, string fallback)
     {
         var rawValue = ReadString(element, propertyName);
-        return ProfileKindExtensions.TryParse(rawValue, out var profile) ? profile : fallback;
+        return WorkspaceProfiles.NormalizeId(rawValue ?? fallback);
     }
 
     private static SkillScheduledUpdateAction ReadScheduledUpdateAction(JsonElement element, string propertyName)
@@ -1716,6 +2004,26 @@ public sealed partial class SkillsCatalogService
         return rawValue.Equals("localDirectory", StringComparison.OrdinalIgnoreCase)
             ? SkillSourceKind.LocalDirectory
             : SkillSourceKind.GitRepository;
+    }
+
+    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement property)
+    {
+        if (element.TryGetProperty(propertyName, out property))
+        {
+            return true;
+        }
+
+        foreach (var candidate in element.EnumerateObject())
+        {
+            if (string.Equals(candidate.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                property = candidate.Value;
+                return true;
+            }
+        }
+
+        property = default;
+        return false;
     }
 
     private static string GetSourcesPath(string hubRoot)
@@ -1770,8 +2078,4 @@ public sealed partial class SkillsCatalogService
         public List<SkillInstallStateRecord> States { get; set; } = new();
     }
 }
-
-
-
-
 

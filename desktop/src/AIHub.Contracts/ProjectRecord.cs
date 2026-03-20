@@ -3,5 +3,5 @@
 public sealed record ProjectRecord(
     string Name,
     string Path,
-    ProfileKind Profile,
+    string Profile,
     bool IsPinned = false);

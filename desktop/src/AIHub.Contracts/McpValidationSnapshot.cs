@@ -2,7 +2,7 @@ namespace AIHub.Contracts;
 
 public sealed record McpValidationSnapshot(
     WorkspaceScope Scope,
-    ProfileKind Profile,
+    string Profile,
     string? ProjectPath,
     IReadOnlyList<McpClientConfigStatusRecord> ClientStatuses,
     IReadOnlyList<McpValidationIssueRecord> Issues,

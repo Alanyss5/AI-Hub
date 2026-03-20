@@ -25,7 +25,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
     public Task<McpValidationSnapshot> InspectAsync(
         string hubRoot,
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
         CancellationToken cancellationToken = default)
@@ -131,7 +131,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
 
         return Task.FromResult(new McpValidationSnapshot(
             scope,
-            profile,
+            WorkspaceProfiles.NormalizeId(profile),
             projectPath,
             statuses,
             issues,
@@ -141,7 +141,7 @@ public sealed class McpClientConfigService : IMcpClientConfigService
     public async Task<OperationResult> SyncAsync(
         string hubRoot,
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
         CancellationToken cancellationToken = default)

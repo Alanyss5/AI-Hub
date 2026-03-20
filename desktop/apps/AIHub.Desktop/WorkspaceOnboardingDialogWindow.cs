@@ -25,7 +25,7 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
         MinHeight = 560;
         CanResize = true;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        Background = new SolidColorBrush(Color.Parse("#F5F1E8"));
+        Background = ResolveBrush("WindowBackgroundBrush", "#0B1020");
 
         var selectors = new Dictionary<string, ComboBox>(StringComparer.OrdinalIgnoreCase);
         var candidatePanel = new StackPanel { Spacing = 12 };
@@ -46,7 +46,7 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
 
             candidatePanel.Children.Add(new Border
             {
-                Background = new SolidColorBrush(Color.Parse("#FFFDF8")),
+                Background = ResolveBrush("SurfaceBrush", "#111A2E"),
                 CornerRadius = new CornerRadius(12),
                 Padding = new Thickness(14),
                 Child = new StackPanel
@@ -64,7 +64,7 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
                         {
                             Text = "来源：" + candidate.SourcePath,
                             TextWrapping = TextWrapping.Wrap,
-                            Foreground = new SolidColorBrush(Color.Parse("#486581"))
+                            Foreground = ResolveBrush("TextSecondaryBrush", "#A8B3C7")
                         },
                         new Grid
                         {
@@ -84,7 +84,7 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
                             AcceptsReturn = true,
                             TextWrapping = TextWrapping.Wrap,
                             MinHeight = 88,
-                            Background = new SolidColorBrush(Color.Parse("#F8F4EA"))
+                            Background = ResolveBrush("SurfaceAltBrush", "#162238")
                         }
                     }
                 }
@@ -95,8 +95,8 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
         {
             Content = "取消",
             MinWidth = 96,
-            Background = new SolidColorBrush(Color.Parse("#D9E2EC")),
-            Foreground = new SolidColorBrush(Color.Parse("#102A43"))
+            Background = ResolveBrush("NeutralButtonBrush", "#18233A"),
+            Foreground = ResolveBrush("TextPrimaryBrush", "#EAF0FF")
         };
         cancelButton.Click += (_, _) => Close(null);
 
@@ -104,8 +104,8 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
         {
             Content = "开始导入",
             MinWidth = 120,
-            Background = new SolidColorBrush(Color.Parse("#2F855A")),
-            Foreground = Brushes.White
+            Background = ResolveBrush("SuccessBrush", "#34D399"),
+            Foreground = ResolveBrush("AccentForegroundBrush", "#08101E")
         };
         confirmButton.Click += (_, _) =>
         {
@@ -131,7 +131,7 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
                         Text = request.Title,
                         FontSize = 24,
                         FontWeight = FontWeight.SemiBold,
-                        Foreground = new SolidColorBrush(Color.Parse("#102A43"))
+                        Foreground = ResolveBrush("TextPrimaryBrush", "#EAF0FF")
                     },
                     new StackPanel
                     {
@@ -143,13 +143,13 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
                             {
                                 Text = request.Message,
                                 TextWrapping = TextWrapping.Wrap,
-                                Foreground = new SolidColorBrush(Color.Parse("#486581"))
+                                Foreground = ResolveBrush("TextSecondaryBrush", "#A8B3C7")
                             },
                             new TextBlock
                             {
                                 Text = request.Preview.Summary,
                                 TextWrapping = TextWrapping.Wrap,
-                                Foreground = new SolidColorBrush(Color.Parse("#7B341E"))
+                                Foreground = ResolveBrush("WarningBrush", "#FBBF24")
                             }
                         }
                     },
@@ -180,7 +180,7 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
     {
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#F8F4EA")),
+            Background = ResolveBrush("SurfaceAltBrush", "#162238"),
             CornerRadius = new CornerRadius(10),
             Padding = new Thickness(12),
             Child = new StackPanel
@@ -197,18 +197,27 @@ public sealed class WorkspaceOnboardingDialogWindow : Window
                     {
                         Text = path,
                         TextWrapping = TextWrapping.Wrap,
-                        Foreground = new SolidColorBrush(Color.Parse("#486581"))
+                        Foreground = ResolveBrush("TextSecondaryBrush", "#A8B3C7")
                     },
                     new TextBlock
                     {
                         Text = exists ? "目标已存在，导入时会先备份。" : "目标为空，可直接导入。",
-                        Foreground = new SolidColorBrush(Color.Parse(exists ? "#B44D12" : "#2F855A"))
+                        Foreground = ResolveBrush(exists ? "WarningBrush" : "SuccessBrush", exists ? "#FBBF24" : "#34D399")
                     }
                 }
             }
         };
     }
 
+    private static IBrush ResolveBrush(string key, string fallback)
+    {
+        if (Avalonia.Application.Current?.TryFindResource(key, out var value) == true && value is IBrush brush)
+        {
+            return brush;
+        }
+
+        return new SolidColorBrush(Color.Parse(fallback));
+    }
     private static string GetResourceDisplayName(WorkspaceOnboardingResourceKind resourceKind)
     {
         return resourceKind switch

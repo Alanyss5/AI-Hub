@@ -10,6 +10,7 @@ public sealed partial class WorkspaceControlService
     private readonly IHubRootLocator _hubRootLocator;
     private readonly Func<string?, IProjectRegistry> _projectRegistryFactory;
     private readonly Func<string?, IHubSettingsStore> _hubSettingsStoreFactory;
+    private readonly Func<string?, IWorkspaceProfileCatalogStore>? _profileCatalogStoreFactory;
     private readonly IWorkspaceAutomationService _workspaceAutomationService;
     private readonly HubDashboardService _hubDashboardService;
 
@@ -23,6 +24,7 @@ public sealed partial class WorkspaceControlService
             hubRootLocator,
             _ => projectRegistry,
             _ => hubSettingsStore,
+            null,
             workspaceAutomationService,
             hubDashboardService)
     {
@@ -32,12 +34,14 @@ public sealed partial class WorkspaceControlService
         IHubRootLocator hubRootLocator,
         Func<string?, IProjectRegistry> projectRegistryFactory,
         Func<string?, IHubSettingsStore> hubSettingsStoreFactory,
+        Func<string?, IWorkspaceProfileCatalogStore>? profileCatalogStoreFactory,
         IWorkspaceAutomationService workspaceAutomationService,
         HubDashboardService hubDashboardService)
     {
         _hubRootLocator = hubRootLocator;
         _projectRegistryFactory = projectRegistryFactory;
         _hubSettingsStoreFactory = hubSettingsStoreFactory;
+        _profileCatalogStoreFactory = profileCatalogStoreFactory;
         _workspaceAutomationService = workspaceAutomationService;
         _hubDashboardService = hubDashboardService;
     }
@@ -119,7 +123,7 @@ public sealed partial class WorkspaceControlService
         {
             HubRoot = resolution.RootPath,
             ActiveScope = WorkspaceScope.Global,
-            DefaultProfile = ProfileKind.Global
+            DefaultProfile = WorkspaceProfiles.GlobalId
         };
         await settingsStore.SaveAsync(settings, cancellationToken);
 
@@ -156,7 +160,16 @@ public sealed partial class WorkspaceControlService
             return OperationResult.Fail("AI-Hub 根目录无效，无法保存项目。", string.Join(Environment.NewLine, resolution.Errors));
         }
 
-        var normalizedProject = project with { Path = NormalizePath(project.Path) };
+        var normalizedProject = project with
+        {
+            Path = NormalizePath(project.Path),
+            Profile = WorkspaceProfiles.NormalizeId(project.Profile)
+        };
+        if (!await ProfileExistsAsync(resolution.RootPath, normalizedProject.Profile, cancellationToken))
+        {
+            return OperationResult.Fail("项目分类不存在。", normalizedProject.Profile);
+        }
+
         var normalizedOriginalPath = string.IsNullOrWhiteSpace(originalProjectPath)
             ? null
             : NormalizePath(originalProjectPath);
@@ -243,7 +256,7 @@ public sealed partial class WorkspaceControlService
             settings = settings with
             {
                 ActiveScope = WorkspaceScope.Global,
-                DefaultProfile = ProfileKind.Global,
+                DefaultProfile = WorkspaceProfiles.GlobalId,
                 LastOpenedProject = null,
                 OnboardedProjectPaths = updatedOnboardedPaths
             };
@@ -277,6 +290,11 @@ public sealed partial class WorkspaceControlService
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
             return OperationResult.Fail("AI-Hub 根目录无效，无法设置当前项目。", string.Join(Environment.NewLine, resolution.Errors));
+        }
+
+        if (!await ProfileExistsAsync(resolution.RootPath, project.Profile, cancellationToken))
+        {
+            return OperationResult.Fail("项目分类不存在。", WorkspaceProfiles.NormalizeId(project.Profile));
         }
 
         var settingsStore = _hubSettingsStoreFactory(resolution.RootPath);
@@ -338,6 +356,11 @@ public sealed partial class WorkspaceControlService
         }
 
         var normalizedProject = project with { Path = NormalizePath(project.Path) };
+        if (!await ProfileExistsAsync(resolution.RootPath, normalizedProject.Profile, cancellationToken))
+        {
+            return WorkspaceOnboardingPreviewResult.Fail("项目分类不存在。", WorkspaceProfiles.NormalizeId(normalizedProject.Profile));
+        }
+
         var previewResult = await _workspaceAutomationService.PreviewProjectOnboardingAsync(
             resolution.RootPath,
             normalizedProject.Path,
@@ -381,7 +404,7 @@ public sealed partial class WorkspaceControlService
         {
             HubRoot = resolution.RootPath,
             ActiveScope = WorkspaceScope.Global,
-            DefaultProfile = ProfileKind.Global,
+            DefaultProfile = WorkspaceProfiles.GlobalId,
             GlobalOnboardingCompleted = true,
             GlobalOnboardingCompletedAt = DateTimeOffset.Now
         };
@@ -407,7 +430,16 @@ public sealed partial class WorkspaceControlService
             return OperationResult.Fail("AI-Hub 根目录无效，无法应用项目 Profile。", string.Join(Environment.NewLine, resolution.Errors));
         }
 
-        var normalizedProject = project with { Path = NormalizePath(project.Path) };
+        var normalizedProject = project with
+        {
+            Path = NormalizePath(project.Path),
+            Profile = WorkspaceProfiles.NormalizeId(project.Profile)
+        };
+        if (!await ProfileExistsAsync(resolution.RootPath, normalizedProject.Profile, cancellationToken))
+        {
+            return OperationResult.Fail("项目分类不存在。", normalizedProject.Profile);
+        }
+
         var operation = await _workspaceAutomationService.ApplyProjectProfileAsync(
             resolution.RootPath,
             normalizedProject.Path,
@@ -453,6 +485,11 @@ public sealed partial class WorkspaceControlService
             return "项目目录不能为空。";
         }
 
+        if (string.IsNullOrWhiteSpace(project.Profile))
+        {
+            return "项目分类不能为空。";
+        }
+
         if (!Directory.Exists(project.Path))
         {
             return "项目目录不存在：" + project.Path;
@@ -490,5 +527,17 @@ public sealed partial class WorkspaceControlService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private async Task<bool> ProfileExistsAsync(string hubRoot, string profileId, CancellationToken cancellationToken)
+    {
+        if (_profileCatalogStoreFactory is null)
+        {
+            return true;
+        }
+
+        var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
+        var profiles = await _profileCatalogStoreFactory(hubRoot).LoadAsync(cancellationToken);
+        return profiles.Any(profile => string.Equals(profile.Id, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
     }
 }

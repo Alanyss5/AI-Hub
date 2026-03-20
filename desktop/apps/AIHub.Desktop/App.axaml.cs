@@ -42,6 +42,7 @@ public partial class App : Avalonia.Application
 
                 Func<string?, JsonProjectRegistry> projectRegistryFactory = root => new JsonProjectRegistry(root, diagnosticsService);
                 Func<string?, JsonHubSettingsStore> hubSettingsStoreFactory = root => new JsonHubSettingsStore(root, diagnosticsService);
+                Func<string?, JsonWorkspaceProfileCatalogStore> profileCatalogStoreFactory = root => new JsonWorkspaceProfileCatalogStore(root);
                 Func<string?, JsonMcpProfileStore> mcpProfileStoreFactory = root => new JsonMcpProfileStore(root, diagnosticsService);
                 Func<string?, JsonMcpRuntimeStore> mcpRuntimeStoreFactory = root => new JsonMcpRuntimeStore(root, diagnosticsService);
 
@@ -49,8 +50,16 @@ public partial class App : Avalonia.Application
                     rootLocator,
                     projectRegistryFactory,
                     hubSettingsStoreFactory,
+                    profileCatalogStoreFactory,
                     workspaceAutomationService,
                     dashboardService);
+
+                var workspaceProfileService = new WorkspaceProfileService(
+                    rootLocator,
+                    profileCatalogStoreFactory,
+                    projectRegistryFactory,
+                    hubSettingsStoreFactory,
+                    mcpProfileStoreFactory);
 
                 var mcpProcessController = new LocalMcpProcessController(() =>
                 {
@@ -77,7 +86,8 @@ public partial class App : Avalonia.Application
                     mcpControlService,
                     skillsCatalogService,
                     scriptCenterService,
-                    fileDialogService);
+                    fileDialogService,
+                    workspaceProfileService);
                 viewModel.NotificationService = notificationService;
                 viewModel.DiagnosticLogService = diagnosticsService;
 

@@ -8,7 +8,7 @@ namespace AIHub.Application.Services;
 public sealed partial class SkillsCatalogService
 {
     public async Task<OperationResult> RollbackInstalledSkillAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         string? backupPath,
         CancellationToken cancellationToken = default)
@@ -25,28 +25,29 @@ public sealed partial class SkillsCatalogService
         }
 
         var normalizedRelativePath = NormalizePath(relativePath);
-        var installDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedRelativePath);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var installDirectory = GetInstalledSkillDirectory(resolution.RootPath, profileId, normalizedRelativePath);
         if (!Directory.Exists(installDirectory))
         {
             return OperationResult.Fail("目标 Skill 目录不存在。", installDirectory);
         }
 
         var normalizedBackupPath = Path.GetFullPath(backupPath.Trim());
-        var backupRoot = GetBackupRoot(resolution.RootPath, profile, normalizedRelativePath);
+        var backupRoot = GetBackupRoot(resolution.RootPath, profileId, normalizedRelativePath);
         if (!Directory.Exists(normalizedBackupPath) || !normalizedBackupPath.StartsWith(backupRoot, StringComparison.OrdinalIgnoreCase))
         {
             return OperationResult.Fail("指定的备份目录无效。", normalizedBackupPath);
         }
 
         var states = (await LoadStatesAsync(resolution.RootPath, cancellationToken)).ToList();
-        var installKey = GetInstallKey(profile, normalizedRelativePath);
+        var installKey = GetInstallKey(profileId, normalizedRelativePath);
         var state = states.FirstOrDefault(item => GetInstallKey(item.Profile, item.InstalledRelativePath) == installKey);
         if (state is null)
         {
             return OperationResult.Fail("该 Skill 还没有同步状态，无法回滚。", normalizedRelativePath);
         }
 
-        var currentSnapshotBackupPath = CreateBackupSnapshot(resolution.RootPath, profile, normalizedRelativePath, installDirectory, "pre-rollback");
+        var currentSnapshotBackupPath = CreateBackupSnapshot(resolution.RootPath, profileId, normalizedRelativePath, installDirectory, "pre-rollback");
         ReplaceDirectoryWithSource(normalizedBackupPath, installDirectory);
 
         var currentFingerprints = CaptureFingerprints(installDirectory);
@@ -71,7 +72,7 @@ public sealed partial class SkillsCatalogService
         return OperationResult.Ok("Skill 已回滚到所选备份。", detailBuilder.ToString().TrimEnd());
     }
 
-    private static IReadOnlyList<SkillBackupRecord> GetRecentBackupRecords(string hubRoot, ProfileKind profile, string relativePath, int maxCount = 8)
+    private static IReadOnlyList<SkillBackupRecord> GetRecentBackupRecords(string hubRoot, string profile, string relativePath, int maxCount = 8)
     {
         return GetRecentBackups(hubRoot, profile, relativePath, maxCount)
             .Select(path => new SkillBackupRecord

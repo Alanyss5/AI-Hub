@@ -1,128 +1,336 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AIHub.Desktop.Views.Tabs.SkillsTabView">
-  <ScrollViewer Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
-    <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
-      <Border Grid.Column="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
-        <Grid RowDefinitions="Auto,*" RowSpacing="12">
-          <StackPanel Grid.Row="0" Spacing="4">
-            <TextBlock Text="{Binding Text.Skills.InstalledTitle}" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding SkillsSummaryDisplay}" FontSize="12" Foreground="#486581" />
-          </StackPanel>
-          <ListBox Grid.Row="1"
-                   ItemsSource="{Binding InstalledSkills}"
-                   SelectedItem="{Binding SelectedInstalledSkill}"
-                   BorderThickness="0"
-                   Background="Transparent">
-            <ListBox.ItemTemplate>
-              <DataTemplate>
-                <Border Background="#F8F4EA" CornerRadius="16" Padding="14" Margin="0,0,0,10">
-                  <StackPanel Spacing="4">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
-                    <TextBlock Text="{Binding ProfileDisplay}" FontSize="12" Foreground="#7B341E" />
-                    <TextBlock Text="{Binding RelativePath}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding ModeDisplay}" FontSize="12" Foreground="#486581" />
-                    <TextBlock Text="{Binding DirtyDisplay}" FontSize="12" Foreground="#486581" />
-                    <TextBlock Text="{Binding SourceDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+  <UserControl.Styles>
+    <Style Selector="Border.panel">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="CornerRadius" Value="16" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="Border.panel-soft">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="10" />
+    </Style>
+    <Style Selector="ListBox.card-grid ListBoxItem">
+      <Setter Property="Width" Value="252" />
+      <Setter Property="MinHeight" Value="108" />
+      <Setter Property="Margin" Value="0,0,10,10" />
+      <Setter Property="Padding" Value="10" />
+    </Style>
+    <Style Selector="TabControl.side-nav TabItem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Margin" Value="0,0,0,3" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="MinWidth" Value="82" />
+    </Style>
+    <Style Selector="TabControl.compact-tabs TabItem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Margin" Value="0,0,5,0" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style Selector="Border.panel TextBlock">
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Border.panel-soft TextBlock">
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Border.panel Button">
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Border.panel-soft Button">
+      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Margin="0,6,0,0">
+    <TabControl Classes="side-nav"
+                Background="Transparent"
+                TabStripPlacement="Left"
+                SelectedIndex="{Binding SelectedSkillsSectionIndex, Mode=TwoWay}">
+      <TabItem Header="浏览">
+        <Grid RowDefinitions="Auto,*" RowSpacing="10">
+          <Border Classes="panel">
+            <Grid ColumnDefinitions="176,208,*" ColumnSpacing="10">
+              <StackPanel Grid.Column="0" Spacing="4">
+                <TextBlock Text="分类范围" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding SkillFilterOptions}" SelectedItem="{Binding SelectedSkillFilterOption}">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding DisplayName}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock Text="搜索" FontWeight="SemiBold" />
+                <TextBox Text="{Binding SkillSearchText}" Watermark="按名称、路径、来源或分类搜索" />
+              </StackPanel>
+              <WrapPanel Grid.Column="2" HorizontalAlignment="Right">
+                <Border Classes="panel-soft" Margin="0,0,10,0">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="已安装 Skills" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SkillsSummaryDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
                   </StackPanel>
                 </Border>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-        </Grid>
-      </Border>
+                <Border Classes="panel-soft">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="来源概况" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SkillSourcesSummaryDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                </Border>
+              </WrapPanel>
+            </Grid>
+          </Border>
 
-      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="16">
-        <Border Grid.Row="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
-          <Grid RowDefinitions="Auto,*" RowSpacing="12">
-            <StackPanel Grid.Row="0" Spacing="4">
-              <TextBlock Text="{Binding Text.Skills.SourcesTitle}" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding SkillSourcesSummaryDisplay}" FontSize="12" Foreground="#486581" />
-            </StackPanel>
-            <ListBox Grid.Row="1"
-                     ItemsSource="{Binding SkillSources}"
-                     SelectedItem="{Binding SelectedSkillSource}"
-                     BorderThickness="0"
-                     Background="Transparent"
-                     MaxHeight="220">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <Border Background="#F8F4EA" CornerRadius="16" Padding="14" Margin="0,0,0,10">
+          <Grid Grid.Row="1" ColumnDefinitions="*,296" ColumnSpacing="10">
+            <Border Classes="panel">
+              <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Skills 工作台" FontSize="15" FontWeight="SemiBold" />
+                  <TextBlock Text="主画布支持技能组、已安装技能和来源结果的卡片化浏览，窗口越宽展示列数越多。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <TabControl Grid.Row="1" Classes="compact-tabs" Background="Transparent">
+                  <TabItem Header="技能组">
+                    <ScrollViewer Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+                      <ListBox Classes="card-grid" ItemsSource="{Binding SkillGroups}" SelectedItem="{Binding SelectedSkillGroup}" BorderThickness="0" Background="Transparent">
+                        <ListBox.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel />
+                          </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                          <DataTemplate>
+                            <StackPanel Spacing="4">
+                              <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding SkillCountDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                              <TextBlock Text="{Binding ProfileSummary}" FontSize="13" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
+                              <ItemsControl ItemsSource="{Binding ContainedSkillPaths}">
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate>
+                                    <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextTrimming="CharacterEllipsis" />
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
+                          </DataTemplate>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </ScrollViewer>
+                  </TabItem>
+                  <TabItem Header="已安装技能">
+                    <ScrollViewer Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+                      <ListBox Classes="card-grid" ItemsSource="{Binding InstalledSkills}" SelectedItem="{Binding SelectedInstalledSkill}" BorderThickness="0" Background="Transparent">
+                        <ListBox.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel />
+                          </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                          <DataTemplate>
+                            <StackPanel Spacing="4">
+                              <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding ProfileDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" />
+                              <TextBlock Text="{Binding RelativePath}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                              <TextBlock Text="{Binding SourceDisplay}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </ScrollViewer>
+                  </TabItem>
+                  <TabItem Header="来源结果">
+                    <ScrollViewer Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+                      <ListBox Classes="card-grid" ItemsSource="{Binding SkillSources}" SelectedItem="{Binding SelectedSkillSource}" BorderThickness="0" Background="Transparent">
+                        <ListBox.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <WrapPanel />
+                          </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                          <DataTemplate>
+                            <StackPanel Spacing="4">
+                              <TextBlock Text="{Binding SourceDisplayName}" FontSize="15" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding KindDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" />
+                              <TextBlock Text="{Binding LocationDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                              <TextBlock Text="{Binding LastScanDisplay}" FontSize="11" Foreground="{DynamicResource TextMutedBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </DataTemplate>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </ScrollViewer>
+                  </TabItem>
+                </TabControl>
+              </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Classes="panel">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="10">
+                  <Border Classes="panel-soft">
                     <StackPanel Spacing="4">
-                      <TextBlock Text="{Binding SourceDisplayName}" FontWeight="SemiBold" FontSize="14" />
-                      <TextBlock Text="{Binding KindDisplay}" FontSize="12" Foreground="#7B341E" />
-                      <TextBlock Text="{Binding LocationDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding ReferenceDisplay}" FontSize="12" Foreground="#486581" />
-                      <TextBlock Text="{Binding VersionTrackingDisplay}" FontSize="12" Foreground="#486581" />
-                      <TextBlock Text="{Binding ResolvedVersionDisplay}" FontSize="12" Foreground="#486581" />
-                      <TextBlock Text="{Binding PendingVersionUpgradeDisplay}" FontSize="12" Foreground="#7B341E" />
-                      <TextBlock Text="{Binding LastScanDisplay}" FontSize="12" Foreground="#486581" />
-                      <TextBlock Text="{Binding DiscoveredSkillSummary}" FontSize="12" Foreground="#486581" />
-                      <TextBlock Text="{Binding AvailableReferenceSummary}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+                      <TextBlock Text="当前 Skill" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedInstalledSkill.Name, TargetNullValue=未选择 Skill}" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedSkillDetailsDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding SkillInstallStatusDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                   </Border>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
+                  <Border Classes="panel-soft">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="目录技能组" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedSkillGroup.DisplayName, TargetNullValue=未选择技能组}" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedSkillGroup.SkillCountDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                      <TextBlock Text="{Binding SelectedSkillGroup.ProfileSummary}" FontSize="13" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                  <Border Classes="panel-soft">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="当前来源" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedSkillSource.SourceDisplayName, TargetNullValue=未选择来源}" FontSize="15" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedSkillSource.DiscoveredSkillSummary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding SelectedSkillSource.AvailableReferenceSummary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                  <Border Classes="panel-soft">
+                    <StackPanel Spacing="10">
+                      <TextBlock Text="快捷动作" FontWeight="SemiBold" />
+                      <WrapPanel>
+                        <Button Content="保存当前 Skill 绑定" Command="{Binding SaveSkillBindingsCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                        <Button Content="保存技能组绑定" Command="{Binding SaveSkillGroupBindingsCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                        <Button Content="{Binding Text.Skills.ScanSourceButton}" Command="{Binding ScanSkillSourceCommand}" Margin="0,0,12,12" />
+                        <Button Content="{Binding Text.Skills.PreviewDiffButton}" Command="{Binding PreviewSkillDiffCommand}" Margin="0,0,12,12" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </ScrollViewer>
+            </Border>
           </Grid>
-        </Border>
+        </Grid>
+      </TabItem>
 
-        <Border Grid.Row="1" Background="#FFFDF8" CornerRadius="20" Padding="20">
-          <StackPanel Spacing="12">
-            <TextBlock Text="{Binding Text.Skills.SourceEditorTitle}" FontSize="16" FontWeight="SemiBold" />
-            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
-              <StackPanel Grid.Column="0" Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.SourceNameLabel}" FontWeight="SemiBold" />
-                <TextBox Text="{Binding SkillSourceLocalName}" Watermark="{Binding Text.Skills.SourceNameWatermark}" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.ScopeLabel}" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding SkillSourceProfileOptions}" SelectedItem="{Binding SelectedSkillSourceProfileOption}">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding DisplayName}" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-              </StackPanel>
-              <StackPanel Grid.Column="2" Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.SourceTypeLabel}" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding SkillSourceKindOptions}" SelectedItem="{Binding SelectedSkillSourceKindOption}">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding DisplayName}" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-              </StackPanel>
-            </Grid>
-            <TextBlock Text="{Binding SelectedSkillSourceKindOption.Description}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-            <StackPanel Spacing="6">
-              <TextBlock Text="{Binding Text.Skills.SourceAddressLabel}" FontWeight="SemiBold" />
-              <TextBox Text="{Binding SkillSourceRepository}" Watermark="{Binding Text.Skills.SourceAddressWatermark}" />
-            </StackPanel>
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-              <StackPanel Grid.Column="0" Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.PathLabel}" FontWeight="SemiBold" />
-                <TextBox Text="{Binding SkillSourcePath}" Watermark="{Binding Text.Skills.PathWatermark}" />
-              </StackPanel>
-              <StackPanel Grid.Column="1" Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.ReferenceLabel}" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding SelectedSkillSource.AvailableReferences}" SelectedItem="{Binding SelectedSkillSourceReferenceOption}" MinHeight="36" />
-                <TextBox Text="{Binding SkillSourceReference}" Watermark="{Binding Text.Skills.ReferenceWatermark}" />
-              </StackPanel>
-            </Grid>
-            <StackPanel Orientation="Horizontal" Spacing="16">
-              <CheckBox Content="{Binding Text.Skills.SourceEnabledLabel}" IsChecked="{Binding SkillSourceEnabled}" />
-              <CheckBox Content="{Binding Text.Skills.ScheduledUpdateEnabledLabel}" IsChecked="{Binding SkillSourceAutoUpdate}" />
-            </StackPanel>
-            <Border Background="#F8F4EA" CornerRadius="16" Padding="14">
+      <TabItem Header="绑定">
+        <Grid ColumnDefinitions="*,300" ColumnSpacing="12">
+          <Border Classes="panel">
+            <TabControl Classes="compact-tabs" Background="Transparent">
+              <TabItem Header="单个 Skill">
+                <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                  <ListBox Classes="card-grid" ItemsSource="{Binding InstalledSkills}" SelectedItem="{Binding SelectedInstalledSkill}" BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Spacing="6">
+                          <TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding ProfileDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" />
+                          <TextBlock Text="{Binding RelativePath}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </ScrollViewer>
+              </TabItem>
+              <TabItem Header="技能组 / 仓库">
+                <ScrollViewer Margin="0,8,0,0" VerticalScrollBarVisibility="Auto">
+                  <ListBox Classes="card-grid" ItemsSource="{Binding SkillGroups}" SelectedItem="{Binding SelectedSkillGroup}" BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Spacing="6">
+                          <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding SkillCountDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                          <TextBlock Text="{Binding ProfileSummary}" FontSize="13" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </ScrollViewer>
+              </TabItem>
+            </TabControl>
+          </Border>
+
+          <StackPanel Grid.Column="1" Spacing="12">
+            <Border Classes="panel">
               <StackPanel Spacing="10">
-                <TextBlock Text="版本策略" FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="220,220,*" ColumnSpacing="12">
+                <TextBlock Text="Skill 绑定" FontSize="15" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedSkillDetailsDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding SkillBindingProfiles}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" Margin="0,0,0,6" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="保存当前 Skill 绑定" Command="{Binding SaveSkillBindingsCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentForegroundBrush}" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+            <Border Classes="panel">
+              <StackPanel Spacing="10">
+                <TextBlock Text="技能组绑定" FontSize="15" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedSkillGroup.DisplayName, TargetNullValue=未选择技能组}" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding SkillGroupBindingProfiles}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" Margin="0,0,0,6" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Button Content="保存当前技能组绑定" Command="{Binding SaveSkillGroupBindingsCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource AccentForegroundBrush}" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <TabItem Header="来源">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <Grid ColumnDefinitions="272,*,296" ColumnSpacing="12">
+            <Border Classes="panel">
+              <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="{Binding Text.Skills.SourcesTitle}" FontSize="15" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding SkillSourcesSummaryDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <ListBox Grid.Row="1" ItemsSource="{Binding SkillSources}" SelectedItem="{Binding SelectedSkillSource}" BorderThickness="0" Background="Transparent">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding SourceDisplayName}" FontWeight="SemiBold" FontSize="15" />
+                        <TextBlock Text="{Binding KindDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" />
+                        <TextBlock Text="{Binding LocationDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+            </Border>
+
+            <Border Grid.Column="1" Classes="panel">
+              <StackPanel Spacing="10">
+                <TextBlock Text="{Binding Text.Skills.SourceEditorTitle}" FontSize="15" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="16">
                   <StackPanel Grid.Column="0" Spacing="6">
-                    <TextBlock Text="版本跟踪模式" FontSize="12" Foreground="#486581" />
-                    <ComboBox ItemsSource="{Binding SkillVersionTrackingOptions}" SelectedItem="{Binding SelectedSkillVersionTrackingOption}">
+                    <TextBlock Text="{Binding Text.Skills.SourceNameLabel}" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding SkillSourceLocalName}" Watermark="{Binding Text.Skills.SourceNameWatermark}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="{Binding Text.Skills.ScopeLabel}" FontWeight="SemiBold" />
+                    <ComboBox ItemsSource="{Binding SkillSourceProfileOptions}" SelectedItem="{Binding SelectedSkillSourceProfileOption}">
                       <ComboBox.ItemTemplate>
                         <DataTemplate>
                           <TextBlock Text="{Binding DisplayName}" />
@@ -130,201 +338,152 @@
                       </ComboBox.ItemTemplate>
                     </ComboBox>
                   </StackPanel>
-                  <StackPanel Grid.Column="1" Spacing="6">
-                    <TextBlock Text="固定标签" FontSize="12" Foreground="#486581" />
-                    <TextBox Text="{Binding SkillSourcePinnedTag}" Watermark="例如：v1.2.3" />
-                  </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="6">
-                    <TextBlock Text="版本状态" FontSize="12" Foreground="#486581" />
-                    <TextBlock Text="{Binding SelectedSkillSource.ResolvedVersionDisplay}" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding SelectedSkillSource.AvailableVersionSummary}" TextWrapping="Wrap" Foreground="#486581" />
-                    <TextBlock Text="{Binding SelectedSkillSource.PendingVersionUpgradeDisplay}" TextWrapping="Wrap" Foreground="#7B341E" />
+                    <TextBlock Text="{Binding Text.Skills.SourceTypeLabel}" FontWeight="SemiBold" />
+                    <ComboBox ItemsSource="{Binding SkillSourceKindOptions}" SelectedItem="{Binding SelectedSkillSourceKindOption}">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                  <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock Text="{Binding Text.Skills.SourceAddressLabel}" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding SkillSourceRepository}" Watermark="{Binding Text.Skills.SourceAddressWatermark}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="{Binding Text.Skills.PathLabel}" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding SkillSourcePath}" Watermark="{Binding Text.Skills.PathWatermark}" />
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                  <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock Text="{Binding Text.Skills.ReferenceLabel}" FontWeight="SemiBold" />
+                    <ComboBox ItemsSource="{Binding SelectedSkillSource.AvailableReferences}" SelectedItem="{Binding SelectedSkillSourceReferenceOption}" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Text="引用输入" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding SkillSourceReference}" Watermark="{Binding Text.Skills.ReferenceWatermark}" />
                   </StackPanel>
                 </Grid>
                 <WrapPanel>
-                  <Button x:Name="SkillsCheckSourceVersionsButton" Content="检查版本" Command="{Binding CheckSkillSourceVersionsCommand}" Background="#285E61" Foreground="White" Margin="0,0,12,0" />
-                  <Button x:Name="SkillsUpgradeSourceVersionsButton" Content="批量升级到目标版本" Command="{Binding UpgradeSkillSourceVersionsCommand}" Background="#2F855A" Foreground="White" />
+                  <Button x:Name="SkillsCheckSourceVersionsButton" Content="检查版本" Command="{Binding CheckSkillSourceVersionsCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button x:Name="SkillsUpgradeSourceVersionsButton" Content="升级到目标版本" Command="{Binding UpgradeSkillSourceVersionsCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.ScanSourceButton}" Command="{Binding ScanSkillSourceCommand}" Margin="0,0,12,12" />
+                </WrapPanel>
+                <WrapPanel>
+                  <Button x:Name="SkillsSaveSourceButton" Content="{Binding Text.Skills.SaveSourceButton}" Command="{Binding SaveSkillSourceCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.DeleteSourceButton}" Command="{Binding DeleteSkillSourceCommand}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.ClearSourceFormButton}" Command="{Binding ClearSkillSourceFormCommand}" Margin="0,0,12,12" />
                 </WrapPanel>
               </StackPanel>
             </Border>
-            <Border Background="#F8F4EA" CornerRadius="16" Padding="14">
-              <StackPanel Spacing="10">
-                <TextBlock Text="{Binding Text.Skills.ScheduleTitle}" FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="220,220,*" ColumnSpacing="12">
-                  <StackPanel Grid.Column="0" Spacing="6">
-                    <TextBlock Text="{Binding Text.Skills.ScheduleIntervalLabel}" FontSize="12" Foreground="#486581" />
-                    <ComboBox ItemsSource="{Binding SkillScheduleIntervalOptions}" SelectedItem="{Binding SelectedSkillScheduleIntervalOption}">
-                      <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                          <TextBlock Text="{Binding DisplayName}" />
-                        </DataTemplate>
-                      </ComboBox.ItemTemplate>
-                    </ComboBox>
-                  </StackPanel>
-                  <StackPanel Grid.Column="1" Spacing="6">
-                    <TextBlock Text="{Binding Text.Skills.ScheduleActionLabel}" FontSize="12" Foreground="#486581" />
-                    <ComboBox ItemsSource="{Binding SkillScheduledActionOptions}" SelectedItem="{Binding SelectedSkillScheduledActionOption}">
-                      <ComboBox.ItemTemplate>
-                        <DataTemplate>
-                          <TextBlock Text="{Binding DisplayName}" />
-                        </DataTemplate>
-                      </ComboBox.ItemTemplate>
-                    </ComboBox>
-                  </StackPanel>
-                  <StackPanel Grid.Column="2" Spacing="6">
-                    <TextBlock Text="{Binding Text.Skills.ScheduleStatusLabel}" FontSize="12" Foreground="#486581" />
-                    <TextBlock Text="{Binding SelectedSkillSource.ScheduledUpdateLastRunDisplay}" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding SkillSourceScheduledNextRunDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                    <TextBlock Text="{Binding SelectedSkillSource.ScheduledUpdateLastResultDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                  </StackPanel>
-                </Grid>
-                <Button Content="{Binding Text.Skills.RunScheduleNowButton}" Command="{Binding RunSelectedSkillScheduledUpdateCommand}" Background="#285E61" Foreground="White" HorizontalAlignment="Left" />
-              </StackPanel>
-            </Border>
-            <Border Background="#F8F4EA" CornerRadius="16" Padding="14">
-              <StackPanel Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.ScanResultTitle}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding SelectedSkillSource.LastScanDisplay}" FontSize="12" Foreground="#486581" />
-                <TextBlock Text="{Binding SelectedSkillSource.DiscoveredSkillSummary}" FontSize="12" Foreground="#486581" />
-                <TextBlock Text="{Binding SelectedSkillSource.AvailableReferenceSummary}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+
+            <Border Grid.Column="2" Classes="panel">
+              <StackPanel Spacing="12">
+                <TextBlock Text="{Binding Text.Skills.ScanResultTitle}" FontSize="15" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedSkillSource.LastScanDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding SelectedSkillSource.DiscoveredSkillSummary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding SelectedSkillSource.AvailableReferenceSummary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="目录来源视图" FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding SelectedSkillSource.DiscoveredSkillGroupSummaries}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" Margin="0,0,0,4" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <ItemsControl ItemsSource="{Binding SelectedSkillSource.LastDiscoveredSkills}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                      <TextBlock Text="{Binding}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,4" />
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
             </Border>
-            <WrapPanel>
-              <Button x:Name="SkillsSaveSourceButton" Content="{Binding Text.Skills.SaveSourceButton}" Command="{Binding SaveSkillSourceCommand}" Background="#1F487E" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Skills.ScanSourceButton}" Command="{Binding ScanSkillSourceCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Skills.DeleteSourceButton}" Command="{Binding DeleteSkillSourceCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Skills.ClearSourceFormButton}" Command="{Binding ClearSkillSourceFormCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-            </WrapPanel>
-          </StackPanel>
-        </Border>
+          </Grid>
+        </ScrollViewer>
+      </TabItem>
 
-        <Border Grid.Row="2" Background="#FFFDF8" CornerRadius="20" Padding="20">
-          <Grid ColumnDefinitions="1.1*,0.9*" ColumnSpacing="18">
-            <StackPanel Grid.Column="0" Spacing="12">
-              <StackPanel Spacing="4">
-                <TextBlock Text="{Binding Text.Skills.InstallRecordTitle}" FontSize="16" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding SelectedSkillDetailsDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-              </StackPanel>
-              <StackPanel Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.CustomizationModeLabel}" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding SkillModeOptions}" SelectedItem="{Binding SelectedSkillModeOption}">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding DisplayName}" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBlock Text="{Binding SelectedSkillModeOption.Description}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-              </StackPanel>
-              <StackPanel Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.BindSourceLabel}" FontWeight="SemiBold" />
-                <ComboBox ItemsSource="{Binding SkillSources}" SelectedItem="{Binding SelectedSkillInstallSource}">
-                  <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                      <TextBlock Text="{Binding SourceDisplayName}" />
-                    </DataTemplate>
-                  </ComboBox.ItemTemplate>
-                </ComboBox>
-              </StackPanel>
-              <StackPanel Spacing="6">
-                <TextBlock Text="{Binding Text.Skills.SourceSkillPathLabel}" FontWeight="SemiBold" />
-                <TextBox Text="{Binding SkillInstallSourcePath}" Watermark="{Binding Text.Skills.SourceSkillPathWatermark}" />
-              </StackPanel>
-              <WrapPanel>
-                <Button Content="{Binding Text.Skills.SaveInstallButton}" Command="{Binding SaveSkillInstallCommand}" Background="#1F487E" Foreground="White" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.DeleteInstallButton}" Command="{Binding DeleteSkillInstallCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.CaptureBaselineButton}" Command="{Binding CaptureSkillBaselineCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.PreviewDiffButton}" Command="{Binding PreviewSkillDiffCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.PreviewMergeButton}" Command="{Binding PreviewOverlayMergeCommand}" Background="#285E61" Foreground="White" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.ApplyMergeButton}" Command="{Binding ApplyOverlayMergeCommand}" Background="#2F855A" Foreground="White" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.CheckUpdatesButton}" Command="{Binding CheckSkillUpdateCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.SafeSyncButton}" Command="{Binding SyncSkillCommand}" Background="#D9822B" Foreground="White" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.ForceSyncButton}" Command="{Binding ForceSyncSkillCommand}" Background="#B44D12" Foreground="White" Margin="0,0,12,12" />
-                <Button Content="{Binding Text.Skills.RollbackButton}" Command="{Binding RollbackSkillCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              </WrapPanel>
-            </StackPanel>
-
-            <Border Grid.Column="1" Background="#F8F4EA" CornerRadius="16" Padding="16">
-              <StackPanel Spacing="8">
-                <TextBlock Text="{Binding Text.Skills.CurrentStatusTitle}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding SkillInstallStatusDisplay}" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding SkillInstallSourceDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding SkillInstallBaselineDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding SelectedInstalledSkill.LastSyncDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding SelectedInstalledSkill.BackupSummaryDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding SelectedInstalledSkill.DirtyDisplay}" FontSize="12" Foreground="#486581" />
-                <TextBlock Text="{Binding SelectedInstalledSkill.ManifestDisplay}" FontSize="12" Foreground="#486581" />
-                <TextBlock Text="{Binding Text.Skills.BackupsTitle}" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <ListBox ItemsSource="{Binding SelectedInstalledSkill.BackupRecords}" SelectedItem="{Binding SelectedSkillBackup}" MinHeight="130" BorderThickness="0" Background="#FFFDF8">
-                  <ListBox.ItemTemplate>
-                    <DataTemplate>
-                      <Border Background="#FFFDF8" CornerRadius="10" Padding="10" Margin="0,0,0,8">
-                        <StackPanel Spacing="4">
-                          <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold" />
-                          <TextBlock Text="{Binding PathDisplay}" FontSize="11" Foreground="#486581" TextWrapping="Wrap" />
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ListBox.ItemTemplate>
-                </ListBox>
-                <TextBlock Text="{Binding SelectedSkillBackup.PathDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding Text.Skills.MergeTitle}" FontWeight="SemiBold" Margin="0,6,0,0" />
-                <TextBlock Text="{Binding SkillMergeSummaryDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                <Border Background="#FFFDF8" CornerRadius="12" Padding="10" IsVisible="{Binding HasSkillMergePreview}">
-                  <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding SkillMergeFiles}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                          <Border Background="#FFFDF8" CornerRadius="10" Padding="10" Margin="0,0,0,8">
-                            <Grid ColumnDefinitions="*,180" ColumnSpacing="12">
-                              <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding RelativePath}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding StatusDisplay}" FontSize="12" Foreground="#7B341E" />
-                                <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                              </StackPanel>
-                              <ComboBox Grid.Column="1" ItemsSource="{Binding DecisionOptions}" SelectedItem="{Binding SelectedDecisionOption}" VerticalAlignment="Top">
-                                <ComboBox.ItemTemplate>
-                                  <DataTemplate>
-                                    <TextBlock Text="{Binding DisplayName}" />
-                                  </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                              </ComboBox>
-                            </Grid>
-                          </Border>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </ScrollViewer>
-                </Border>
-                <TextBlock Text="{Binding Text.Skills.MergeHint}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+      <TabItem Header="备份与合并">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <Grid ColumnDefinitions="1.1*,0.9*" ColumnSpacing="14">
+            <Border Classes="panel">
+              <StackPanel Spacing="12">
+                <TextBlock Text="{Binding Text.Skills.InstallRecordTitle}" FontSize="15" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding SelectedSkillDetailsDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <StackPanel Spacing="6">
+                  <TextBlock Text="{Binding Text.Skills.CustomizationModeLabel}" FontWeight="SemiBold" />
+                  <ComboBox ItemsSource="{Binding SkillModeOptions}" SelectedItem="{Binding SelectedSkillModeOption}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding DisplayName}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="{Binding Text.Skills.BindSourceLabel}" FontWeight="SemiBold" />
+                  <ComboBox ItemsSource="{Binding SkillSources}" SelectedItem="{Binding SelectedSkillInstallSource}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding SourceDisplayName}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="{Binding Text.Skills.SourceSkillPathLabel}" FontWeight="SemiBold" />
+                  <TextBox Text="{Binding SkillInstallSourcePath}" Watermark="{Binding Text.Skills.SourceSkillPathWatermark}" />
+                </StackPanel>
+                <WrapPanel>
+                  <Button Content="{Binding Text.Skills.SaveInstallButton}" Command="{Binding SaveSkillInstallCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.DeleteInstallButton}" Command="{Binding DeleteSkillInstallCommand}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.CaptureBaselineButton}" Command="{Binding CaptureSkillBaselineCommand}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.PreviewDiffButton}" Command="{Binding PreviewSkillDiffCommand}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.PreviewMergeButton}" Command="{Binding PreviewOverlayMergeCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.ApplyMergeButton}" Command="{Binding ApplyOverlayMergeCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.SafeSyncButton}" Command="{Binding SyncSkillCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource AccentForegroundBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.ForceSyncButton}" Command="{Binding ForceSyncSkillCommand}" Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="{Binding Text.Skills.RollbackButton}" Command="{Binding RollbackSkillCommand}" Margin="0,0,12,12" />
+                </WrapPanel>
               </StackPanel>
             </Border>
-          </Grid>
-        </Border>
 
-        <Border Grid.Row="3" Background="#F8F4EA" CornerRadius="16" Padding="16">
-          <Grid RowDefinitions="Auto,*" RowSpacing="10">
-            <StackPanel Grid.Row="0" Spacing="4">
-              <TextBlock Text="{Binding Text.Shell.RecentOperationsTitle}" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding OperationSummary}" TextWrapping="Wrap" />
+            <StackPanel Grid.Column="1" Spacing="12">
+              <Border Classes="panel">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="{Binding Text.Skills.CurrentStatusTitle}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding SkillInstallStatusDisplay}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SkillInstallSourceDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SkillInstallBaselineDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SelectedInstalledSkill.LastSyncDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding SelectedInstalledSkill.BackupSummaryDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Text.Skills.BackupsTitle}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                  <ListBox ItemsSource="{Binding SelectedInstalledSkill.BackupRecords}" SelectedItem="{Binding SelectedSkillBackup}" BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="{Binding DisplayName}" FontSize="12" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding PathDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <TextBlock Text="{Binding Text.Skills.MergeTitle}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                  <TextBlock Text="{Binding SkillMergeSummaryDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding Text.Shell.RecentOperationsTitle}" FontWeight="SemiBold" Margin="0,6,0,0" />
+                  <TextBox Text="{Binding OperationDetails}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" MinHeight="200" FontFamily="Consolas" />
+                </StackPanel>
+              </Border>
             </StackPanel>
-            <TextBox Grid.Row="1"
-                     Text="{Binding OperationDetails}"
-                     IsReadOnly="True"
-                     AcceptsReturn="True"
-                     TextWrapping="Wrap"
-                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                     MinHeight="150" />
           </Grid>
-        </Border>
-      </Grid>
-    </Grid>
-  </ScrollViewer>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </Grid>
 </UserControl>

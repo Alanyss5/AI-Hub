@@ -4,41 +4,95 @@
   <ScrollViewer Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
     <Grid ColumnDefinitions="*,360" ColumnSpacing="20">
       <StackPanel Grid.Column="0" Spacing="16">
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding Text.Settings.HubRootTitle}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding HubRootDisplay}" TextWrapping="Wrap" Foreground="#486581" />
+            <TextBlock Text="{Binding HubRootDisplay}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
               <TextBox Text="{Binding HubRootInput}" Watermark="{Binding Text.Settings.HubRootWatermark}" />
-              <Button Grid.Column="1" Content="{Binding Text.Settings.ChooseDirectoryButton}" Command="{Binding ChooseHubRootFolderCommand}" Background="#D9E2EC" Foreground="#102A43" Padding="16,8" />
-              <Button Grid.Column="2" Content="{Binding Text.Settings.SwitchRootButton}" Command="{Binding SaveHubRootCommand}" Background="#1F487E" Foreground="White" Padding="16,8" />
+              <Button Grid.Column="1" Content="{Binding Text.Settings.ChooseDirectoryButton}" Command="{Binding ChooseHubRootFolderCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="16,8" />
+              <Button Grid.Column="2" Content="{Binding Text.Settings.SwitchRootButton}" Command="{Binding SaveHubRootCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="16,8" />
             </Grid>
           </StackPanel>
         </Border>
 
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding Text.Settings.ConsoleSettingsTitle}" FontSize="18" FontWeight="SemiBold" />
             <CheckBox Content="{Binding Text.Settings.AutoStartManagedMcpLabel}" IsChecked="{Binding AutoStartManagedMcpOnLoad}" />
             <CheckBox Content="{Binding Text.Settings.AutoCheckSkillsLabel}" IsChecked="{Binding AutoCheckSkillUpdatesOnLoad}" />
             <CheckBox Content="{Binding Text.Settings.AutoSyncSkillsLabel}" IsChecked="{Binding AutoSyncSafeSkillsOnLoad}" />
             <WrapPanel>
-              <Button x:Name="SettingsSaveButton" Content="{Binding Text.Settings.SaveSettingsButton}" Command="{Binding SaveAutomationSettingsCommand}" Background="#2F855A" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Settings.SwitchGlobalScopeButton}" Command="{Binding SwitchToGlobalScopeCommand}" Background="#7B341E" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Settings.SwitchCurrentProjectScopeButton}" Command="{Binding SwitchToSelectedProjectScopeCommand}" Background="#285E61" Foreground="White" Margin="0,0,12,12" />
+              <Button x:Name="SettingsSaveButton" Content="{Binding Text.Settings.SaveSettingsButton}" Command="{Binding SaveAutomationSettingsCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.SwitchGlobalScopeButton}" Command="{Binding SwitchToGlobalScopeCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.SwitchCurrentProjectScopeButton}" Command="{Binding SwitchToSelectedProjectScopeCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
             </WrapPanel>
           </StackPanel>
         </Border>
 
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
+          <Grid ColumnDefinitions="1.1*,0.9*" ColumnSpacing="18">
+            <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="12">
+              <StackPanel Grid.Row="0" Spacing="4">
+                <TextBlock Text="Profile Catalog" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="Manage dynamic workspace profiles here. New profiles appear in project, Skills, and MCP selectors. Existing profiles only support display-name edits in this version." FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+              </StackPanel>
+              <ListBox Grid.Row="1"
+                       ItemsSource="{Binding WorkspaceProfileItems}"
+                       SelectedItem="{Binding SelectedWorkspaceProfile}"
+                       BorderThickness="0"
+                       Background="Transparent"
+                       MinHeight="220">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14" Margin="0,0,0,10">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" />
+                        <TextBlock Text="{Binding Id}" FontSize="12" Foreground="{DynamicResource WarningBrush}" />
+                        <TextBlock Text="{Binding UsageSummary}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+
+            <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="16">
+              <StackPanel Spacing="12">
+                <TextBlock Text="Profile Editor" FontWeight="SemiBold" />
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Profile Id" FontWeight="SemiBold" />
+                  <TextBox Text="{Binding WorkspaceProfileIdInput}" IsReadOnly="{Binding IsWorkspaceProfileIdReadOnly}" Watermark="for example: data-platform" />
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Display Name" FontWeight="SemiBold" />
+                  <TextBox Text="{Binding WorkspaceProfileDisplayNameInput}" Watermark="for example: Data Platform" />
+                </StackPanel>
+                <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Padding="12">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="Usage Summary" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding WorkspaceProfileUsageSummary}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+                <WrapPanel>
+                  <Button Content="Save Profile" Command="{Binding SaveWorkspaceProfileCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="Delete Profile" Command="{Binding DeleteWorkspaceProfileCommand}" Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="New / Clear" Command="{Binding ClearWorkspaceProfileFormCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Border>
+
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding Text.Settings.DiagnosticsTitle}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding Text.Settings.DiagnosticsDescription}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-            <Border Background="#F8F4EA" CornerRadius="16" Padding="14">
+            <TextBlock Text="{Binding Text.Settings.DiagnosticsDescription}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
               <StackPanel Spacing="8">
                 <TextBlock Text="{Binding Text.Settings.DiagnosticsSummaryTitle}" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding DiagnosticsSummaryDisplay}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                <TextBlock Text="{Binding Text.Settings.DiagnosticsRootLabel}" FontSize="12" Foreground="#486581" />
+                <TextBlock Text="{Binding DiagnosticsSummaryDisplay}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <TextBlock Text="{Binding Text.Settings.DiagnosticsRootLabel}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
                 <TextBlock Text="{Binding DiagnosticsRootDisplay}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
@@ -54,56 +108,56 @@
             </Grid>
             <TextBox Text="{Binding DiagnosticsPackagePath}" Watermark="{Binding Text.Settings.DiagnosticsPathWatermark}" />
             <WrapPanel>
-              <Button Content="{Binding Text.Settings.ChooseDiagnosticsExportButton}" Command="{Binding ChooseDiagnosticsPackageSaveCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              <Button x:Name="DiagnosticsExportButton" Content="{Binding Text.Settings.ExportDiagnosticsButton}" Command="{Binding ExportDiagnosticsCommand}" Background="#1F487E" Foreground="White" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.ChooseDiagnosticsExportButton}" Command="{Binding ChooseDiagnosticsPackageSaveCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button x:Name="DiagnosticsExportButton" Content="{Binding Text.Settings.ExportDiagnosticsButton}" Command="{Binding ExportDiagnosticsCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
             </WrapPanel>
           </StackPanel>
         </Border>
 
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding Text.Settings.SecurityTitle}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding Text.Settings.SecurityDescription}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Text.Settings.SecurityDescription}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
             <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
-              <Border Grid.Column="0" Background="#F8F4EA" CornerRadius="14" Padding="12">
+              <Border Grid.Column="0" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12">
                 <StackPanel Spacing="6">
                   <TextBlock Text="{Binding Text.Settings.ScriptRiskTitle}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding ScriptRiskConsentDisplay}" TextWrapping="Wrap" Foreground="#486581" />
+                  <TextBlock Text="{Binding ScriptRiskConsentDisplay}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Grid.Column="1" Background="#F8F4EA" CornerRadius="14" Padding="12">
+              <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12">
                 <StackPanel Spacing="6">
                   <TextBlock Text="{Binding Text.Settings.ManagedMcpRiskTitle}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding ManagedMcpRiskConsentDisplay}" TextWrapping="Wrap" Foreground="#486581" />
+                  <TextBlock Text="{Binding ManagedMcpRiskConsentDisplay}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
-              <Border Grid.Column="2" Background="#F8F4EA" CornerRadius="14" Padding="12">
+              <Border Grid.Column="2" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12">
                 <StackPanel Spacing="6">
                   <TextBlock Text="{Binding Text.Settings.ExternalMcpRiskTitle}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding ExternalMcpRiskConsentDisplay}" TextWrapping="Wrap" Foreground="#486581" />
+                  <TextBlock Text="{Binding ExternalMcpRiskConsentDisplay}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
                 </StackPanel>
               </Border>
             </Grid>
-            <Button x:Name="ResetRiskConfirmationsButton" Content="{Binding Text.Settings.ResetRiskConfirmationsButton}" Command="{Binding ResetRiskConfirmationsCommand}" Background="#B7791F" Foreground="White" HorizontalAlignment="Left" />
+            <Button x:Name="ResetRiskConfirmationsButton" Content="{Binding Text.Settings.ResetRiskConfirmationsButton}" Command="{Binding ResetRiskConfirmationsCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Left" />
           </StackPanel>
         </Border>
 
-        <Border Background="#FFFDF8" CornerRadius="20" Padding="20">
+        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="12">
             <TextBlock Text="{Binding Text.Settings.PackageTitle}" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding Text.Settings.PackageDescription}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Text.Settings.PackageDescription}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
             <TextBox Text="{Binding SettingsPackagePath}" Watermark="{Binding Text.Settings.PackagePathWatermark}" />
             <WrapPanel>
-              <Button Content="{Binding Text.Settings.ChooseExportButton}" Command="{Binding ChooseSettingsPackageSaveCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Settings.ChooseImportButton}" Command="{Binding ChooseSettingsPackageOpenCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Settings.ExportButton}" Command="{Binding ExportConfigurationPackageCommand}" Background="#1F487E" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Settings.ImportButton}" Command="{Binding ImportConfigurationPackageCommand}" Background="#B7791F" Foreground="White" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.ChooseExportButton}" Command="{Binding ChooseSettingsPackageSaveCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.ChooseImportButton}" Command="{Binding ChooseSettingsPackageOpenCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.ExportButton}" Command="{Binding ExportConfigurationPackageCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="{Binding Text.Settings.ImportButton}" Command="{Binding ImportConfigurationPackageCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
             </WrapPanel>
           </StackPanel>
         </Border>
       </StackPanel>
 
-      <Border Grid.Column="1" Background="#F8F4EA" CornerRadius="16" Padding="16">
+      <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="16">
         <Grid RowDefinitions="Auto,*" RowSpacing="10">
           <StackPanel Grid.Row="0" Spacing="4">
             <TextBlock Text="{Binding Text.Shell.RecentOperationsTitle}" FontWeight="SemiBold" />

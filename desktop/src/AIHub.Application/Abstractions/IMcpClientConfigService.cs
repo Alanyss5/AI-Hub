@@ -7,7 +7,7 @@ public interface IMcpClientConfigService
     Task<McpValidationSnapshot> InspectAsync(
         string hubRoot,
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
         CancellationToken cancellationToken = default);
@@ -15,7 +15,7 @@ public interface IMcpClientConfigService
     Task<OperationResult> SyncAsync(
         string hubRoot,
         WorkspaceScope scope,
-        ProfileKind profile,
+        string profile,
         string? projectPath,
         IReadOnlyDictionary<string, McpServerDefinitionRecord> managedServers,
         CancellationToken cancellationToken = default);

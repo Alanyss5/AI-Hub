@@ -73,8 +73,9 @@ public sealed class PersistenceAndDiagnosticsTests
         using var scope = new TestHubRootScope();
         var service = new WorkspaceControlService(
             new FixedHubRootLocator(scope.RootPath),
-            root => new JsonProjectRegistry(root),
-            root => new JsonHubSettingsStore(root),
+            _ => new JsonProjectRegistry(scope.RootPath),
+            _ => new JsonHubSettingsStore(scope.RootPath),
+            _ => new JsonWorkspaceProfileCatalogStore(scope.RootPath),
             new NoOpWorkspaceAutomationService(),
             new HubDashboardService());
 

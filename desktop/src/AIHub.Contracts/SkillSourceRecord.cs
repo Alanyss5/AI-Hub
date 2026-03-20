@@ -4,7 +4,9 @@ public sealed record SkillSourceRecord
 {
     public string LocalName { get; init; } = string.Empty;
 
-    public ProfileKind Profile { get; init; } = ProfileKind.Global;
+    public string Profile { get; init; } = WorkspaceProfiles.GlobalId;
+
+    public string ProfileDisplayName { get; init; } = string.Empty;
 
     public SkillSourceKind Kind { get; init; } = SkillSourceKind.GitRepository;
 
@@ -44,7 +46,9 @@ public sealed record SkillSourceRecord
 
     public bool HasPendingVersionUpgrade { get; init; }
 
-    public string ProfileDisplay => Profile.ToDisplayName();
+    public string ProfileDisplay => string.IsNullOrWhiteSpace(ProfileDisplayName)
+        ? WorkspaceProfiles.ToDisplayName(Profile)
+        : ProfileDisplayName;
 
     public string KindDisplay => Kind.ToDisplayName();
 
@@ -61,6 +65,13 @@ public sealed record SkillSourceRecord
     public string DiscoveredSkillSummary => LastDiscoveredSkills.Length == 0
         ? "尚无扫描结果"
         : "发现 Skill：" + LastDiscoveredSkills.Length + " 个";
+
+    public IReadOnlyList<string> DiscoveredSkillGroupSummaries => LastDiscoveredSkills
+        .Where(path => !string.IsNullOrWhiteSpace(path))
+        .GroupBy(GetDiscoveryGroupKey, StringComparer.OrdinalIgnoreCase)
+        .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+        .Select(group => $"{group.Key}：{string.Join("、", group.OrderBy(item => item, StringComparer.OrdinalIgnoreCase).Take(6))}{(group.Count() > 6 ? " ..." : string.Empty)}")
+        .ToArray();
 
     public string AvailableReferenceSummary => AvailableReferences.Length == 0
         ? "尚未记录可用引用"
@@ -113,4 +124,16 @@ public sealed record SkillSourceRecord
     public string PendingVersionUpgradeDisplay => HasPendingVersionUpgrade
         ? "检测到可升级版本"
         : "当前没有待升级版本";
+
+    private static string GetDiscoveryGroupKey(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', '/').Trim('/');
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return "根目录";
+        }
+
+        var separatorIndex = normalized.IndexOf('/');
+        return separatorIndex < 0 ? normalized : normalized[..separatorIndex];
+    }
 }

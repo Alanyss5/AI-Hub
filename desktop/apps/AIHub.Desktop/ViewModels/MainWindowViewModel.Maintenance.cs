@@ -148,7 +148,9 @@ public sealed partial class MainWindowViewModel
 
         await RunBusyAsync(async () =>
         {
-            var result = await _skillsCatalogService!.RunScheduledUpdateForSourceAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            var result = await _skillsCatalogService!.RunScheduledUpdateForSourceAsync(
+                SelectedSkillSource.LocalName,
+                SelectedSkillSource.Profile);
             ApplyScheduledUpdateBatchResult(result, Text.State.SkillScheduledPolicyExecuted);
             await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
             await PublishMaintenanceAlertsAsync(result.Sources.Select(item => item.Alert).Where(item => item is not null).Cast<MaintenanceAlertRecord>());
@@ -621,12 +623,12 @@ public sealed partial class MainWindowViewModel
 
     private bool TryResolveCurrentMcpScope(
         out WorkspaceScope scope,
-        out ProfileKind profile,
+        out string profileId,
         out string? projectPath,
         out string validationError)
     {
         scope = _currentWorkspaceScope;
-        profile = ResolveCurrentMcpProfile();
+        profileId = ResolveCurrentMcpProfile();
         projectPath = _currentWorkspaceScope == WorkspaceScope.Project ? _currentScopeProjectPath : null;
         validationError = string.Empty;
 
@@ -639,11 +641,11 @@ public sealed partial class MainWindowViewModel
         return true;
     }
 
-    private ProfileKind ResolveCurrentMcpProfile()
+    private string ResolveCurrentMcpProfile()
     {
         return _currentWorkspaceScope == WorkspaceScope.Global
-            ? ProfileKind.Global
-            : SelectedMcpProfile?.Profile ?? ProfileKind.Global;
+            ? WorkspaceProfiles.GlobalId
+            : SelectedMcpProfile?.Profile ?? WorkspaceProfiles.GlobalId;
     }
 
     private bool CanRunSelectedSkillScheduledUpdate()
@@ -742,9 +744,5 @@ public sealed partial class MainWindowViewModel
 
     private sealed record AlertState(bool IsActive, DateTimeOffset? LastNotifiedAt);
 }
-
-
-
-
 
 

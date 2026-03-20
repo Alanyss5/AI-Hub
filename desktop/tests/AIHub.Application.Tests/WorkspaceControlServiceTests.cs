@@ -39,7 +39,7 @@ public sealed class WorkspaceControlServiceTests
             version = "1.0",
             exportedAt = DateTimeOffset.UtcNow,
             settings = new HubSettingsRecord { HubRoot = scope.RootPath },
-            projects = new[] { new ProjectRecord("demo", scope.RootPath, ProfileKind.Global) },
+            projects = new[] { new ProjectRecord("demo", scope.RootPath, WorkspaceProfiles.GlobalId) },
             skillsSourcesJson = "{\"sources\":[]}",
             skillsInstallsJson = "{\"installs\":[]}",
             mcpManifestJson = new Dictionary<string, string> { ["global"] = "{\"mcpServers\":{}}" }
@@ -64,7 +64,7 @@ public sealed class WorkspaceControlServiceTests
         var automationService = new StubWorkspaceAutomationService(
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Global,
-                ProfileKind.Global,
+                WorkspaceProfiles.GlobalId,
                 null,
                 false,
                 false,
@@ -113,7 +113,7 @@ public sealed class WorkspaceControlServiceTests
         using var scope = new TestHubRootScope();
         var projectPath = Path.Combine(scope.RootPath, "demo-project");
         Directory.CreateDirectory(projectPath);
-        var project = new ProjectRecord("demo-project", projectPath, ProfileKind.Frontend);
+        var project = new ProjectRecord("demo-project", projectPath, WorkspaceProfiles.FrontendId);
         var service = CreateService(scope.RootPath);
 
         var result = await service.ApplyProjectProfileAsync(project);
@@ -130,7 +130,7 @@ public sealed class WorkspaceControlServiceTests
         using var scope = new TestHubRootScope();
         var projectPath = Path.Combine(scope.RootPath, "demo-project");
         Directory.CreateDirectory(projectPath);
-        var project = new ProjectRecord("demo-project", projectPath, ProfileKind.Frontend);
+        var project = new ProjectRecord("demo-project", projectPath, WorkspaceProfiles.FrontendId);
         var service = CreateService(scope.RootPath);
 
         var applyResult = await service.ApplyProjectProfileAsync(project);
@@ -154,8 +154,8 @@ public sealed class WorkspaceControlServiceTests
         Directory.CreateDirectory(updatedPath);
 
         var service = CreateService(scope.RootPath);
-        var originalProject = new ProjectRecord("demo-project", originalPath, ProfileKind.Frontend);
-        var updatedProject = originalProject with { Path = updatedPath, Profile = ProfileKind.Backend };
+        var originalProject = new ProjectRecord("demo-project", originalPath, WorkspaceProfiles.FrontendId);
+        var updatedProject = originalProject with { Path = updatedPath, Profile = WorkspaceProfiles.BackendId };
 
         Assert.True((await service.SaveProjectAsync(originalProject)).Success);
         Assert.True((await service.SetCurrentProjectAsync(originalProject)).Success);
@@ -203,7 +203,7 @@ public sealed class WorkspaceControlServiceTests
         public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
             string hubRoot,
             string projectPath,
-            ProfileKind profile,
+            string profile,
             CancellationToken cancellationToken = default)
             => Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
                 "ok",
@@ -218,7 +218,7 @@ public sealed class WorkspaceControlServiceTests
         public Task<OperationResult> ApplyProjectProfileAsync(
             string hubRoot,
             string projectPath,
-            ProfileKind profile,
+            string profile,
             IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
             CancellationToken cancellationToken = default)
             => Task.FromResult(OperationResult.Ok("ok", projectPath));

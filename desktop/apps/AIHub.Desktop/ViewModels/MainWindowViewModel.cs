@@ -17,7 +17,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly McpControlService? _mcpControlService;
     private readonly SkillsCatalogService? _skillsCatalogService;
     private readonly ScriptCenterService? _scriptCenterService;
+    private readonly WorkspaceProfileService? _workspaceProfileService;
     private IReadOnlyList<McpProfileRecord> _mcpProfileCache = Array.Empty<McpProfileRecord>();
+    private IReadOnlyList<WorkspaceProfileRecord> _workspaceProfileCatalog = WorkspaceProfiles.CreateDefaultCatalog();
     private ProjectRecord? _selectedProject;
     private ProfileOption? _selectedProfileOption;
     private McpProfileListItem? _selectedMcpProfile;
@@ -83,16 +85,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string _scriptUserHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     private string _scriptArgumentsText = string.Empty;
     private string _scriptExecutionHint = DefaultText.State.ScriptUsagePlaceholder;
+    private string _projectProfileValidationDisplay = string.Empty;
 
-    public MainWindowViewModel(IFileDialogService? fileDialogService = null)
+    public MainWindowViewModel(
+        IFileDialogService? fileDialogService = null,
+        WorkspaceProfileService? workspaceProfileService = null)
     {
         _fileDialogService = fileDialogService;
+        _workspaceProfileService = workspaceProfileService;
         Projects = new ObservableCollection<ProjectRecord>();
-        ProfileOptions = new ObservableCollection<ProfileOption>(CreateProfileOptions());
-        SkillSourceProfileOptions = new ObservableCollection<ProfileOption>(CreateProfileOptions());
+        ProfileOptions = new ObservableCollection<ProfileOption>(CreateProfileOptions(_workspaceProfileCatalog));
+        SkillSourceProfileOptions = new ObservableCollection<ProfileOption>(CreateProfileOptions(_workspaceProfileCatalog));
         SkillModeOptions = new ObservableCollection<SkillModeOption>(CreateSkillModeOptions());
         SkillSourceKindOptions = new ObservableCollection<SkillSourceKindOption>(CreateSkillSourceKindOptions());
-        ScriptProfileOptions = new ObservableCollection<ProfileOption>(CreateProfileOptions());
+        ScriptProfileOptions = new ObservableCollection<ProfileOption>(CreateProfileOptions(_workspaceProfileCatalog));
         EnabledClients = new ObservableCollection<string>();
         Modules = new ObservableCollection<string>();
         NextSteps = new ObservableCollection<string>();
@@ -103,11 +109,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SkillSources = new ObservableCollection<SkillSourceRecord>();
         Scripts = new ObservableCollection<ScriptDefinitionRecord>();
 
-        _selectedProfileOption = ProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
-        _selectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
+        _selectedProfileOption = ProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        _selectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
         _selectedSkillModeOption = SkillModeOptions.FirstOrDefault(option => option.Value == SkillCustomizationMode.Local);
         _selectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == SkillSourceKind.GitRepository);
-        _selectedScriptProfileOption = ScriptProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
+        _selectedScriptProfileOption = ScriptProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
 
         RefreshCommand = new AsyncDelegateCommand(RefreshAsync, CanRefresh);
         SaveProjectCommand = new AsyncDelegateCommand(SaveProjectAsync, CanUseWorkspace);
@@ -147,6 +153,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         InitializeAdvancedCommands();
         InitializeDiagnosticsState();
         InitializeOnboardingState();
+        InitializeProfileManagementState();
+        InitializeSkillBrowserState();
+        InitializeBindingState();
     }
 
     public MainWindowViewModel(
@@ -154,8 +163,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         McpControlService mcpControlService,
         SkillsCatalogService skillsCatalogService,
         ScriptCenterService scriptCenterService,
-        IFileDialogService? fileDialogService = null)
-        : this(fileDialogService)
+        IFileDialogService? fileDialogService = null,
+        WorkspaceProfileService? workspaceProfileService = null)
+        : this(fileDialogService, workspaceProfileService)
     {
         _workspaceControlService = workspaceControlService;
         _mcpControlService = mcpControlService;
@@ -262,6 +272,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         get => _projectCountDisplay;
         private set => SetProperty(ref _projectCountDisplay, value);
     }
+
+    public string ProjectProfileValidationDisplay
+    {
+        get => _projectProfileValidationDisplay;
+        private set => SetProperty(ref _projectProfileValidationDisplay, value);
+    }
+
+    public bool HasProjectProfileValidationWarning => !string.IsNullOrWhiteSpace(ProjectProfileValidationDisplay);
 
     public string HubRootInput
     {
@@ -764,7 +782,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             if (result.Success)
             {
                 SelectedProject = null;
-                ClearFormFields(ProfileKind.Global);
+                ClearFormFields(WorkspaceProfiles.GlobalId);
                 await ReloadAllAsync(null, SelectedMcpProfile?.Profile, SelectedManagedProcess?.Name);
             }
         });
@@ -830,7 +848,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private Task ClearFormAsync()
     {
         SelectedProject = null;
-        ClearFormFields(ProfileKind.Global);
+        ClearFormFields(WorkspaceProfiles.GlobalId);
         SetOperation(true, Text.State.ProjectFormCleared, string.Empty);
         return Task.CompletedTask;
     }
@@ -1026,7 +1044,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
-            var result = await _skillsCatalogService!.SaveSourceAsync(SelectedSkillSource?.LocalName, SelectedSkillSource?.Profile, draft);
+            var result = await _skillsCatalogService!.SaveSourceAsync(
+                SelectedSkillSource?.LocalName,
+                SelectedSkillSource?.Profile,
+                draft);
             ApplyOperationResult(result);
 
             if (result.Success)
@@ -1052,7 +1073,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
-            var result = await _skillsCatalogService!.DeleteSourceAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            var result = await _skillsCatalogService!.DeleteSourceAsync(
+                SelectedSkillSource.LocalName,
+                SelectedSkillSource.Profile);
             ApplyOperationResult(result);
 
             if (result.Success)
@@ -1086,7 +1109,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 SelectedScript.RelativePath,
                 ScriptUserHome,
                 ScriptProjectPath,
-                SelectedScriptProfileOption?.Value ?? ProfileKind.Global,
+                SelectedScriptProfileOption?.Value ?? WorkspaceProfiles.GlobalId,
                 ScriptArgumentsText);
 
             ApplyOperationResult(result);
@@ -1186,8 +1209,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ReloadAllAsync(string? preferredProjectPath = null, ProfileKind? preferredMcpProfile = null, string? preferredProcessName = null)
+    private async Task ReloadAllAsync(string? preferredProjectPath = null, string? preferredMcpProfile = null, string? preferredProcessName = null)
     {
+        await LoadWorkspaceProfilesAsync();
         await LoadWorkspaceAsync(preferredProjectPath);
         await LoadMcpAsync(preferredMcpProfile, preferredProcessName);
         await LoadSkillsAsync();
@@ -1206,7 +1230,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ApplyWorkspaceSnapshot(snapshot, preferredProjectPath);
     }
 
-    private async Task LoadMcpAsync(ProfileKind? preferredProfile = null, string? preferredProcessName = null)
+    private async Task LoadMcpAsync(string? preferredProfile = null, string? preferredProcessName = null)
     {
         if (_mcpControlService is null)
         {
@@ -1217,7 +1241,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ApplyMcpSnapshot(snapshot, preferredProfile, preferredProcessName);
     }
 
-    private async Task LoadSkillsAsync(string? preferredLocalName = null, ProfileKind? preferredProfile = null)
+    private async Task LoadSkillsAsync(string? preferredLocalName = null, string? preferredProfile = null)
     {
         if (_skillsCatalogService is null)
         {
@@ -1225,36 +1249,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         var snapshot = await _skillsCatalogService.LoadAsync();
-        ReplaceCollection(InstalledSkills, snapshot.InstalledSkills);
-        ReplaceCollection(SkillSources, snapshot.Sources);
-
-        var registeredSkillCount = snapshot.InstalledSkills.Count(skill => skill.IsRegistered);
-        SkillsSummaryDisplay = Text.State.InstalledSkillsSummary(snapshot.InstalledSkills.Count, registeredSkillCount);
-        SkillSourcesSummaryDisplay = Text.State.SkillSourcesSummary(snapshot.Sources.Count);
-
-        var selectedInstalledSkill = FindInstalledSkill(snapshot.InstalledSkills, SelectedInstalledSkill?.RelativePath, SelectedInstalledSkill?.Profile)
-            ?? snapshot.InstalledSkills.FirstOrDefault();
-        SelectedInstalledSkill = selectedInstalledSkill;
-
-        var selectedSource = FindSkillSource(snapshot.Sources, preferredLocalName, preferredProfile)
-            ?? FindSkillSource(snapshot.Sources, SelectedSkillSource?.LocalName, SelectedSkillSource?.Profile)
-            ?? FindSkillSource(snapshot.Sources, SelectedSkillInstallSource?.LocalName, SelectedSkillInstallSource?.Profile)
-            ?? snapshot.Sources.FirstOrDefault();
-        SelectedSkillSource = selectedSource;
-
-        if (selectedSource is null)
-        {
-            ClearSkillSourceFormFields();
-        }
-
-        if (SelectedInstalledSkill is null)
-        {
-            SelectedSkillInstallSource = null;
-        }
-        else if (SelectedSkillInstallSource is not null)
-        {
-            SelectedSkillInstallSource = FindSkillSource(snapshot.Sources, SelectedSkillInstallSource.LocalName, SelectedSkillInstallSource.Profile);
-        }
+        CacheSkillSnapshot(snapshot);
+        ApplySkillBrowserFilters(preferredLocalName, preferredProfile);
     }
 
     private async Task LoadScriptsAsync(string? preferredRelativePath = null)
@@ -1273,6 +1269,80 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ?? snapshot.Scripts.FirstOrDefault();
         SelectedScript = selectedScript;
     }
+
+    private async Task LoadWorkspaceProfilesAsync()
+    {
+        if (_workspaceProfileService is not null)
+        {
+            var snapshot = await _workspaceProfileService.LoadAsync();
+            ApplyWorkspaceProfileSnapshot(snapshot.Profiles);
+            return;
+        }
+
+        var defaultProfiles = WorkspaceProfiles.CreateDefaultCatalog()
+            .Select((profile, index) => new WorkspaceProfileDescriptor(profile, 0, 0, 0, 0, 0, 0, 0))
+            .ToArray();
+        ApplyWorkspaceProfileSnapshot(defaultProfiles);
+    }
+
+    private void ApplyWorkspaceProfileCatalog(IReadOnlyList<WorkspaceProfileRecord> profiles)
+    {
+        _workspaceProfileCatalog = profiles.Count == 0 ? WorkspaceProfiles.CreateDefaultCatalog() : profiles;
+
+        var selectedProfileId = SelectedProfileOption?.Value ?? WorkspaceProfiles.GlobalId;
+        var selectedSkillSourceProfileId = SelectedSkillSourceProfileOption?.Value ?? WorkspaceProfiles.GlobalId;
+        var selectedScriptProfileId = SelectedScriptProfileOption?.Value ?? WorkspaceProfiles.GlobalId;
+
+        ReplaceCollection(ProfileOptions, CreateProfileOptions(_workspaceProfileCatalog));
+        ReplaceCollection(SkillSourceProfileOptions, CreateProfileOptions(_workspaceProfileCatalog));
+        ReplaceCollection(ScriptProfileOptions, CreateProfileOptions(_workspaceProfileCatalog));
+        RefreshSkillBrowserFilterOptions(_workspaceProfileCatalog);
+
+        SelectedProfileOption = FindProfileOption(ProfileOptions, selectedProfileId)
+            ?? ProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        SelectedSkillSourceProfileOption = FindProfileOption(SkillSourceProfileOptions, selectedSkillSourceProfileId)
+            ?? SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        SelectedScriptProfileOption = FindProfileOption(ScriptProfileOptions, selectedScriptProfileId)
+            ?? ScriptProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+
+        if (SelectedProject is not null)
+        {
+            UpdateProjectProfileValidation(SelectedProject.Profile);
+        }
+
+        RefreshBindingOptions();
+    }
+
+    private static ProfileOption? FindProfileOption(IEnumerable<ProfileOption> profiles, string? profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return null;
+        }
+
+        var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
+        return profiles.FirstOrDefault(option => string.Equals(option.Value, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void UpdateProjectProfileValidation(string? profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            ProjectProfileValidationDisplay = "项目分类无效，请重新选择一个有效分类。";
+            RaisePropertyChanged(nameof(HasProjectProfileValidationWarning));
+            return;
+        }
+
+        var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
+        var exists = _workspaceProfileCatalog.Any(profile =>
+            string.Equals(profile.Id, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
+
+        ProjectProfileValidationDisplay = exists
+            ? string.Empty
+            : $"项目当前引用的分类“{profileId}”已不在 profile catalog 中，请重新选择后再保存或切换作用域。";
+        RaisePropertyChanged(nameof(HasProjectProfileValidationWarning));
+    }
+
     private void ApplyWorkspaceSnapshot(WorkspaceSnapshot snapshot, string? preferredProjectPath)
     {
         _currentWorkspaceSettings = snapshot.Settings;
@@ -1281,7 +1351,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         HubStatus = snapshot.Dashboard.HubStatus;
         ProjectCountDisplay = Text.State.ProjectCount(snapshot.Dashboard.ProjectCount);
         ActiveScopeDisplay = Text.State.ActiveScope(snapshot.Settings.ActiveScope);
-        DefaultProfileDisplay = snapshot.Settings.DefaultProfile.ToDisplayName();
+        DefaultProfileDisplay = WorkspaceProfiles.ToDisplayName(snapshot.Settings.DefaultProfile);
         LastOpenedProjectDisplay = string.IsNullOrWhiteSpace(snapshot.Settings.LastOpenedProject) ? Text.State.NotSet : snapshot.Settings.LastOpenedProject;
         HubRootInput = string.IsNullOrWhiteSpace(snapshot.Resolution.RootPath)
             ? (snapshot.Settings.HubRoot ?? HubRootInput)
@@ -1317,7 +1387,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private void ApplyMcpSnapshot(McpWorkspaceSnapshot snapshot, ProfileKind? preferredProfile, string? preferredProcessName)
+    private void ApplyMcpSnapshot(McpWorkspaceSnapshot snapshot, string? preferredProfile, string? preferredProcessName)
     {
         _mcpProfileCache = snapshot.Profiles;
         ApplyRuntimeSummary(snapshot.RuntimeSummary);
@@ -1337,14 +1407,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SelectedManagedProcess = selectedProcess;
 
         var profileItems = snapshot.Profiles
-            .Select(profile => new McpProfileListItem(profile.Profile, profile.ServerNames))
+            .Select(profile => new McpProfileListItem(profile.Profile, profile.ServerNames, profile.ProfileDisplayName))
             .ToArray();
         ReplaceCollection(McpProfiles, profileItems);
 
         var selectedProfile = FindMcpProfileItem(profileItems, preferredProfile)
             ?? FindMcpProfileItem(profileItems, SelectedMcpProfile?.Profile)
+            ?? FindMcpProfileItem(profileItems, _currentWorkspaceSettings.DefaultProfile)
             ?? profileItems.FirstOrDefault();
         SelectedMcpProfile = selectedProfile;
+        RefreshMcpServerItems(selectedProfile?.Profile);
 
         if (selectedProfile is null)
         {
@@ -1354,7 +1426,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private bool TryBuildDraftProject(out ProjectRecord project, out string validationError)
     {
-        project = new ProjectRecord(string.Empty, string.Empty, ProfileKind.Global);
+        project = new ProjectRecord(string.Empty, string.Empty, WorkspaceProfiles.GlobalId);
         validationError = string.Empty;
 
         if (string.IsNullOrWhiteSpace(ProjectName))
@@ -1386,7 +1458,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return false;
         }
 
-        var profile = SelectedProfileOption?.Value ?? ProfileKind.Global;
+        if (SelectedProfileOption is null)
+        {
+            validationError = string.IsNullOrWhiteSpace(ProjectProfileValidationDisplay)
+                ? "项目分类无效，请重新选择一个有效分类。"
+                : ProjectProfileValidationDisplay;
+            return false;
+        }
+
+        var profile = SelectedProfileOption.Value;
         project = new ProjectRecord(ProjectName.Trim(), normalizedPath, profile, IsPinned);
         return true;
     }
@@ -1508,7 +1588,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         record = baseRecord with
         {
             LocalName = SkillSourceLocalName.Trim(),
-            Profile = SelectedSkillSourceProfileOption?.Value ?? ProfileKind.Global,
+            Profile = SelectedSkillSourceProfileOption?.Value ?? WorkspaceProfiles.GlobalId,
             Kind = selectedKind,
             Location = SkillSourceRepository.Trim(),
             CatalogPath = string.IsNullOrWhiteSpace(SkillSourcePath) ? null : SkillSourcePath.Trim(),
@@ -1531,17 +1611,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ProjectName = project.Name;
         ProjectPath = project.Path;
         IsPinned = project.IsPinned;
-        SelectedProfileOption = ProfileOptions.FirstOrDefault(option => option.Value == project.Profile)
-            ?? ProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
+        SelectedProfileOption = FindProfileOption(ProfileOptions, project.Profile);
+        UpdateProjectProfileValidation(project.Profile);
     }
 
-    private void ClearFormFields(ProfileKind defaultProfile)
+    private void ClearFormFields(string defaultProfile)
     {
         ProjectName = string.Empty;
         ProjectPath = string.Empty;
         IsPinned = false;
         SelectedProfileOption = ProfileOptions.FirstOrDefault(option => option.Value == defaultProfile)
-            ?? ProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
+            ?? ProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        ProjectProfileValidationDisplay = string.Empty;
+        RaisePropertyChanged(nameof(HasProjectProfileValidationWarning));
     }
 
     private void ApplySelectedManagedProcess()
@@ -1608,7 +1690,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SelectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == SelectedSkillSource.Kind)
             ?? SkillSourceKindOptions.FirstOrDefault(option => option.Value == SkillSourceKind.GitRepository);
         SelectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == SelectedSkillSource.Profile)
-            ?? SkillSourceProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
+            ?? SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
         ApplySelectedSkillSourceReference(SelectedSkillSource);
         ApplySkillSourceScheduleState(SelectedSkillSource);
         ApplySkillSourceVersionState(SelectedSkillSource);
@@ -1623,7 +1705,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SkillSourceEnabled = true;
         SkillSourceAutoUpdate = true;
         SelectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == SkillSourceKind.GitRepository);
-        SelectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == ProfileKind.Global);
+        SelectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
         SelectedSkillSourceReferenceOption = null;
         ApplySkillSourceScheduleState(null);
         ApplySkillSourceVersionState(null);
@@ -1681,6 +1763,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         McpCodexPreview = codexConfig?.Content ?? Text.State.ConfigNotGenerated;
         McpAntigravityPreview = antigravityConfig?.Content ?? Text.State.ConfigNotGenerated;
         UpdateMcpValidationSelectionState();
+        RefreshMcpServerItems(SelectedMcpProfile.Profile);
     }
 
     private void ResetMcpPanel()
@@ -1695,6 +1778,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         McpCodexPreview = Text.State.ConfigNotGenerated;
         McpAntigravityPreview = Text.State.ConfigNotGenerated;
         UpdateMcpValidationSelectionState();
+        RefreshMcpServerItems();
     }
 
     private void ApplyOperationResult(OperationResult result)
@@ -1743,11 +1827,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SaveAutomationSettingsCommand.RaiseCanExecuteChanged();
         SwitchToGlobalScopeCommand.RaiseCanExecuteChanged();
         SwitchToSelectedProjectScopeCommand.RaiseCanExecuteChanged();
+        RaiseProfileManagementCommandStates();
         RaiseFileDialogCommandStates();
         RaiseMaintenanceCommandStates();
         RaiseAdvancedCommandStates();
         RaiseDiagnosticsCommandStates();
         RaiseOnboardingCommandStates();
+        SaveSkillBindingsCommand.RaiseCanExecuteChanged();
+        SaveSkillGroupBindingsCommand.RaiseCanExecuteChanged();
+        SaveMcpServerBindingsCommand.RaiseCanExecuteChanged();
+        ClearMcpServerSelectionCommand.RaiseCanExecuteChanged();
     }
 
     private static ProjectRecord? FindProjectByPath(IEnumerable<ProjectRecord> projects, string? path)
@@ -1760,14 +1849,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return projects.FirstOrDefault(project => string.Equals(project.Path, path, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static McpProfileListItem? FindMcpProfileItem(IEnumerable<McpProfileListItem> profiles, ProfileKind? profile)
+    private static McpProfileListItem? FindMcpProfileItem(IEnumerable<McpProfileListItem> profiles, string? profileId)
     {
-        if (!profile.HasValue)
+        if (string.IsNullOrWhiteSpace(profileId))
         {
             return null;
         }
 
-        return profiles.FirstOrDefault(item => item.Profile == profile.Value);
+        return profiles.FirstOrDefault(item => string.Equals(item.Profile, WorkspaceProfiles.NormalizeId(profileId), StringComparison.OrdinalIgnoreCase));
     }
 
     private static McpManagedProcessItem? FindManagedProcessItem(IEnumerable<McpManagedProcessItem> items, string? name)
@@ -1780,15 +1869,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return items.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static SkillSourceRecord? FindSkillSource(IEnumerable<SkillSourceRecord> items, string? localName, ProfileKind? profile)
+    private static SkillSourceRecord? FindSkillSource(IEnumerable<SkillSourceRecord> items, string? localName, string? profileId)
     {
-        if (string.IsNullOrWhiteSpace(localName) || !profile.HasValue)
+        if (string.IsNullOrWhiteSpace(localName) || string.IsNullOrWhiteSpace(profileId))
         {
             return null;
         }
 
         return items.FirstOrDefault(item =>
-            item.Profile == profile.Value &&
+            string.Equals(item.Profile, WorkspaceProfiles.NormalizeId(profileId), StringComparison.OrdinalIgnoreCase) &&
             string.Equals(item.LocalName, localName, StringComparison.OrdinalIgnoreCase));
     }
 
@@ -1818,14 +1907,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
             record.LastHealthStatus);
     }
 
-    private static ProfileOption[] CreateProfileOptions()
+    private static ProfileOption[] CreateProfileOptions(IReadOnlyList<WorkspaceProfileRecord> profiles)
     {
-        return
-        [
-            new ProfileOption(ProfileKind.Global),
-            new ProfileOption(ProfileKind.Frontend),
-            new ProfileOption(ProfileKind.Backend)
-        ];
+        return profiles
+            .OrderBy(profile => profile.SortOrder)
+            .ThenBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(profile => new ProfileOption(profile.Id, profile.DisplayName))
+            .ToArray();
     }
 
     private static void ReplaceCollection<T>(ObservableCollection<T> target, IEnumerable<T> source)

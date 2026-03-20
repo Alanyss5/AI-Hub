@@ -6,11 +6,12 @@ namespace AIHub.Application.Services;
 public sealed partial class SkillsCatalogService
 {
     public async Task<SkillMergePreview?> PreviewOverlayMergeAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         CancellationToken cancellationToken = default)
     {
-        var contextResult = await TryCreateInstallContextAsync(profile, relativePath, refreshRemote: true, cancellationToken);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var contextResult = await TryCreateInstallContextAsync(profileId, relativePath, refreshRemote: true, cancellationToken);
         if (!contextResult.Success || contextResult.Context is null)
         {
             return null;
@@ -26,12 +27,13 @@ public sealed partial class SkillsCatalogService
     }
 
     public async Task<OperationResult> ApplyOverlayMergeAsync(
-        ProfileKind profile,
+        string profile,
         string relativePath,
         IReadOnlyList<SkillMergeDecision> decisions,
         CancellationToken cancellationToken = default)
     {
-        var contextResult = await TryCreateInstallContextAsync(profile, relativePath, refreshRemote: true, cancellationToken);
+        var profileId = WorkspaceProfiles.NormalizeId(profile);
+        var contextResult = await TryCreateInstallContextAsync(profileId, relativePath, refreshRemote: true, cancellationToken);
         if (!contextResult.Success || contextResult.Context is null)
         {
             return contextResult.Result;
@@ -309,7 +311,7 @@ public sealed partial class SkillsCatalogService
 
     private static OverlaySnapshot RebuildOverlaySnapshotFromSource(
         string hubRoot,
-        ProfileKind profile,
+        string profile,
         string relativePath,
         string sourceDirectory,
         string installedDirectory)

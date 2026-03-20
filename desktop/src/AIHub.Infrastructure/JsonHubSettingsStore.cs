@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AIHub.Application.Abstractions;
 using AIHub.Contracts;
 
@@ -103,6 +102,7 @@ public sealed class JsonHubSettingsStore : IHubSettingsStore
         return current with
         {
             HubRoot = string.IsNullOrWhiteSpace(current.HubRoot) ? _hubRoot : current.HubRoot,
+            DefaultProfile = WorkspaceProfiles.NormalizeId(current.DefaultProfile),
             PreferredClients = preferredClients,
             AutoStartManagedMcpOnLoad = current.AutoStartManagedMcpOnLoad,
             AutoCheckSkillUpdatesOnLoad = current.AutoCheckSkillUpdatesOnLoad,
@@ -125,7 +125,6 @@ public sealed class JsonHubSettingsStore : IHubSettingsStore
             WriteIndented = true
         };
 
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;
     }
 

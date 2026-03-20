@@ -29,7 +29,7 @@ public sealed partial class NativeWorkspaceAutomationService : IWorkspaceAutomat
     public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
         => PreviewProjectOnboardingCoreAsync(hubRoot, projectPath, profile, cancellationToken);
 
@@ -42,7 +42,7 @@ public sealed partial class NativeWorkspaceAutomationService : IWorkspaceAutomat
     public Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
         => ApplyProjectProfileCoreAsync(hubRoot, projectPath, profile, importDecisions, cancellationToken);

@@ -63,7 +63,9 @@ public sealed partial class MainWindowViewModel
 
         await RunBusyAsync(async () =>
         {
-            var result = await _skillsCatalogService!.CheckSourceVersionsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            var result = await _skillsCatalogService!.CheckSourceVersionsAsync(
+                SelectedSkillSource.LocalName,
+                SelectedSkillSource.Profile);
             ApplyOperationResult(result);
             await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
         });
@@ -79,7 +81,9 @@ public sealed partial class MainWindowViewModel
 
         await RunBusyAsync(async () =>
         {
-            var result = await _skillsCatalogService!.UpgradeSourceVersionAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            var result = await _skillsCatalogService!.UpgradeSourceVersionAsync(
+                SelectedSkillSource.LocalName,
+                SelectedSkillSource.Profile);
             ApplyOperationResult(result);
             await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
         });

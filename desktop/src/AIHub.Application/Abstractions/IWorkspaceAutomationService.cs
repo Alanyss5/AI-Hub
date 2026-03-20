@@ -9,7 +9,7 @@ public interface IWorkspaceAutomationService
     Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default);
 
     Task<OperationResult> ApplyGlobalLinksAsync(
@@ -20,7 +20,7 @@ public interface IWorkspaceAutomationService
     Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default);
 }

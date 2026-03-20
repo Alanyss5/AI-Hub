@@ -2,7 +2,7 @@
 
 public sealed record SkillInstallStateRecord
 {
-    public ProfileKind Profile { get; init; } = ProfileKind.Global;
+    public string Profile { get; init; } = WorkspaceProfiles.GlobalId;
 
     public string InstalledRelativePath { get; init; } = string.Empty;
 

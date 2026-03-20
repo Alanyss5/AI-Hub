@@ -14,7 +14,7 @@ public sealed partial class NativeWorkspaceAutomationService
             candidates,
             dedupePaths,
             WorkspaceScope.Global,
-            ProfileKind.Global,
+            WorkspaceProfiles.GlobalId,
             null,
             hubRoot,
             personalRoot,
@@ -26,10 +26,10 @@ public sealed partial class NativeWorkspaceAutomationService
                 new ScanRoot(Path.Combine(userHome, ".codex", "skills"), "codex")
             });
 
-        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeCommand, WorkspaceScope.Global, ProfileKind.Global, null, Path.Combine(userHome, ".claude", "commands"), "legacy", Path.Combine(hubRoot, "claude", "commands", "global"), Path.Combine(personalRoot, "claude", "commands", "global"));
-        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeAgent, WorkspaceScope.Global, ProfileKind.Global, null, Path.Combine(userHome, ".claude", "agents"), "legacy", Path.Combine(hubRoot, "claude", "agents", "global"), Path.Combine(personalRoot, "claude", "agents", "global"));
-        AddSettingsCandidate(candidates, WorkspaceScope.Global, ProfileKind.Global, null, hubRoot, personalRoot, Path.Combine(userHome, ".claude", "settings.json"));
-        AddMcpCandidates(candidates, WorkspaceScope.Global, ProfileKind.Global, null, hubRoot, personalRoot, new[]
+        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeCommand, WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, Path.Combine(userHome, ".claude", "commands"), "legacy", Path.Combine(hubRoot, "claude", "commands", "global"), Path.Combine(personalRoot, "claude", "commands", "global"));
+        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeAgent, WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, Path.Combine(userHome, ".claude", "agents"), "legacy", Path.Combine(hubRoot, "claude", "agents", "global"), Path.Combine(personalRoot, "claude", "agents", "global"));
+        AddSettingsCandidate(candidates, WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, hubRoot, personalRoot, Path.Combine(userHome, ".claude", "settings.json"));
+        AddMcpCandidates(candidates, WorkspaceScope.Global, WorkspaceProfiles.GlobalId, null, hubRoot, personalRoot, new[]
         {
             new McpTarget("Claude", Path.Combine(userHome, ".claude.json"), ClientConfigFormat.Json),
             new McpTarget("Codex", Path.Combine(userHome, ".codex", "config.toml"), ClientConfigFormat.Toml),
@@ -39,7 +39,7 @@ public sealed partial class NativeWorkspaceAutomationService
         return candidates;
     }
 
-    private List<ScannedCandidate> ScanProjectCandidates(string hubRoot, string userHome, string personalRoot, string projectPath, ProfileKind profile)
+    private List<ScannedCandidate> ScanProjectCandidates(string hubRoot, string userHome, string personalRoot, string projectPath, string profile)
     {
         var candidates = new List<ScannedCandidate>();
         var dedupePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -59,8 +59,8 @@ public sealed partial class NativeWorkspaceAutomationService
                 new ScanRoot(Path.Combine(projectPath, ".agent", "skills"), "agent")
             });
 
-        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeCommand, WorkspaceScope.Project, profile, projectPath, Path.Combine(projectPath, ".claude", "commands"), "project", Path.Combine(hubRoot, "claude", "commands", profile.ToStorageValue()), Path.Combine(personalRoot, "claude", "commands", profile.ToStorageValue()));
-        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeAgent, WorkspaceScope.Project, profile, projectPath, Path.Combine(projectPath, ".claude", "agents"), "project", Path.Combine(hubRoot, "claude", "agents", profile.ToStorageValue()), Path.Combine(personalRoot, "claude", "agents", profile.ToStorageValue()));
+        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeCommand, WorkspaceScope.Project, profile, projectPath, Path.Combine(projectPath, ".claude", "commands"), "project", Path.Combine(hubRoot, "claude", "commands", WorkspaceProfiles.NormalizeId(profile)), Path.Combine(personalRoot, "claude", "commands", WorkspaceProfiles.NormalizeId(profile)));
+        AddFileCandidates(candidates, dedupePaths, WorkspaceOnboardingResourceKind.ClaudeAgent, WorkspaceScope.Project, profile, projectPath, Path.Combine(projectPath, ".claude", "agents"), "project", Path.Combine(hubRoot, "claude", "agents", WorkspaceProfiles.NormalizeId(profile)), Path.Combine(personalRoot, "claude", "agents", WorkspaceProfiles.NormalizeId(profile)));
         AddSettingsCandidate(candidates, WorkspaceScope.Project, profile, projectPath, hubRoot, personalRoot, Path.Combine(projectPath, ".claude", "settings.json"));
         AddMcpCandidates(candidates, WorkspaceScope.Project, profile, projectPath, hubRoot, personalRoot, new[]
         {
@@ -71,10 +71,10 @@ public sealed partial class NativeWorkspaceAutomationService
         return candidates;
     }
 
-    private void AddSkillCandidates(List<ScannedCandidate> candidates, HashSet<string> dedupePaths, WorkspaceScope scope, ProfileKind profile, string? projectPath, string hubRoot, string personalRoot, IEnumerable<ScanRoot> roots)
+    private void AddSkillCandidates(List<ScannedCandidate> candidates, HashSet<string> dedupePaths, WorkspaceScope scope, string profile, string? projectPath, string hubRoot, string personalRoot, IEnumerable<ScanRoot> roots)
     {
-        var companyBase = Path.Combine(hubRoot, "skills", profile.ToStorageValue(), "imported");
-        var privateBase = Path.Combine(personalRoot, "skills", profile.ToStorageValue(), "imported");
+        var companyBase = Path.Combine(hubRoot, "skills", WorkspaceProfiles.NormalizeId(profile), "imported");
+        var privateBase = Path.Combine(personalRoot, "skills", WorkspaceProfiles.NormalizeId(profile), "imported");
 
         foreach (var root in roots)
         {
@@ -127,7 +127,7 @@ public sealed partial class NativeWorkspaceAutomationService
         }
     }
 
-    private void AddFileCandidates(List<ScannedCandidate> candidates, HashSet<string> dedupePaths, WorkspaceOnboardingResourceKind resourceKind, WorkspaceScope scope, ProfileKind profile, string? projectPath, string rootPath, string importFolderName, string companyBaseRoot, string privateBaseRoot)
+    private void AddFileCandidates(List<ScannedCandidate> candidates, HashSet<string> dedupePaths, WorkspaceOnboardingResourceKind resourceKind, WorkspaceScope scope, string profile, string? projectPath, string rootPath, string importFolderName, string companyBaseRoot, string privateBaseRoot)
     {
         foreach (var filePath in EnumerateFilesSkippingReparsePoints(rootPath))
         {
@@ -167,7 +167,7 @@ public sealed partial class NativeWorkspaceAutomationService
         }
     }
 
-    private void AddSettingsCandidate(List<ScannedCandidate> candidates, WorkspaceScope scope, ProfileKind profile, string? projectPath, string hubRoot, string personalRoot, string sourcePath)
+    private void AddSettingsCandidate(List<ScannedCandidate> candidates, WorkspaceScope scope, string profile, string? projectPath, string hubRoot, string personalRoot, string sourcePath)
     {
         if (!File.Exists(sourcePath))
         {
@@ -181,7 +181,7 @@ public sealed partial class NativeWorkspaceAutomationService
             return;
         }
 
-        var fileName = profile.ToStorageValue() + ".settings.json";
+        var fileName = WorkspaceProfiles.NormalizeId(profile) + ".settings.json";
         candidates.Add(new ScannedCandidate(
             new WorkspaceOnboardingCandidate(
                 CreatePathCandidateId(WorkspaceOnboardingResourceKind.ClaudeSettings, sourcePath),

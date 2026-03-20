@@ -36,7 +36,10 @@ public sealed partial class SkillsCatalogService
         }
 
         var sources = await LoadSourcesAsync(hubRoot, cancellationToken);
-        foreach (var install in installs.OrderBy(item => item.Profile).ThenBy(item => item.InstalledRelativePath, StringComparer.OrdinalIgnoreCase))
+        foreach (var install in installs
+                     .OrderBy(item => GetProfileSortOrder(item.Profile))
+                     .ThenBy(item => item.Profile, StringComparer.OrdinalIgnoreCase)
+                     .ThenBy(item => item.InstalledRelativePath, StringComparer.OrdinalIgnoreCase))
         {
             if (install.CustomizationMode is SkillCustomizationMode.Local or SkillCustomizationMode.Fork)
             {
@@ -164,7 +167,7 @@ public sealed partial class SkillsCatalogService
             : string.Join(Environment.NewLine, backups.Select(path => Path.GetFileName(path) + " -> " + path));
     }
 
-    private static string[] GetRecentBackups(string hubRoot, ProfileKind profile, string relativePath, int maxCount = 5)
+    private static string[] GetRecentBackups(string hubRoot, string profile, string relativePath, int maxCount = 5)
     {
         var backupRoot = GetBackupRoot(hubRoot, profile, relativePath);
         if (!Directory.Exists(backupRoot))
@@ -250,7 +253,7 @@ public sealed partial class SkillsCatalogService
         return new OverlaySnapshot(overlayRoot, overlayFilesRoot, deletedFiles, changedFiles.Length);
     }
 
-    private static OverlaySnapshot LoadOverlaySnapshot(string hubRoot, ProfileKind profile, string relativePath)
+    private static OverlaySnapshot LoadOverlaySnapshot(string hubRoot, string profile, string relativePath)
     {
         var overlayRoot = GetOverlayRoot(hubRoot, profile, relativePath);
         if (!Directory.Exists(overlayRoot))
@@ -312,16 +315,16 @@ public sealed partial class SkillsCatalogService
         }
     }
 
-    private static string GetOverlayRoot(string hubRoot, ProfileKind profile, string relativePath)
+    private static string GetOverlayRoot(string hubRoot, string profile, string relativePath)
     {
         return Path.Combine(
             hubRoot,
             "skills-overrides",
-            profile.ToStorageValue(),
+            WorkspaceProfiles.NormalizeId(profile),
             SanitizePathSegment(relativePath));
     }
 
-    private static string GetOverlayDeletedFilePath(string hubRoot, ProfileKind profile, string relativePath)
+    private static string GetOverlayDeletedFilePath(string hubRoot, string profile, string relativePath)
     {
         return Path.Combine(GetOverlayRoot(hubRoot, profile, relativePath), "deleted-files.json");
     }
@@ -358,4 +361,3 @@ public sealed partial class SkillsCatalogService
         public bool IsEmpty => string.IsNullOrWhiteSpace(RootPath) || (FileCount == 0 && DeletedFiles.Count == 0);
     }
 }
-

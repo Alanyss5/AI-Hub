@@ -21,12 +21,14 @@ AI-Hub/
   README.md
   config/
     hub-settings.json
+    profile-catalog.json
   projects/
     projects.json
   skills/
     global/
     frontend/
     backend/
+    <custom-profile>/
     sources.json
   mcp/
     manifest/
@@ -169,6 +171,46 @@ Hub 数据负责：
 
 这样可以保证产品行为收敛在程序内，而用户资产仍然以目录形式版本化。
 
+## Profile Catalog 模型
+
+### 单一事实源
+
+- `config/profile-catalog.json` 是 profile catalog 的唯一事实源
+- `projects/projects.json`、`skills/sources.json`、`config/skills-installs.json`、
+  `config/skills-state.json`、`mcp/manifest/<profile>.json` 与各类生成结果都只引用
+  catalog 中已经存在的 profile Id
+- 新代码不应再把 `ProfileKind` 当作业务真相；`ProfileKind` 仅作为旧数据与旧流程的兼容层
+
+### 默认内建项
+
+- 旧仓库或缺少 `profile-catalog.json` 的 Hub，在首次加载时自动补齐
+  `global`、`frontend`、`backend`
+- `global` 是保底基础层，必须存在，且不可删除
+- `frontend`、`backend` 是默认内建 profile，但 catalog 可继续新增自定义项
+
+### v1 约束
+
+- v1 只支持：
+  - 新增 profile
+  - 删除未被引用的非 `global` profile
+  - 修改 `DisplayName`
+- v1 不支持修改 profile Id
+- 如需“改 Id”，必须走“新增新 profile -> 迁移项目/skills/MCP -> 删除旧 profile”的流程
+
+### 删除阻断规则
+
+删除 profile 时，程序必须先检查以下引用：
+
+- 项目注册表中的 `ProjectRecord.Profile`
+- skills 来源中的 `SkillSourceRecord.Profile`
+- skills 安装记录中的 `SkillInstallRecord.Profile`
+- skills 状态中的 `SkillInstallStateRecord.Profile`
+- `skills/<profile>/` 下仍存在的目录资产
+- `mcp/manifest/<profile>.json` 所代表的 MCP 配置引用
+- `hub-settings.json` 中的默认 profile 或当前作用域相关设置
+
+只要任一引用仍存在，删除都必须失败，并明确返回失败原因。
+
 ## Hub 发现机制
 
 程序应按照以下优先顺序解析 Hub 根目录：
@@ -210,7 +252,7 @@ Hub 数据负责：
 ### Dashboard
 
 - 当前 Hub 根目录
-- 当前激活的全局 profile
+- 当前激活的默认 profile
 - 项目数量
 - 已启用 MCP 数量
 - 运行时告警
@@ -219,26 +261,31 @@ Hub 数据负责：
 ### Projects
 
 - 注册项目路径
-- 分配 profile
+- 从 profile catalog 分配 profile
 - 切换全局模式或项目模式
 - 查看链接目标和生成配置目标
+- 保存、设为当前项目、项目接管前都必须校验所选 profile 仍存在于 catalog 中
 
 ### Profiles
 
-- 应用 `global`、`frontend`、`backend`
-- 应用前预览将影响的文件
-- 展示相关备份记录
+- 展示 `config/profile-catalog.json` 中的全部 profile
+- 支持新增 profile、删除未引用的非 `global` profile、修改 `DisplayName`
+- 明确标注 `global` 不可删除
+- 删除失败时展示被哪些项目 / Skills / MCP / 设置引用
+- v1 不提供修改 profile Id 的入口
 
 ### Skills
 
-- 按作用域浏览已安装 skills
+- 按动态 profile 过滤或浏览已安装 skills
+- 支持 all-skills 视图与按 `skills/<profile>/...` 的目录视图
 - 查看来源元数据
 - 从上游来源同步
 - 以后如有需要，可增加可见性控制
 
 ### MCP
 
-- 列出所有服务
+- 以 all-profiles 视图展示全部 profile 的 MCP 概览
+- 选中某个 profile 后列出该 profile 的 manifest、生成结果与校验状态
 - 切换启用状态
 - 编辑环境变量与参数
 - 为 Claude、Codex、Antigravity 生成配置

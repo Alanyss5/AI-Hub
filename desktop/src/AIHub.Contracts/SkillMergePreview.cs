@@ -1,7 +1,7 @@
 namespace AIHub.Contracts;
 
 public sealed record SkillMergePreview(
-    ProfileKind Profile,
+    string Profile,
     string RelativePath,
     string SourceDisplayName,
     string SourceReference,

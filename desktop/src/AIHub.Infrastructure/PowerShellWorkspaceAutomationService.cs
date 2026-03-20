@@ -18,7 +18,7 @@ public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationS
             "当前 PowerShell 工作流不支持接管预检，已跳过。",
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Global,
-                ProfileKind.Global,
+                WorkspaceProfiles.GlobalId,
                 null,
                 false,
                 false,
@@ -29,14 +29,14 @@ public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationS
     public Task<WorkspaceOnboardingPreviewResult> PreviewProjectOnboardingAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         CancellationToken cancellationToken = default)
     {
         return Task.FromResult(WorkspaceOnboardingPreviewResult.Ok(
             "当前 PowerShell 工作流不支持接管预检，已跳过。",
             new WorkspaceOnboardingPreview(
                 WorkspaceScope.Project,
-                profile,
+                WorkspaceProfiles.NormalizeId(profile),
                 projectPath,
                 false,
                 false,
@@ -64,15 +64,16 @@ public sealed class PowerShellWorkspaceAutomationService : IWorkspaceAutomationS
     public Task<OperationResult> ApplyProjectProfileAsync(
         string hubRoot,
         string projectPath,
-        ProfileKind profile,
+        string profile,
         IReadOnlyList<WorkspaceImportDecisionRecord>? importDecisions = null,
         CancellationToken cancellationToken = default)
     {
         var scriptPath = Path.Combine(hubRoot, "scripts", "use-profile.ps1");
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
 
         return PowerShellScriptRunner.RunAsync(
             scriptPath,
-            ["-HubRoot", hubRoot, "-ProjectPath", projectPath, "-Profile", profile.ToStorageValue()],
+            ["-HubRoot", hubRoot, "-ProjectPath", projectPath, "-Profile", normalizedProfile],
             "已执行项目 Profile 脚本。",
             "执行项目 Profile 脚本失败。",
             cancellationToken,

@@ -1,4 +1,4 @@
-﻿using AIHub.Application.Abstractions;
+using AIHub.Application.Abstractions;
 using AIHub.Application.Models;
 using AIHub.Contracts;
 
@@ -106,7 +106,7 @@ public sealed class ScriptCenterService
         string relativePath,
         string? userHome,
         string? projectPath,
-        ProfileKind? profile,
+        string? profile,
         string? rawArguments,
         CancellationToken cancellationToken = default)
     {
@@ -167,7 +167,7 @@ public sealed class ScriptCenterService
         if (definition.UsesProfile)
         {
             arguments.Add("-Profile");
-            arguments.Add((profile ?? ProfileKind.Global).ToStorageValue());
+            arguments.Add(WorkspaceProfiles.NormalizeId(profile));
         }
 
         if (definition.UsesUserHome)

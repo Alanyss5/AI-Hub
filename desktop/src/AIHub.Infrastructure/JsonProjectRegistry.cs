@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AIHub.Application.Abstractions;
 using AIHub.Contracts;
 
@@ -39,12 +38,12 @@ public sealed class JsonProjectRegistry : IProjectRegistry
             var document = JsonSerializer.Deserialize<ProjectRegistryDocument>(json, SerializerOptions);
             if (document is not null)
             {
-                return Task.FromResult<IReadOnlyList<ProjectRecord>>(document.Projects ?? new List<ProjectRecord>());
+                return Task.FromResult<IReadOnlyList<ProjectRecord>>(NormalizeProjects(document.Projects));
             }
 
             var legacy = JsonSerializer.Deserialize<LegacyProjectRegistryDocument>(json, SerializerOptions) ?? new LegacyProjectRegistryDocument();
             _diagnosticLogService?.RecordInfo("store-projects", "已迁移旧版 projects.json 读取格式。", registryPath);
-            return Task.FromResult<IReadOnlyList<ProjectRecord>>(legacy.Projects ?? new List<ProjectRecord>());
+            return Task.FromResult<IReadOnlyList<ProjectRecord>>(NormalizeProjects(legacy.Projects));
         }
         catch (Exception exception)
         {
@@ -65,7 +64,7 @@ public sealed class JsonProjectRegistry : IProjectRegistry
         var document = new ProjectRegistryDocument
         {
             SchemaVersion = CurrentSchemaVersion,
-            Projects = projects.ToList()
+            Projects = NormalizeProjects(projects).ToList()
         };
 
         var json = JsonSerializer.Serialize(document, SerializerOptions);
@@ -87,8 +86,14 @@ public sealed class JsonProjectRegistry : IProjectRegistry
             WriteIndented = true
         };
 
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;
+    }
+
+    private static IReadOnlyList<ProjectRecord> NormalizeProjects(IEnumerable<ProjectRecord>? projects)
+    {
+        return (projects ?? Array.Empty<ProjectRecord>())
+            .Select(project => project with { Profile = WorkspaceProfiles.NormalizeId(project.Profile) })
+            .ToList();
     }
 
     private sealed class ProjectRegistryDocument

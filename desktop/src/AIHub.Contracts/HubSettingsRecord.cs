@@ -4,7 +4,7 @@ public sealed record HubSettingsRecord
 {
     public string? HubRoot { get; init; } = ".";
 
-    public ProfileKind DefaultProfile { get; init; } = ProfileKind.Global;
+    public string DefaultProfile { get; init; } = WorkspaceProfiles.GlobalId;
 
     public WorkspaceScope ActiveScope { get; init; } = WorkspaceScope.Global;
 

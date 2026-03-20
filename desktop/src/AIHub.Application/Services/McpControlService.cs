@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using AIHub.Application.Abstractions;
 using AIHub.Application.Models;
@@ -87,14 +87,14 @@ public sealed partial class McpControlService
             summary);
     }
 
-    public async Task<OperationResult> SaveManifestAsync(ProfileKind profile, string rawJson, CancellationToken cancellationToken = default)
+    public async Task<OperationResult> SaveManifestAsync(string profile, string rawJson, CancellationToken cancellationToken = default)
     {
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法保存 MCP 清单。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶淇濆瓨 MCP 娓呭崟銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
-
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
         string normalizedJson;
         try
         {
@@ -102,12 +102,74 @@ public sealed partial class McpControlService
         }
         catch (Exception exception)
         {
-            return OperationResult.Fail("MCP 清单格式无效。", exception.Message);
+            return OperationResult.Fail("The MCP manifest JSON is invalid.", exception.Message);
         }
 
-        await _mcpProfileStoreFactory(resolution.RootPath).SaveManifestAsync(profile, normalizedJson, cancellationToken);
-        var manifestPath = Path.Combine(resolution.RootPath, "mcp", "manifest", profile.ToStorageValue() + ".json");
-        return OperationResult.Ok("MCP 清单已保存。", manifestPath);
+        await _mcpProfileStoreFactory(resolution.RootPath).SaveManifestAsync(normalizedProfile, normalizedJson, cancellationToken);
+        var manifestPath = Path.Combine(resolution.RootPath, "mcp", "manifest", normalizedProfile + ".json");
+        return OperationResult.Ok("MCP 娓呭崟宸蹭繚瀛樸€?, manifestPath");
+    }
+
+    public async Task<OperationResult> SaveServerBindingsAsync(
+        string serverName,
+        string rawServerJson,
+        IReadOnlyList<string> targetProfiles,
+        CancellationToken cancellationToken = default)
+    {
+        var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
+        if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
+        {
+            return OperationResult.Fail("AI-Hub hub root is invalid. MCP server bindings could not be saved.", string.Join(Environment.NewLine, resolution.Errors));
+        }
+
+        var normalizedServerName = serverName?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedServerName))
+        {
+            return OperationResult.Fail("Select or enter an MCP server name before saving bindings.");
+        }
+
+        JsonNode? parsedServerDefinition;
+        try
+        {
+            parsedServerDefinition = string.IsNullOrWhiteSpace(rawServerJson)
+                ? new JsonObject()
+                : JsonNode.Parse(rawServerJson);
+        }
+        catch (Exception exception)
+        {
+            return OperationResult.Fail("The MCP server definition is not valid JSON.", exception.Message);
+        }
+
+        var normalizedTargets = targetProfiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile))
+            .Select(WorkspaceProfiles.NormalizeId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var store = _mcpProfileStoreFactory(resolution.RootPath);
+        var profiles = await store.GetAllAsync(cancellationToken);
+
+        foreach (var profile in profiles)
+        {
+            var manifest = ParseManifestObject(profile.RawJson);
+            var servers = manifest["mcpServers"] as JsonObject ?? new JsonObject();
+            manifest["mcpServers"] = servers;
+
+            if (normalizedTargets.Contains(profile.Profile, StringComparer.OrdinalIgnoreCase))
+            {
+                servers[normalizedServerName] = parsedServerDefinition?.DeepClone();
+            }
+            else if (servers.ContainsKey(normalizedServerName))
+            {
+                servers.Remove(normalizedServerName);
+            }
+
+            await store.SaveManifestAsync(profile.Profile, NormalizeManifestJson(manifest.ToJsonString()), cancellationToken);
+        }
+
+        return OperationResult.Ok(
+            "MCP server bindings saved.",
+            $"{normalizedServerName}{Environment.NewLine}{string.Join(Environment.NewLine, normalizedTargets)}");
     }
 
     public async Task<OperationResult> GenerateConfigsAsync(CancellationToken cancellationToken = default)
@@ -115,7 +177,7 @@ public sealed partial class McpControlService
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法生成 MCP 配置。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鐢熸垚 MCP 閰嶇疆銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         return await _mcpAutomationService.GenerateConfigsAsync(resolution.RootPath, cancellationToken);
@@ -126,7 +188,7 @@ public sealed partial class McpControlService
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法保存托管进程定义。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶淇濆瓨鎵樼杩涚▼瀹氫箟銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         McpRuntimeRecord normalizedRecord;
@@ -136,7 +198,7 @@ public sealed partial class McpControlService
         }
         catch (Exception exception)
         {
-            return OperationResult.Fail("托管进程定义无效。", exception.Message);
+            return OperationResult.Fail("The managed MCP process definition is invalid.", exception.Message);
         }
 
         var validationError = ValidateManagedProcess(normalizedRecord);
@@ -153,7 +215,7 @@ public sealed partial class McpControlService
             && originalRecord.IsRunning
             && !NamesMatch(originalRecord.Name, normalizedRecord.Name))
         {
-            return OperationResult.Fail("运行中的托管进程不能直接改名，请先停止后再修改名称。", originalRecord.Name);
+            return OperationResult.Fail("杩愯涓殑鎵樼杩涚▼涓嶈兘鐩存帴鏀瑰悕锛岃鍏堝仠姝㈠悗鍐嶄慨鏀瑰悕绉般€?, originalRecord.Name");
         }
 
         var updatedRecords = existingRecords
@@ -162,7 +224,7 @@ public sealed partial class McpControlService
 
         if (updatedRecords.Any(record => NamesMatch(record.Name, normalizedRecord.Name)))
         {
-            return OperationResult.Fail("已存在同名托管进程，请更换名称。", normalizedRecord.Name);
+            return OperationResult.Fail("宸插瓨鍦ㄥ悓鍚嶆墭绠¤繘绋嬶紝璇锋洿鎹㈠悕绉般€?, normalizedRecord.Name");
         }
 
         if (originalRecord is not null)
@@ -183,20 +245,20 @@ public sealed partial class McpControlService
         updatedRecords.Add(normalizedRecord);
         await runtimeStore.SaveAllAsync(SortManagedProcesses(updatedRecords), cancellationToken);
 
-        return OperationResult.Ok("托管型 MCP 定义已保存。", normalizedRecord.Name);
+        return OperationResult.Ok("鎵樼鍨?MCP 瀹氫箟宸蹭繚瀛樸€?, normalizedRecord.Name");
     }
 
     public async Task<OperationResult> DeleteManagedProcessAsync(string name, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("请先选择要删除的托管进程。");
+            return OperationResult.Fail("璇峰厛閫夋嫨瑕佸垹闄ょ殑鎵樼杩涚▼銆?");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法删除托管进程定义。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鍒犻櫎鎵樼杩涚▼瀹氫箟銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -204,7 +266,7 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("未找到要删除的托管进程。", name);
+            return OperationResult.Fail("鏈壘鍒拌鍒犻櫎鐨勬墭绠¤繘绋嬨€?, name");
         }
 
         if (existingRecord.IsRunning)
@@ -222,7 +284,7 @@ public sealed partial class McpControlService
             .ToArray();
 
         await runtimeStore.SaveAllAsync(updatedRecords, cancellationToken);
-        return OperationResult.Ok("托管型 MCP 定义已删除。", name);
+        return OperationResult.Ok("鎵樼鍨?MCP 瀹氫箟宸插垹闄ゃ€?, name");
     }
 
     public Task<OperationResult> StartManagedProcessAsync(string name, CancellationToken cancellationToken = default)
@@ -230,7 +292,7 @@ public sealed partial class McpControlService
         return ExecuteManagedProcessAsync(
             name,
             (controller, record, token) => controller.StartAsync(record, token),
-            "托管型 MCP 已启动。",
+            "鎵樼鍨?MCP 宸插惎鍔ㄣ€?",
             cancellationToken);
     }
 
@@ -239,7 +301,7 @@ public sealed partial class McpControlService
         return ExecuteManagedProcessAsync(
             name,
             (controller, record, token) => controller.StopAsync(record, token),
-            "托管型 MCP 已停止。",
+            "鎵樼鍨?MCP 宸插仠姝€?",
             cancellationToken);
     }
 
@@ -247,13 +309,13 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("请先选择要重启的托管进程。");
+            return OperationResult.Fail("璇峰厛閫夋嫨瑕侀噸鍚殑鎵樼杩涚▼銆?");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法重启托管进程。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶閲嶅惎鎵樼杩涚▼銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -261,7 +323,7 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("未找到要重启的托管进程。", name);
+            return OperationResult.Fail("鏈壘鍒拌閲嶅惎鐨勬墭绠¤繘绋嬨€?, name");
         }
 
         var refreshedRecord = await _mcpProcessController.RefreshAsync(existingRecord, cancellationToken);
@@ -280,7 +342,7 @@ public sealed partial class McpControlService
         var startResult = await _mcpProcessController.StartAsync(refreshedRecord, cancellationToken);
         await SaveManagedProcessRecordAsync(runtimeStore, records, startResult.Record, cancellationToken);
         return startResult.Result.Success
-            ? OperationResult.Ok("托管型 MCP 已重启。", startResult.Result.Details)
+            ? OperationResult.Ok("鎵樼鍨?MCP 宸查噸鍚€?", startResult.Result.Details)
             : startResult.Result;
     }
 
@@ -288,13 +350,13 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("请先选择要检查的托管进程。");
+            return OperationResult.Fail("璇峰厛閫夋嫨瑕佹鏌ョ殑鎵樼杩涚▼銆?");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法执行健康检查。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鎵ц鍋ュ悍妫€鏌ャ€?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -302,14 +364,14 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("未找到要检查的托管进程。", name);
+            return OperationResult.Fail("鏈壘鍒拌妫€鏌ョ殑鎵樼杩涚▼銆?, name");
         }
 
         var refreshedRecord = await _mcpProcessController.RefreshAsync(existingRecord, cancellationToken);
         await SaveManagedProcessRecordAsync(runtimeStore, records, refreshedRecord, cancellationToken);
 
         return OperationResult.Ok(
-            "健康检查已完成。",
+            "鍋ュ悍妫€鏌ュ凡瀹屾垚銆?",
             string.Join(Environment.NewLine, new[]
             {
                 refreshedRecord.LastHealthStatus,
@@ -333,7 +395,7 @@ public sealed partial class McpControlService
             return null;
         }
 
-        return OperationResult.Fail("首次运行托管 MCP 前，请先完成风险确认。", resolution.RootPath);
+        return OperationResult.Fail("棣栨杩愯鎵樼 MCP 鍓嶏紝璇峰厛瀹屾垚椋庨櫓纭銆?, resolution.RootPath");
     }
     private async Task<OperationResult> ExecuteManagedProcessAsync(
         string name,
@@ -343,13 +405,13 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("请先选择一个托管进程。");
+            return OperationResult.Fail("璇峰厛閫夋嫨涓€涓墭绠¤繘绋嬨€?");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 根目录无效，无法执行托管进程操作。", string.Join(Environment.NewLine, resolution.Errors));
+            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鎵ц鎵樼杩涚▼鎿嶄綔銆?, string.Join(Environment.NewLine, resolution.Errors)");
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -357,7 +419,7 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("未找到对应的托管进程。", name);
+            return OperationResult.Fail("鏈壘鍒板搴旂殑鎵樼杩涚▼銆?, name");
         }
 
         var result = await action(_mcpProcessController, existingRecord, cancellationToken);
@@ -473,23 +535,23 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(record.Name))
         {
-            return "托管进程名称不能为空。";
+            return "鎵樼杩涚▼鍚嶇О涓嶈兘涓虹┖銆?";
         }
 
         if (string.IsNullOrWhiteSpace(record.Command))
         {
-            return "启动命令不能为空。";
+            return "鍚姩鍛戒护涓嶈兘涓虹┖銆?";
         }
 
         if (!string.IsNullOrWhiteSpace(record.WorkingDirectory) && !Directory.Exists(record.WorkingDirectory))
         {
-            return "工作目录不存在：" + record.WorkingDirectory;
+            return "宸ヤ綔鐩綍涓嶅瓨鍦細" + record.WorkingDirectory;
         }
 
         if (!string.IsNullOrWhiteSpace(record.HealthCheckUrl)
             && !Uri.TryCreate(record.HealthCheckUrl, UriKind.Absolute, out _))
         {
-            return "健康检查地址无效：" + record.HealthCheckUrl;
+            return "鍋ュ悍妫€鏌ュ湴鍧€鏃犳晥锛? + record.HealthCheckUrl";
         }
 
         return null;
@@ -555,10 +617,16 @@ public sealed partial class McpControlService
     private static bool HasHealthAlert(McpRuntimeRecord record)
     {
         return string.Equals(NormalizeHealthValue(record.LastHealthStatus), "异常", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(NormalizeHealthValue(record.LastHealthStatus), "寮傚父", StringComparison.OrdinalIgnoreCase)
             || (!string.IsNullOrWhiteSpace(record.LastHealthMessage)
                 && (record.LastHealthMessage.Contains("失败", StringComparison.OrdinalIgnoreCase)
                     || record.LastHealthMessage.Contains("错误", StringComparison.OrdinalIgnoreCase)
-                    || record.LastHealthMessage.Contains("异常", StringComparison.OrdinalIgnoreCase)));
+                    || record.LastHealthMessage.Contains("异常", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("error", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("unhealthy", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("澶辫触", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("閿欒", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("寮傚父", StringComparison.OrdinalIgnoreCase)));
     }
 
     private static string? NormalizeHealthValue(string? value)
@@ -568,12 +636,18 @@ public sealed partial class McpControlService
             return null;
         }
 
-        if (value.Contains("异常", StringComparison.OrdinalIgnoreCase) || value.Contains("寮傚父", StringComparison.OrdinalIgnoreCase))
+        if (value.Contains("异常", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("error", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("unhealthy", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("寮傚父", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("瀵倸鐖?", StringComparison.OrdinalIgnoreCase))
         {
             return "异常";
         }
 
-        if (value.Contains("健康", StringComparison.OrdinalIgnoreCase))
+        if (value.Contains("健康", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("healthy", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("鍋ュ悍", StringComparison.OrdinalIgnoreCase))
         {
             return "健康";
         }
@@ -586,7 +660,7 @@ public sealed partial class McpControlService
         var parsedNode = string.IsNullOrWhiteSpace(rawJson) ? new JsonObject() : JsonNode.Parse(rawJson);
         if (parsedNode is not JsonObject rootNode)
         {
-            throw new InvalidOperationException("MCP 娓呭崟鏍硅妭鐐瑰繀椤绘槸 JSON 瀵硅薄。");
+            throw new InvalidOperationException("MCP 濞撳懎宕熼弽纭呭Ν閻愮懓绻€妞ょ粯妲?JSON 鐎电钖勩€?");
         }
 
         if (rootNode["mcpServers"] is null)
@@ -595,7 +669,7 @@ public sealed partial class McpControlService
         }
         else if (rootNode["mcpServers"] is not JsonObject)
         {
-            throw new InvalidOperationException("mcpServers 蹇呴』鏄?JSON 瀵硅薄。");
+            throw new InvalidOperationException("mcpServers 韫囧懘銆忛弰?JSON 鐎电钖勩€?");
         }
 
         return rootNode.ToJsonString(new JsonSerializerOptions
@@ -603,8 +677,27 @@ public sealed partial class McpControlService
             WriteIndented = true
         });
     }
-}
 
+    private static JsonObject ParseManifestObject(string rawJson)
+    {
+        var parsedNode = string.IsNullOrWhiteSpace(rawJson) ? new JsonObject() : JsonNode.Parse(rawJson);
+        if (parsedNode is not JsonObject rootNode)
+        {
+            throw new InvalidOperationException("MCP manifest must be a JSON object.");
+        }
+
+        if (rootNode["mcpServers"] is null)
+        {
+            rootNode["mcpServers"] = new JsonObject();
+        }
+        else if (rootNode["mcpServers"] is not JsonObject)
+        {
+            throw new InvalidOperationException("mcpServers must be a JSON object.");
+        }
+
+        return rootNode;
+    }
+}
 
 
 

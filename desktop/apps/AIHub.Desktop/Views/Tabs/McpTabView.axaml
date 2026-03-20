@@ -1,240 +1,205 @@
-﻿<UserControl xmlns="https://github.com/avaloniaui"
+<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="AIHub.Desktop.Views.Tabs.McpTabView">
-  <ScrollViewer Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
-    <Grid ColumnDefinitions="340,*" ColumnSpacing="20">
-      <Grid Grid.Column="0" RowDefinitions="Auto,*,*" RowSpacing="16">
-        <Border Grid.Row="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
-          <StackPanel Spacing="8">
-            <TextBlock Text="{Binding Text.Mcp.RuntimeOverviewTitle}" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding McpRuntimeSummaryDisplay}" FontWeight="SemiBold" />
-            <TextBlock Text="{Binding McpManagedProcessDetails}" TextWrapping="Wrap" Foreground="#486581" />
-          </StackPanel>
-        </Border>
-        <Border Grid.Row="1" Background="#FFFDF8" CornerRadius="20" Padding="20">
-          <Grid RowDefinitions="Auto,*" RowSpacing="12">
-            <StackPanel Grid.Row="0" Spacing="4">
-              <TextBlock Text="{Binding Text.Mcp.ManagedProcessesTitle}" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding Text.Mcp.ManagedProcessesDescription}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-            </StackPanel>
-            <ListBox Grid.Row="1" ItemsSource="{Binding ManagedProcesses}" SelectedItem="{Binding SelectedManagedProcess}" BorderThickness="0" Background="Transparent">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <Border Background="#F8F4EA" CornerRadius="16" Padding="14" Margin="0,0,0,10">
-                    <StackPanel Spacing="4">
-                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
-                      <TextBlock Text="{Binding StatusDisplay}" FontSize="12" Foreground="#7B341E" />
-                      <TextBlock Text="{Binding HealthDisplay}" FontSize="12" Foreground="#2F855A" />
-                      <TextBlock Text="{Binding SupervisorDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding LastExitDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                      <TextBlock Text="{Binding AutoStartDisplay}" FontSize="12" Foreground="#486581" />
-                      <TextBlock Text="{Binding CommandDisplay}" TextWrapping="Wrap" FontSize="12" Foreground="#102A43" />
-                      <TextBlock Text="{Binding LastMessageDisplay}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </Grid>
-        </Border>
-        <Border Grid.Row="2" Background="#FFFDF8" CornerRadius="20" Padding="20">
-          <Grid RowDefinitions="Auto,*" RowSpacing="12">
-            <StackPanel Grid.Row="0" Spacing="4">
-              <TextBlock Text="{Binding Text.Mcp.ProfileListTitle}" FontSize="16" FontWeight="SemiBold" />
-              <TextBlock Text="{Binding Text.Mcp.ProfileListDescription}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-            </StackPanel>
-            <ListBox Grid.Row="1" ItemsSource="{Binding McpProfiles}" SelectedItem="{Binding SelectedMcpProfile}" BorderThickness="0" Background="Transparent">
-              <ListBox.ItemTemplate>
-                <DataTemplate>
-                  <Border Background="#F8F4EA" CornerRadius="16" Padding="14" Margin="0,0,0,10">
-                    <StackPanel Spacing="4">
-                      <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" />
-                      <TextBlock Text="{Binding ServerCountDisplay}" FontSize="12" Foreground="#7B341E" />
-                      <TextBlock Text="{Binding ServerNamesSummary}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </Grid>
-        </Border>
-      </Grid>
-
-      <TabControl Grid.Column="1" Background="Transparent">
-        <TabItem Header="{Binding Text.Mcp.ManagedProcessTabHeader}">
-          <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="16" Margin="0,8,0,0">
-            <Border Grid.Row="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
-                <StackPanel Spacing="6">
-                  <TextBlock Text="{Binding Text.Mcp.CurrentStatusTitle}" FontSize="16" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding ManagedProcessStatusDisplay}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding ManagedProcessLastMessageDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                  <TextBlock Text="{Binding SelectedManagedProcess.KeepAliveDisplay}" FontSize="12" Foreground="#486581" />
-                  <TextBlock Text="{Binding SelectedManagedProcess.RestartDisplay}" FontSize="12" Foreground="#486581" />
+  <UserControl.Styles>
+    <Style Selector="TabControl.side-nav TabItem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="MinWidth" Value="84" />
+    </Style>
+    <Style Selector="TabControl.compact-tabs TabItem">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="8,4" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="MinHeight" Value="26" />
+    </Style>
+  </UserControl.Styles>
+  <ScrollViewer Margin="0,6,0,0" VerticalScrollBarVisibility="Auto">
+    <Grid RowDefinitions="Auto,*">
+      <StackPanel IsVisible="False">
+        <Button x:Name="McpSaveManifestButton" Command="{Binding SaveMcpManifestCommand}" />
+        <Button x:Name="McpResumeSuspendedButton" Command="{Binding ResumeSuspendedManagedProcessesCommand}" />
+        <Button x:Name="McpSaveServerBindingsButton" Command="{Binding SaveMcpServerBindingsCommand}" />
+      </StackPanel>
+      <TabControl Grid.Row="1" Classes="side-nav" Background="Transparent" SelectedIndex="{Binding SelectedMcpSectionIndex, Mode=TwoWay}" TabStripPlacement="Left">
+        <TabItem Header="配置总览">
+          <Grid Margin="0,6,0,0" RowDefinitions="Auto,*" RowSpacing="12">
+            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+              <Grid ColumnDefinitions="1.3*,0.9*" ColumnSpacing="12">
+                <StackPanel Spacing="8">
+                  <TextBlock Text="MCP 配置控制台" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="集中查看当前 profile、生成状态与托管进程，右侧保留当前焦点和快捷动作。" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding McpRuntimeSummaryDisplay}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding McpManagedProcessDetails}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="6">
-                  <TextBlock Text="{Binding Text.Mcp.HealthStatusTitle}" FontSize="16" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding ManagedProcessHealthStatusDisplay}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding SelectedManagedProcess.SupervisorDisplay}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                  <TextBlock Text="{Binding SelectedManagedProcess.LastExitDisplay}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                  <TextBlock Text="{Binding ManagedProcessOutputLogPath}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                  <TextBlock Text="{Binding ManagedProcessErrorLogPath}" TextWrapping="Wrap" FontSize="12" Foreground="#486581" />
-                </StackPanel>
-              </Grid>
-            </Border>
-            <Border Grid.Row="1" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid ColumnDefinitions="*,*" ColumnSpacing="16" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
-                  <TextBlock Text="{Binding Text.Mcp.NameLabel}" FontWeight="SemiBold" />
-                  <TextBox Text="{Binding ManagedProcessName}" Watermark="{Binding Text.Mcp.NameWatermark}" />
-                </StackPanel>
-                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
-                  <TextBlock Text="{Binding Text.Mcp.StartCommandLabel}" FontWeight="SemiBold" />
-                  <TextBox Text="{Binding ManagedProcessCommand}" Watermark="{Binding Text.Mcp.StartCommandWatermark}" />
-                </StackPanel>
-                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="6" Margin="0,12,0,0">
-                  <TextBlock Text="{Binding Text.Mcp.ArgumentsLabel}" FontWeight="SemiBold" />
-                  <TextBox Text="{Binding ManagedProcessArgumentsText}" Watermark="{Binding Text.Mcp.ArgumentsWatermark}" TextWrapping="Wrap" />
-                </StackPanel>
-                <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="10" Margin="0,12,0,0">
-                  <StackPanel Grid.Column="0" Spacing="6">
-                    <TextBlock Text="{Binding Text.Mcp.WorkingDirectoryLabel}" FontWeight="SemiBold" />
-                    <TextBox Text="{Binding ManagedProcessWorkingDirectory}" Watermark="{Binding Text.Mcp.WorkingDirectoryWatermark}" />
+                <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12">
+                  <StackPanel Spacing="8">
+                    <TextBlock Text="当前焦点" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedMcpProfile.DisplayName, TargetNullValue=未选择 profile}" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding McpValidationScopeDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding McpManifestPathDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <Button Grid.Column="1" Content="{Binding Text.Mcp.ChooseDirectoryButton}" Command="{Binding ChooseManagedProcessWorkingDirectoryCommand}" Background="#D9E2EC" Foreground="#102A43" Padding="16,8" VerticalAlignment="Bottom" />
-                </Grid>
-                <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16" Margin="0,12,0,0">
-                  <CheckBox Content="{Binding Text.Mcp.ManagedProcessEnabledLabel}" IsChecked="{Binding ManagedProcessEnabled}" />
-                  <CheckBox Content="{Binding Text.Mcp.ManagedProcessAutoStartLabel}" IsChecked="{Binding ManagedProcessAutoStart}" />
-                  <CheckBox Content="{Binding Text.Mcp.ManagedProcessKeepAliveLabel}" IsChecked="{Binding ManagedProcessKeepAlive}" />
-                </StackPanel>
-                <Grid Grid.Row="4" Grid.ColumnSpan="2" ColumnDefinitions="*,160" ColumnSpacing="16" Margin="0,12,0,0">
-                  <StackPanel Grid.Column="0" Spacing="6">
-                    <TextBlock Text="{Binding Text.Mcp.HealthCheckAddressLabel}" FontWeight="SemiBold" />
-                    <TextBox Text="{Binding ManagedProcessHealthCheckUrl}" Watermark="{Binding Text.Mcp.HealthCheckAddressWatermark}" />
+                </Border>
+              </Grid>
+            </Border>
+            <Grid Grid.Row="1" ColumnDefinitions="248,*,256" ColumnSpacing="12">
+              <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="Profile 列表" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="从 catalog 选择 profile，查看它的 server 覆盖和当前范围。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <StackPanel Grid.Column="1" Spacing="6">
-                    <TextBlock Text="{Binding Text.Mcp.HealthCheckTimeoutLabel}" FontWeight="SemiBold" />
-                    <TextBox Text="{Binding ManagedProcessHealthTimeoutText}" />
-                  </StackPanel>
-                </Grid>
-              </Grid>
-            </Border>
-            <WrapPanel Grid.Row="2">
-              <Button Content="{Binding Text.Mcp.SaveDefinitionButton}" Command="{Binding SaveManagedProcessCommand}" Background="#1F487E" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.StartButton}" Command="{Binding StartManagedProcessCommand}" Background="#2F855A" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.StopButton}" Command="{Binding StopManagedProcessCommand}" Background="#C05621" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.RestartButton}" Command="{Binding RestartManagedProcessCommand}" Background="#B7791F" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.HealthCheckButton}" Command="{Binding RunManagedProcessHealthCheckCommand}" Background="#285E61" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.StartAllButton}" Command="{Binding StartAllManagedProcessesCommand}" Background="#2F855A" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.StopAllButton}" Command="{Binding StopAllManagedProcessesCommand}" Background="#C05621" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.MaintainButton}" Command="{Binding MaintainManagedProcessesCommand}" Background="#285E61" Foreground="White" Margin="0,0,12,12" />
-              <Button x:Name="McpResumeSuspendedButton" Content="恢复被监督暂停的 MCP" Command="{Binding ResumeSuspendedManagedProcessesCommand}" Background="#805AD5" Foreground="White" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.DeleteDefinitionButton}" Command="{Binding DeleteManagedProcessCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-              <Button Content="{Binding Text.Mcp.ClearFormButton}" Command="{Binding ClearManagedProcessFormCommand}" Background="#D9E2EC" Foreground="#102A43" Margin="0,0,12,12" />
-            </WrapPanel>
-            <Border Grid.Row="3" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid RowDefinitions="Auto,*" RowSpacing="10">
-                <TextBlock Grid.Row="0" Text="{Binding Text.Mcp.LogPreviewTitle}" FontSize="16" FontWeight="SemiBold" />
-                <TabControl Grid.Row="1">
-                  <TabItem Header="{Binding Text.Mcp.StandardOutputTabHeader}">
-                    <TextBox Margin="0,12,0,0" Text="{Binding ManagedProcessOutputPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" />
-                  </TabItem>
-                  <TabItem Header="{Binding Text.Mcp.StandardErrorTabHeader}">
-                    <TextBox Margin="0,12,0,0" Text="{Binding ManagedProcessErrorPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" />
-                  </TabItem>
-                </TabControl>
-              </Grid>
-            </Border>
-          </Grid>
-        </TabItem>
-
-        <TabItem Header="{Binding Text.Mcp.ConfigTabHeader}">
-          <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="16" Margin="0,8,0,0">
-            <Border Grid.Row="0" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto" ColumnSpacing="12">
-                <StackPanel Spacing="6">
-                  <TextBlock Text="{Binding Text.Mcp.CurrentProfileTitle}" FontSize="16" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding McpManifestPathDisplay}" TextWrapping="Wrap" />
-                  <TextBlock Text="{Binding McpServerSummary}" TextWrapping="Wrap" Foreground="#486581" />
-                  <TextBlock Text="{Binding McpValidationScopeDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                </StackPanel>
-                <Button x:Name="McpSaveManifestButton" Grid.Column="1" Content="{Binding Text.Mcp.SaveManifestButton}" Command="{Binding SaveMcpManifestCommand}" Background="#2F855A" Foreground="White" Padding="16,10" VerticalAlignment="Top" />
-                <Button Grid.Column="2" Content="{Binding Text.Mcp.GenerateConfigsButton}" Command="{Binding GenerateMcpConfigsCommand}" Background="#1F487E" Foreground="White" Padding="16,10" VerticalAlignment="Top" />
-                <Button Grid.Column="3" Content="{Binding Text.Mcp.ValidateScopeButton}" Command="{Binding ValidateCurrentMcpScopeCommand}" Background="#285E61" Foreground="White" Padding="16,10" VerticalAlignment="Top" />
-                <Button Grid.Column="4" Content="{Binding Text.Mcp.SyncClientsButton}" Command="{Binding SyncCurrentMcpClientsCommand}" Background="#B7791F" Foreground="White" Padding="16,10" VerticalAlignment="Top" />
-              </Grid>
-            </Border>
-            <Border Grid.Row="1" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid RowDefinitions="Auto,*" RowSpacing="10">
-                <TextBlock Grid.Row="0" Text="{Binding Text.Mcp.ManifestEditorTitle}" FontSize="16" FontWeight="SemiBold" />
-                <TextBox Grid.Row="1" Text="{Binding McpManifestEditor}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" MinHeight="220" FontFamily="Consolas" />
-              </Grid>
-            </Border>
-            <Border Grid.Row="2" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid ColumnDefinitions="1.2*,0.8*" ColumnSpacing="18">
-                <Grid Grid.Column="0" RowDefinitions="Auto,Auto,*" RowSpacing="12">
-                  <StackPanel Grid.Row="0" Spacing="6">
-                    <TextBlock Text="{Binding Text.Mcp.ValidationResultsTitle}" FontSize="16" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding McpValidationSummaryDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                  </StackPanel>
-                  <ItemsControl Grid.Row="1" ItemsSource="{Binding McpClientStatuses}">
-                    <ItemsControl.ItemTemplate>
+                  <ListBox Grid.Row="1" ItemsSource="{Binding McpProfiles}" SelectedItem="{Binding SelectedMcpProfile}" BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemTemplate>
                       <DataTemplate>
-                        <Border Background="#F8F4EA" CornerRadius="12" Padding="10" Margin="0,0,0,8">
+                        <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
                           <StackPanel Spacing="4">
-                            <TextBlock Text="{Binding Client}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="#486581" />
-                            <TextBlock Text="{Binding FilePath}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" FontSize="14" />
+                            <TextBlock Text="{Binding ServerCountDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" />
+                            <TextBlock Text="{Binding ServerNamesSummary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                           </StackPanel>
                         </Border>
                       </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                  <Border Grid.Row="2" Background="#F8F4EA" CornerRadius="12" Padding="12">
-                    <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto">
-                      <ItemsControl ItemsSource="{Binding McpValidationIssues}">
-                        <ItemsControl.ItemTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+              </Border>
+                <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="12">
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="配置状态" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding McpServerSummary}" TextWrapping="Wrap" />
+                      <TextBlock Text="{Binding McpManifestPathDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                    <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="验证范围" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding McpValidationScopeDisplay}" TextWrapping="Wrap" />
+                      <TextBlock Text="生成、同步和校验都会按当前作用域执行。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </Grid>
+                  <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="12">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="Server 状态卡片" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="把核心信息收成控制台卡片，而不是继续堆成长表单。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12">
+                        <StackPanel Spacing="6">
+                          <TextBlock Text="Server 摘要" FontWeight="SemiBold" />
+                          <TextBlock Text="{Binding McpServerSummary}" TextWrapping="Wrap" />
+                          <TextBlock Text="切换到“Server 绑定”即可编辑单个 server 的归属与 JSON。" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Border>
+                    </Grid>
+                  </Border>
+                    <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+                    <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="托管进程概览" FontSize="15" FontWeight="SemiBold" />
+                        <TextBlock Text="托管进程保留在这里作为摘要，详细维护放到最后一个标签页。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <ListBox Grid.Row="1" ItemsSource="{Binding ManagedProcesses}" SelectedItem="{Binding SelectedManagedProcess}" BorderThickness="0" Background="Transparent">
+                        <ListBox.ItemTemplate>
                           <DataTemplate>
-                            <Border Background="#FFFDF8" CornerRadius="10" Padding="10" Margin="0,0,0,8">
+                            <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
                               <StackPanel Spacing="4">
-                                <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Severity}" FontSize="12" Foreground="#7B341E" />
-                                <TextBlock Text="{Binding Details}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding FilePath}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="13" />
+                                <TextBlock Text="{Binding StatusDisplay}" FontSize="12" Foreground="{DynamicResource WarningBrush}" />
+                                <TextBlock Text="{Binding HealthDisplay}" FontSize="12" Foreground="{DynamicResource SuccessBrush}" />
+                                <TextBlock Text="{Binding CommandDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                               </StackPanel>
                             </Border>
                           </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </ScrollViewer>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </Grid>
                   </Border>
                 </Grid>
-                <Border Grid.Column="1" Background="#F8F4EA" CornerRadius="12" Padding="12">
-                  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="10">
-                    <StackPanel Grid.Row="0" Spacing="6">
-                      <TextBlock Text="{Binding Text.Mcp.ExternalImportTitle}" FontSize="16" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding Text.Mcp.ExternalImportDescription}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                      <CheckBox Content="{Binding Text.Mcp.SyncImportedClientsLabel}" IsChecked="{Binding SyncImportedExternalServers}" />
-                      <Button Content="{Binding Text.Mcp.ImportSelectedButton}" Command="{Binding ImportExternalMcpCommand}" Background="#2F855A" Foreground="White" HorizontalAlignment="Left" />
+              </Grid>
+              <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+                <Grid RowDefinitions="Auto,Auto,Auto,*" RowSpacing="14">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="当前 Profile 面板" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock Text="这里集中放当前 profile 摘要和常用动作。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="当前 Profile" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedMcpProfile.DisplayName, TargetNullValue=未选择 profile}" FontSize="16" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding McpValidationScopeDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBlock Grid.Row="1" Text="{Binding McpValidationScopeDisplay}" FontSize="12" Foreground="#486581" TextWrapping="Wrap" />
-                    <ScrollViewer Grid.Row="2" MaxHeight="360" VerticalScrollBarVisibility="Auto">
-                      <ItemsControl ItemsSource="{Binding McpExternalServerImports}">
+                  </Border>
+                  <WrapPanel Grid.Row="2">
+                    <Button Content="生成配置" Command="{Binding GenerateMcpConfigsCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                    <Button Content="验证当前范围" Command="{Binding ValidateCurrentMcpScopeCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                    <Button Content="同步客户端" Command="{Binding SyncCurrentMcpClientsCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  </WrapPanel>
+                  <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="当前托管进程" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding SelectedManagedProcess.Name, TargetNullValue=未选择托管进程}" />
+                      <TextBlock Text="{Binding McpRuntimeSummaryDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </Grid>
+              </Border>
+            </Grid>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Server 绑定">
+          <Grid Margin="0,6,0,0" ColumnDefinitions="248,292,*" ColumnSpacing="12">
+            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="16" Padding="14">
+              <Grid RowDefinitions="Auto,*" RowSpacing="14">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="Server 卡片" FontSize="15" FontWeight="SemiBold" />
+                  <TextBlock Text="先选择一个 server，再在中间区域调整它归属到哪些 profile。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <ListBox Grid.Row="1" ItemsSource="{Binding McpServers}" SelectedItem="{Binding SelectedMcpServer}" BorderThickness="0" Background="Transparent">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14" Margin="0,0,0,10">
+                        <StackPanel Spacing="4">
+                          <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                          <TextBlock Text="{Binding ProfileSummary}" FontSize="13" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </Grid>
+            </Border>
+            <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="18" Padding="16">
+              <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="14">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="绑定控制台" FontSize="15" FontWeight="SemiBold" />
+                  <TextBlock Text="勾选即加入，取消即移出。一个 server 可以同时进入多个 profile。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Spacing="6">
+                  <TextBlock Text="Server 名称" FontWeight="SemiBold" />
+                  <TextBox Text="{Binding McpServerName}" Watermark="例如 filesystem" />
+                </StackPanel>
+                <Border Grid.Row="2" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="18" Padding="14">
+                  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+                    <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="14" Padding="12">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="当前归属" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding SelectedMcpServer.ProfileSummary, TargetNullValue=未选择 server}" TextWrapping="Wrap" Foreground="{DynamicResource WarningBrush}" />
+                      </StackPanel>
+                    </Border>
+                    <TextBlock Grid.Row="1" Text="绑定到这些 profile" FontWeight="SemiBold" />
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                      <ItemsControl ItemsSource="{Binding McpServerBindingProfiles}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate>
-                            <Border Background="#FFFDF8" CornerRadius="10" Padding="10" Margin="0,0,0,8">
-                              <StackPanel Spacing="6">
-                                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding ConflictDisplay}" FontSize="12" Foreground="#7B341E" />
-                                <ComboBox ItemsSource="{Binding VariantOptions}" SelectedItem="{Binding SelectedVariantOption}">
-                                  <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                      <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                  </ComboBox.ItemTemplate>
-                                </ComboBox>
-                              </StackPanel>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Padding="10" Margin="0,0,0,8">
+                              <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsSelected}" />
                             </Border>
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -242,33 +207,267 @@
                     </ScrollViewer>
                   </Grid>
                 </Border>
+                <WrapPanel Grid.Row="3">
+                  <Button Content="保存 Server 绑定" Command="{Binding SaveMcpServerBindingsCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="清空当前选择" Command="{Binding ClearMcpServerSelectionCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                </WrapPanel>
               </Grid>
             </Border>
-            <Border Grid.Row="3" Background="#FFFDF8" CornerRadius="20" Padding="20">
-              <Grid RowDefinitions="Auto,*" RowSpacing="10">
-                <TextBlock Grid.Row="0" Text="{Binding Text.Mcp.GeneratedPreviewTitle}" FontSize="16" FontWeight="SemiBold" />
-                <TabControl Grid.Row="1">
-                  <TabItem Header="Claude">
-                    <Grid RowDefinitions="Auto,*" RowSpacing="10" Margin="0,12,0,0">
-                      <TextBlock Grid.Row="0" Text="{Binding McpClaudePathDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                      <TextBox Grid.Row="1" Text="{Binding McpClaudePreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
-                    </Grid>
-                  </TabItem>
-                  <TabItem Header="Codex">
-                    <Grid RowDefinitions="Auto,*" RowSpacing="10" Margin="0,12,0,0">
-                      <TextBlock Grid.Row="0" Text="{Binding McpCodexPathDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                      <TextBox Grid.Row="1" Text="{Binding McpCodexPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
-                    </Grid>
-                  </TabItem>
-                  <TabItem Header="Antigravity">
-                    <Grid RowDefinitions="Auto,*" RowSpacing="10" Margin="0,12,0,0">
-                      <TextBlock Grid.Row="0" Text="{Binding McpAntigravityPathDisplay}" TextWrapping="Wrap" Foreground="#486581" />
-                      <TextBox Grid.Row="1" Text="{Binding McpAntigravityPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" />
-                    </Grid>
-                  </TabItem>
-                </TabControl>
+            <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="18" Padding="16">
+              <Grid RowDefinitions="Auto,Auto,*" RowSpacing="14">
+                <StackPanel Spacing="4">
+                  <TextBlock Text="单个 Server 编辑器" FontSize="15" FontWeight="SemiBold" />
+                  <TextBlock Text="右侧专注于单个 server 的 JSON、摘要和覆盖结果。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="选中摘要" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedMcpServer.ProfileSummary, TargetNullValue=请选择左侧 server}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+                <TextBox Grid.Row="2" Text="{Binding McpServerEditor}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="520" />
               </Grid>
             </Border>
+          </Grid>
+        </TabItem>
+        <TabItem Header="Manifest">
+          <Grid Margin="0,8,0,0" RowDefinitions="Auto,*,Auto" RowSpacing="16">
+            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+              <Grid ColumnDefinitions="1.2*,0.8*" ColumnSpacing="16">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="Manifest 编辑器" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding McpManifestPathDisplay}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+                <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="当前 Profile" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedMcpProfile.DisplayName, TargetNullValue=未选择 profile}" />
+                    <TextBlock Text="{Binding McpServerSummary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Border>
+            <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+              <TextBox Text="{Binding McpManifestEditor}" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="620" />
+            </Border>
+            <WrapPanel Grid.Row="2">
+              <Button Content="保存 Manifest" Command="{Binding SaveMcpManifestCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="生成配置" Command="{Binding GenerateMcpConfigsCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="验证当前范围" Command="{Binding ValidateCurrentMcpScopeCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+              <Button Content="同步客户端" Command="{Binding SyncCurrentMcpClientsCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+            </WrapPanel>
+          </Grid>
+        </TabItem>
+        <TabItem Header="验证与生成">
+          <Grid Margin="0,8,0,0" ColumnDefinitions="1.1*,0.9*" ColumnSpacing="18">
+            <Grid RowDefinitions="Auto,Auto,*" RowSpacing="16">
+              <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="验证摘要" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding McpValidationSummaryDisplay}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding McpValidationScopeDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                  <TextBlock Text="客户端状态" FontSize="16" FontWeight="SemiBold" />
+                  <ItemsControl Grid.Row="1" ItemsSource="{Binding McpClientStatuses}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Client}" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <TextBlock Text="{Binding FilePath}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Grid>
+              </Border>
+              <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                  <TextBlock Text="验证问题" FontSize="16" FontWeight="SemiBold" />
+                  <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding McpValidationIssues}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
+                            <StackPanel Spacing="4">
+                              <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                              <TextBlock Text="{Binding Severity}" FontSize="12" Foreground="{DynamicResource WarningBrush}" />
+                              <TextBlock Text="{Binding Details}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                              <TextBlock Text="{Binding FilePath}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Grid>
+              </Border>
+            </Grid>
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" RowSpacing="16">
+              <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="12">
+                  <TextBlock Text="外部导入" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Grid.Row="1" Text="{Binding Text.Mcp.ExternalImportDescription}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <StackPanel Grid.Row="2" Spacing="10">
+                    <CheckBox Content="{Binding Text.Mcp.SyncImportedClientsLabel}" IsChecked="{Binding SyncImportedExternalServers}" />
+                    <Button Content="{Binding Text.Mcp.ImportSelectedButton}" Command="{Binding ImportExternalMcpCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextPrimaryBrush}" HorizontalAlignment="Left" />
+                  </StackPanel>
+                </Grid>
+              </Border>
+              <Border Grid.Row="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                  <TextBlock Text="可导入 Server" FontSize="16" FontWeight="SemiBold" />
+                  <ScrollViewer Grid.Row="1" MaxHeight="260" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding McpExternalServerImports}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
+                            <StackPanel Spacing="6">
+                              <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" FontWeight="SemiBold" />
+                              <TextBlock Text="{Binding ConflictDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
+                              <ComboBox ItemsSource="{Binding VariantOptions}" SelectedItem="{Binding SelectedVariantOption}">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </ScrollViewer>
+                </Grid>
+              </Border>
+              <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                  <TextBlock Text="生成预览" FontSize="16" FontWeight="SemiBold" />
+                  <TabControl Grid.Row="1" Classes="compact-tabs" Background="Transparent">
+                    <TabItem Header="Claude">
+                      <Grid Margin="0,12,0,0" RowDefinitions="Auto,*" RowSpacing="10">
+                        <TextBlock Text="{Binding McpClaudePathDisplay}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        <TextBox Grid.Row="1" Text="{Binding McpClaudePreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" />
+                      </Grid>
+                    </TabItem>
+                    <TabItem Header="Codex">
+                      <Grid Margin="0,12,0,0" RowDefinitions="Auto,*" RowSpacing="10">
+                        <TextBlock Text="{Binding McpCodexPathDisplay}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        <TextBox Grid.Row="1" Text="{Binding McpCodexPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" />
+                      </Grid>
+                    </TabItem>
+                    <TabItem Header="Antigravity">
+                      <Grid Margin="0,12,0,0" RowDefinitions="Auto,*" RowSpacing="10">
+                        <TextBlock Text="{Binding McpAntigravityPathDisplay}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                        <TextBox Grid.Row="1" Text="{Binding McpAntigravityPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" />
+                      </Grid>
+                    </TabItem>
+                  </TabControl>
+                </Grid>
+              </Border>
+            </Grid>
+          </Grid>
+        </TabItem>
+        <TabItem Header="托管进程">
+          <Grid Margin="0,8,0,0" RowDefinitions="Auto,*" RowSpacing="16">
+            <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+              <Grid ColumnDefinitions="1.2*,0.8*" ColumnSpacing="16">
+                <StackPanel Spacing="6">
+                  <TextBlock Text="托管进程维护" FontSize="16" FontWeight="SemiBold" />
+                  <TextBlock Text="托管进程保留在最后一个标签页，作为 MCP 的次级维护能力。" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding McpRuntimeSummaryDisplay}" FontWeight="SemiBold" />
+                </StackPanel>
+                <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="当前选中" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding SelectedManagedProcess.Name, TargetNullValue=未选择托管进程}" />
+                    <TextBlock Text="{Binding ManagedProcessStatusDisplay}" Foreground="{DynamicResource WarningBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ManagedProcessHealthStatusDisplay}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </Border>
+            <Grid Grid.Row="1" ColumnDefinitions="300,*" ColumnSpacing="18">
+              <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="进程列表" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="这里专门处理托管进程，不再和配置首页混排。" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ListBox Grid.Row="1" ItemsSource="{Binding ManagedProcesses}" SelectedItem="{Binding SelectedManagedProcess}" BorderThickness="0" Background="Transparent">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="14" Padding="12" Margin="0,0,0,8">
+                          <StackPanel Spacing="4">
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" />
+                            <TextBlock Text="{Binding StatusDisplay}" FontSize="13" Foreground="{DynamicResource WarningBrush}" />
+                            <TextBlock Text="{Binding HealthDisplay}" FontSize="13" Foreground="{DynamicResource SuccessBrush}" />
+                            <TextBlock Text="{Binding CommandDisplay}" FontSize="13" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+              </Border>
+              <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="14">
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                  <Grid ColumnDefinitions="*,*" RowSpacing="12" ColumnSpacing="16">
+                    <StackPanel Grid.Column="0" Spacing="6"><TextBlock Text="名称" FontWeight="SemiBold" /><TextBox Text="{Binding ManagedProcessName}" /></StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="启动命令" FontWeight="SemiBold" /><TextBox Text="{Binding ManagedProcessCommand}" /></StackPanel>
+                    <StackPanel Grid.ColumnSpan="2" Spacing="6"><TextBlock Text="参数" FontWeight="SemiBold" /><TextBox Text="{Binding ManagedProcessArgumentsText}" /></StackPanel>
+                    <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                      <StackPanel Grid.Column="0" Spacing="6"><TextBlock Text="工作目录" FontWeight="SemiBold" /><TextBox Text="{Binding ManagedProcessWorkingDirectory}" /></StackPanel>
+                      <Button Grid.Column="1" Content="选择目录" Command="{Binding ChooseManagedProcessWorkingDirectoryCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Padding="16,8" VerticalAlignment="Bottom" />
+                    </Grid>
+                    <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
+                      <CheckBox Content="{Binding Text.Mcp.ManagedProcessEnabledLabel}" IsChecked="{Binding ManagedProcessEnabled}" />
+                      <CheckBox Content="{Binding Text.Mcp.ManagedProcessAutoStartLabel}" IsChecked="{Binding ManagedProcessAutoStart}" />
+                      <CheckBox Content="{Binding Text.Mcp.ManagedProcessKeepAliveLabel}" IsChecked="{Binding ManagedProcessKeepAlive}" />
+                    </StackPanel>
+                    <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,160" ColumnSpacing="16">
+                      <StackPanel Grid.Column="0" Spacing="6"><TextBlock Text="健康检查地址" FontWeight="SemiBold" /><TextBox Text="{Binding ManagedProcessHealthCheckUrl}" /></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="超时（秒）" FontWeight="SemiBold" /><TextBox Text="{Binding ManagedProcessHealthTimeoutText}" /></StackPanel>
+                    </Grid>
+                  </Grid>
+                </Border>
+                <WrapPanel Grid.Row="1">
+                  <Button Content="保存" Command="{Binding SaveManagedProcessCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="启动" Command="{Binding StartManagedProcessCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="停止" Command="{Binding StopManagedProcessCommand}" Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="重启" Command="{Binding RestartManagedProcessCommand}" Background="{DynamicResource WarningBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="健康检查" Command="{Binding RunManagedProcessHealthCheckCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="全部启动" Command="{Binding StartAllManagedProcessesCommand}" Background="{DynamicResource SuccessBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="全部停止" Command="{Binding StopAllManagedProcessesCommand}" Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="维护" Command="{Binding MaintainManagedProcessesCommand}" Background="{DynamicResource InfoBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="恢复暂停项" Command="{Binding ResumeSuspendedManagedProcessesCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="删除" Command="{Binding DeleteManagedProcessCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="清空表单" Command="{Binding ClearManagedProcessFormCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                </WrapPanel>
+                <Border Grid.Row="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                  <StackPanel Spacing="6">
+                    <TextBlock Text="运行状态" FontSize="16" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding ManagedProcessStatusDisplay}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ManagedProcessHealthStatusDisplay}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <TextBlock Text="{Binding ManagedProcessLastMessageDisplay}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Row="3" Background="{DynamicResource SurfaceBrush}" CornerRadius="22" Padding="18">
+                  <Grid RowDefinitions="Auto,*" RowSpacing="12">
+                    <TextBlock Text="日志预览" FontSize="16" FontWeight="SemiBold" />
+                    <TabControl Grid.Row="1" Classes="compact-tabs" Background="Transparent">
+                      <TabItem Header="标准输出"><TextBox Margin="0,12,0,0" Text="{Binding ManagedProcessOutputPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" /></TabItem>
+                      <TabItem Header="标准错误"><TextBox Margin="0,12,0,0" Text="{Binding ManagedProcessErrorPreview}" IsReadOnly="True" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" FontFamily="Consolas" MinHeight="220" /></TabItem>
+                    </TabControl>
+                  </Grid>
+                </Border>
+              </Grid>
+            </Grid>
           </Grid>
         </TabItem>
       </TabControl>
