@@ -1,8 +1,7 @@
 param(
   [string]$HubRoot = "C:\AI-Hub",
   [string]$UserHome = $env:USERPROFILE,
-  [string]$PersonalRoot,
-  [switch]$SkipLegacyCodexPath
+  [string]$PersonalRoot
 )
 
 $ErrorActionPreference = "Stop"
@@ -158,8 +157,7 @@ if ([string]::IsNullOrWhiteSpace($PersonalRoot)) {
 
 $normalizedPersonalRoot = Normalize-Path $PersonalRoot
 $effectiveRoot = Join-Path $normalizedHubRoot '.runtime\effective\global'
-$companySkills = Join-Path $normalizedHubRoot 'skills\global'
-$personalSkills = Join-Path $normalizedPersonalRoot 'skills\global'
+$effectiveSkills = Join-Path $effectiveRoot 'skills'
 $effectiveCommands = Join-Path $effectiveRoot 'claude\commands'
 $effectiveAgents = Join-Path $effectiveRoot 'claude\agents'
 
@@ -173,25 +171,23 @@ Ensure-StandardDirectory (Join-Path $normalizedUserHome '.codex')
 Ensure-StandardDirectory (Join-Path $normalizedUserHome '.gemini')
 Ensure-StandardDirectory (Join-Path $normalizedUserHome '.gemini\antigravity')
 Ensure-StandardDirectory $normalizedPersonalRoot
-Ensure-StandardDirectory (Join-Path $normalizedPersonalRoot 'skills')
-Ensure-StandardDirectory $companySkills
-Ensure-StandardDirectory $personalSkills
+Ensure-StandardDirectory $effectiveSkills
 
-Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.claude\skills') $companySkills $personalSkills
-Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.agents\skills') $companySkills $personalSkills
-Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.gemini\antigravity\skills') $companySkills $personalSkills
+Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.claude\skills') $effectiveSkills $effectiveSkills
+Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.agents\skills') $effectiveSkills $effectiveSkills
+Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.gemini\antigravity\skills') $effectiveSkills $effectiveSkills
 Ensure-Junction (Join-Path $normalizedUserHome '.claude\commands') $effectiveCommands
 Ensure-Junction (Join-Path $normalizedUserHome '.claude\agents') $effectiveAgents
+Ensure-Junction (Join-Path $normalizedUserHome '.agents\agents') $effectiveAgents
 
 Ensure-StandardDirectory (Join-Path $normalizedUserHome '.codex\skills')
-if (-not $SkipLegacyCodexPath) {
-  Ensure-Junction (Join-Path $normalizedUserHome '.codex\skills\ai-hub') $companySkills -IgnoreIfLocked
-  Ensure-Junction (Join-Path $normalizedUserHome '.codex\skills\personal') $personalSkills -IgnoreIfLocked
-}
+Ensure-Junction (Join-Path $normalizedUserHome '.codex\skills\ai-hub') $effectiveSkills -IgnoreIfLocked
+Ensure-Junction (Join-Path $normalizedUserHome '.codex\skills\personal') $effectiveSkills -IgnoreIfLocked
 
 Ensure-TextCopy (Join-Path $effectiveRoot 'claude\settings.json') (Join-Path $normalizedUserHome '.claude\settings.json')
 Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\claude.mcp.json') (Join-Path $normalizedUserHome '.claude.json')
 Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\codex.config.toml') (Join-Path $normalizedUserHome '.codex\config.toml')
 Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\antigravity.mcp.json') (Join-Path $normalizedUserHome '.gemini\antigravity\mcp_config.json')
+Ensure-TextCopy (Join-Path $effectiveRoot '.agents\AGENTS.md') (Join-Path $normalizedUserHome '.agents\AGENTS.md')
 
 Write-Host "Global links and effective client configs have been initialized."

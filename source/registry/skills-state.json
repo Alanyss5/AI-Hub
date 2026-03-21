@@ -1,0 +1,40 @@
+{
+  "states": [
+    {
+      "profile": "backend",
+      "installedRelativePath": "sql-optimization-patterns",
+      "baselineCapturedAt": "2026-03-21T05:12:39.2932305+00:00",
+      "baselineFiles": [
+        {
+          "relativePath": "SKILL.md",
+          "sha256": "DBD74D2A747EE90E6D8A6D7CCD5F882FE33315B27EC9BF2BAA650381BCE32ECA",
+          "size": 13618
+        }
+      ],
+      "sourceBaselineFiles": [],
+      "overlayDeletedFiles": [],
+      "lastSyncAt": null,
+      "lastCheckedAt": null,
+      "lastAppliedReference": null,
+      "lastBackupPath": null
+    },
+    {
+      "profile": "library",
+      "installedRelativePath": "sql-optimization-patterns",
+      "baselineCapturedAt": "2026-03-21T05:12:39.2932305+00:00",
+      "baselineFiles": [
+        {
+          "relativePath": "SKILL.md",
+          "sha256": "DBD74D2A747EE90E6D8A6D7CCD5F882FE33315B27EC9BF2BAA650381BCE32ECA",
+          "size": 13618
+        }
+      ],
+      "sourceBaselineFiles": [],
+      "overlayDeletedFiles": [],
+      "lastSyncAt": null,
+      "lastCheckedAt": null,
+      "lastAppliedReference": null,
+      "lastBackupPath": null
+    }
+  ]
+}

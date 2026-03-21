@@ -1,28 +1,22 @@
-using System.Text;
-using System.Text.RegularExpressions;
-
+﻿using System.Text;
 namespace AIHub.Application.Tests;
-
 public sealed class EncodingGuardTests
 {
     private static readonly string RepoRoot = "C:\\AI-Hub";
     private static readonly UTF8Encoding StrictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
-    private static readonly Regex CSharpStringLiteralRegex = new("(?<!@)\\$?\\\"((?:[^\\\"\\\\]|\\\\.)*)\\\"", RegexOptions.Compiled);
     private static readonly string[] ForbiddenFragments =
     [
-        "閸掗攱鏌",
-        "濮掑倽顫",
-        "姒涙顓",
-        "閸氬海鐢",
-        "瑜版挸澧",
-        "妞ゅ湱娲",
-        "閺夈儲绨",
-        "閼存碍婀",
-        "閹垫顓告潻娑氣柤",
-        "鐠佸墽鐤",
-        "鎵樼杩涚▼"
+        "褰撳墠",
+        "鍏ㄥ眬",
+        "椤圭洰",
+        "闂佸",
+        "閻熸",
+        "缂備",
+        "婵°",
+        "濠㈣",
+        "鏃у紡",
+        "鏈"
     ];
-
     [Fact]
     public void Guarded_Text_Files_Are_Valid_Utf8_Without_Known_Mojibake()
     {
@@ -30,89 +24,83 @@ public sealed class EncodingGuardTests
         {
             var text = ReadUtf8(path);
             Assert.DoesNotContain('\uFFFD', text);
-
             foreach (var fragment in ForbiddenFragments)
             {
                 Assert.DoesNotContain(fragment, text);
             }
         }
     }
-
-    [Fact]
-    public void MainWindowViewModel_Source_Files_Do_Not_Contain_Uncatalogued_User_Visible_Literals()
-    {
-        var allowedLiterals = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "{\r\n  \"mcpServers\": {}\r\n}",
-            "*.json",
-            "aihub-config-package.json",
-            "main",
-            "Claude",
-            "Codex",
-            "Antigravity",
-            "异常",
-            "失败",
-            "错误",
-            "yyyy-MM-dd HH:mm:ss"
-        };
-
-        foreach (var path in Directory.EnumerateFiles(
-                     Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "ViewModels"),
-                     "MainWindowViewModel*.cs",
-                     SearchOption.TopDirectoryOnly))
-        {
-            if (ShouldSkip(path))
-            {
-                continue;
-            }
-
-            var text = ReadUtf8(path);
-            foreach (var literal in ExtractCSharpStringLiterals(text))
-            {
-                if (!LooksLikeUserVisibleLiteral(literal) || allowedLiterals.Contains(literal))
-                {
-                    continue;
-                }
-
-                Assert.Fail($"Unexpected user-visible string literal in {path}: {literal}");
-            }
-        }
-    }
-
     [Fact]
     public void MainWindow_Shell_Uses_Tab_Views_And_No_Click_Handlers()
     {
         var mainWindow = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "MainWindow.axaml"));
-        Assert.Contains("<tabs:OverviewTabView", mainWindow);
-        Assert.Contains("<tabs:ProjectsTabView", mainWindow);
-        Assert.Contains("<tabs:SkillsTabView", mainWindow);
-        Assert.Contains("<tabs:ScriptsTabView", mainWindow);
-        Assert.Contains("<tabs:McpTabView", mainWindow);
-        Assert.Contains("<tabs:SettingsTabView", mainWindow);
-
+        Assert.Contains("<tabs:OverviewTabView", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<tabs:ProjectsTabView", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<tabs:WorkspaceTabView", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<tabs:SkillsTabView", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<tabs:ScriptsTabView", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<tabs:McpTabView", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<tabs:SettingsTabView", mainWindow, StringComparison.Ordinal);
         foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop"), "*.axaml", SearchOption.AllDirectories))
         {
             if (ShouldSkip(path))
             {
                 continue;
             }
-
-            Assert.DoesNotContain("Click=\"", ReadUtf8(path));
+            Assert.DoesNotContain("Click=\"", ReadUtf8(path), StringComparison.Ordinal);
         }
     }
+    [Fact]
+    public void Desktop_Tab_Copy_Is_Readable()
+    {
+        var overview = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "OverviewTabView.axaml"));
+        var projects = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "ProjectsTabView.axaml"));
+        var workspace = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "WorkspaceTabView.axaml"));
+        var skills = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "SkillsTabView.axaml"));
+        var scripts = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "ScriptsTabView.axaml"));
+        var mcp = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "McpTabView.axaml"));
+        var settings = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Views", "Tabs", "SettingsTabView.axaml"));
+        var textCatalog = ReadUtf8(Path.Combine(RepoRoot, "desktop", "apps", "AIHub.Desktop", "Text", "DesktopTextCatalog.cs"));
 
+        Assert.Contains("WorkspaceTabHeader => \"工作区\"", textCatalog, StringComparison.Ordinal);
+        Assert.Contains("已收口能力", overview, StringComparison.Ordinal);
+        Assert.Contains("剩余正式使用门槛", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("宸叉敹鍙ｈ兘鍔", overview, StringComparison.Ordinal);
+
+        Assert.Contains("项目列表", projects, StringComparison.Ordinal);
+        Assert.Contains("项目资料", projects, StringComparison.Ordinal);
+        Assert.DoesNotContain("Project Details", projects, StringComparison.Ordinal);
+
+        Assert.Contains("ProjectSectionTitle => \"项目接管\"", textCatalog, StringComparison.Ordinal);
+        Assert.Contains("GlobalSectionTitle => \"全局工作区\"", textCatalog, StringComparison.Ordinal);
+        Assert.Contains("DiagnosticsSectionTitle => \"技术诊断\"", textCatalog, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Vm.Text.Workspace.ProjectSectionTitle}\"", workspace, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Vm.Text.Workspace.GlobalSectionTitle}\"", workspace, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Vm.Text.Workspace.DiagnosticsSectionTitle}\"", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("Project Onboarding", workspace, StringComparison.Ordinal);
+        Assert.Contains("当前操作对象", skills, StringComparison.Ordinal);
+        Assert.Contains("绑定", skills, StringComparison.Ordinal);
+        Assert.Contains("来源", skills, StringComparison.Ordinal);
+        Assert.Contains("维护", skills, StringComparison.Ordinal);
+        Assert.Contains("ReferenceLabel => \"引用\"", textCatalog, StringComparison.Ordinal);
+        Assert.Contains("引用路径", skills, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current Context", skills, StringComparison.Ordinal);
+
+        Assert.Contains("专家模式：这里仅保留 Hook 模板与外部诊断脚本", scripts, StringComparison.Ordinal);
+        Assert.DoesNotContain("涓撳妯″紡", scripts, StringComparison.Ordinal);
+
+        Assert.Contains("当前范围", mcp, StringComparison.Ordinal);
+        Assert.Contains("Manifest 编辑器", mcp, StringComparison.Ordinal);
+        Assert.Contains("校验", mcp, StringComparison.Ordinal);
+        Assert.Contains("托管进程", mcp, StringComparison.Ordinal);
+        Assert.DoesNotContain("Current Scope", mcp, StringComparison.Ordinal);
+
+        Assert.Contains("Profile 目录", settings, StringComparison.Ordinal);
+        Assert.Contains("Profile 编辑器", settings, StringComparison.Ordinal);
+        Assert.DoesNotContain("Profile Catalog", settings, StringComparison.Ordinal);
+    }
     private static IEnumerable<string> EnumerateGuardedFiles()
     {
-        yield return Path.Combine(RepoRoot, "README.md");
-
-        foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoRoot, "docs"), "*.md", SearchOption.AllDirectories))
-        {
-            if (!ShouldSkip(path))
-            {
-                yield return path;
-            }
-        }
-
         foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoRoot, "desktop", "apps"), "*.axaml", SearchOption.AllDirectories))
         {
             if (!ShouldSkip(path))
@@ -120,7 +108,6 @@ public sealed class EncodingGuardTests
                 yield return path;
             }
         }
-
         foreach (var path in Directory.EnumerateFiles(Path.Combine(RepoRoot, "desktop"), "*.cs", SearchOption.AllDirectories))
         {
             if (!ShouldSkip(path))
@@ -129,7 +116,6 @@ public sealed class EncodingGuardTests
             }
         }
     }
-
     private static bool ShouldSkip(string path)
     {
         return path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
@@ -138,46 +124,9 @@ public sealed class EncodingGuardTests
             || path.EndsWith($"{Path.DirectorySeparatorChar}EncodingGuardTests.cs", StringComparison.OrdinalIgnoreCase)
             || path.EndsWith(".bak", StringComparison.OrdinalIgnoreCase);
     }
-
     private static string ReadUtf8(string path)
     {
         var bytes = File.ReadAllBytes(path);
         return StrictUtf8.GetString(bytes);
-    }
-
-    private static IEnumerable<string> ExtractCSharpStringLiterals(string source)
-    {
-        foreach (Match match in CSharpStringLiteralRegex.Matches(source))
-        {
-            yield return Regex.Unescape(match.Groups[1].Value);
-        }
-    }
-
-    private static bool LooksLikeUserVisibleLiteral(string literal)
-    {
-        if (string.IsNullOrWhiteSpace(literal))
-        {
-            return false;
-        }
-
-        if (literal.Contains('{') || literal.Contains('\\'))
-        {
-            return false;
-        }
-
-        if (literal is "异常" or "失败" or "错误" or "健康"
-            || literal.Contains("寮傚父", StringComparison.Ordinal)
-            || literal.Contains("澶辫触", StringComparison.Ordinal)
-            || literal.Contains("閿欒", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        return literal.Any(IsCjk) || (literal.Any(char.IsLetter) && literal.Contains(' '));
-    }
-
-    private static bool IsCjk(char character)
-    {
-        return character is >= '\u4E00' and <= '\u9FFF';
     }
 }

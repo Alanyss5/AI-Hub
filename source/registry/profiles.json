@@ -1,0 +1,32 @@
+{
+  "profiles": [
+    {
+      "id": "global",
+      "displayName": "\u5168\u5C40",
+      "isBuiltin": true,
+      "isDeletable": false,
+      "sortOrder": 0
+    },
+    {
+      "id": "frontend",
+      "displayName": "\u524D\u7AEF",
+      "isBuiltin": true,
+      "isDeletable": true,
+      "sortOrder": 1
+    },
+    {
+      "id": "backend",
+      "displayName": "\u540E\u7AEF",
+      "isBuiltin": true,
+      "isDeletable": true,
+      "sortOrder": 2
+    },
+    {
+      "id": "cosfrontend",
+      "displayName": "Cocos\u524D\u7AEF",
+      "isBuiltin": false,
+      "isDeletable": true,
+      "sortOrder": 3
+    }
+  ]
+}

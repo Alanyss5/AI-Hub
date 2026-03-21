@@ -176,10 +176,12 @@ Ensure-Junction (Join-Path $normalizedProjectPath '.claude\skills') (Join-Path $
 Ensure-Junction (Join-Path $normalizedProjectPath '.claude\commands') (Join-Path $effectiveRoot 'claude\commands')
 Ensure-Junction (Join-Path $normalizedProjectPath '.claude\agents') (Join-Path $effectiveRoot 'claude\agents')
 Ensure-Junction (Join-Path $normalizedProjectPath '.agents\skills') (Join-Path $effectiveRoot 'skills')
+Ensure-Junction (Join-Path $normalizedProjectPath '.agents\agents') (Join-Path $effectiveRoot 'claude\agents')
 Ensure-Junction (Join-Path $normalizedProjectPath '.agent\skills') (Join-Path $effectiveRoot 'skills')
 
 Ensure-TextCopy (Join-Path $effectiveRoot 'claude\settings.json') (Join-Path $normalizedProjectPath '.claude\settings.json')
 Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\claude.mcp.json') (Join-Path $normalizedProjectPath '.mcp.json')
 Ensure-TextCopy (Join-Path $effectiveRoot 'mcp\codex.config.toml') (Join-Path $normalizedProjectPath '.codex\config.toml')
+Ensure-TextCopy (Join-Path $effectiveRoot '.agents\AGENTS.md') (Join-Path $normalizedProjectPath '.agents\AGENTS.md')
 
 Write-Host "Project profile '$normalizedProfile' has been applied to $normalizedProjectPath"

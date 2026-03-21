@@ -94,7 +94,21 @@ public sealed partial class NativeWorkspaceAutomationService
             return Task.FromResult(generateResult);
         }
 
-        LinkGlobalEntrypoints(normalizedHubRoot, userHome);
+        try
+        {
+            LinkGlobalEntrypoints(normalizedHubRoot, userHome);
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(OperationResult.Fail(
+                "全局工作区接管失败。",
+                string.Join(Environment.NewLine, new[]
+                {
+                    ex.Message,
+                    "用户目录：" + userHome,
+                    "全局有效输出：" + LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, WorkspaceProfiles.GlobalId)
+                })));
+        }
 
         _diagnosticLogService?.RecordInfo("workspace-automation", "已完成四层全局链接应用。", normalizedHubRoot + Environment.NewLine + userHome);
         return Task.FromResult(OperationResult.Ok(
@@ -152,8 +166,22 @@ public sealed partial class NativeWorkspaceAutomationService
             return Task.FromResult(generateResult);
         }
 
-        LinkProjectEntrypoints(normalizedHubRoot, normalizedProjectPath, profile);
         var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(normalizedHubRoot, profile);
+        try
+        {
+            LinkProjectEntrypoints(normalizedHubRoot, normalizedProjectPath, profile);
+        }
+        catch (Exception ex)
+        {
+            return Task.FromResult(OperationResult.Fail(
+                "项目接管失败。",
+                string.Join(Environment.NewLine, new[]
+                {
+                    ex.Message,
+                    "项目目录：" + normalizedProjectPath,
+                    "有效输出：" + effectiveRoot
+                })));
+        }
 
         _diagnosticLogService?.RecordInfo("workspace-automation", "已完成四层项目 Profile 应用。", normalizedProjectPath + Environment.NewLine + WorkspaceProfiles.NormalizeId(profile));
         return Task.FromResult(OperationResult.Ok(

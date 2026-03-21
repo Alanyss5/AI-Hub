@@ -12,10 +12,14 @@ public sealed partial class McpControlService
     private readonly Func<string?, IMcpProfileStore> _mcpProfileStoreFactory;
     private readonly Func<string?, IMcpRuntimeStore> _mcpRuntimeStoreFactory;
     private readonly Func<string?, IHubSettingsStore>? _hubSettingsStoreFactory;
+    private readonly Func<string?, IProjectRegistry>? _projectRegistryFactory;
     private readonly IMcpProcessController _mcpProcessController;
     private readonly IMcpAutomationService _mcpAutomationService;
+    private readonly IWorkspaceAutomationService? _workspaceAutomationService;
     private readonly IMcpClientConfigService _mcpClientConfigService;
     private readonly IMcpEffectiveConfigReader _mcpEffectiveConfigReader;
+    private readonly ISourcePathLayout _sourcePathLayout;
+    private readonly Func<string, string> _personalRootResolver;
 
     public McpControlService(
         IHubRootLocator hubRootLocator,
@@ -31,7 +35,96 @@ public sealed partial class McpControlService
             mcpAutomationService,
             null,
             null,
+            null,
+            null,
             null)
+    {
+    }
+
+    public McpControlService(
+        IHubRootLocator hubRootLocator,
+        IMcpProfileStore mcpProfileStore,
+        IMcpRuntimeStore mcpRuntimeStore,
+        IMcpProcessController mcpProcessController,
+        IMcpAutomationService mcpAutomationService,
+        Func<string?, IHubSettingsStore>? hubSettingsStoreFactory,
+        Func<string?, IProjectRegistry>? projectRegistryFactory = null,
+        IWorkspaceAutomationService? workspaceAutomationService = null,
+        IMcpClientConfigService? mcpClientConfigService = null,
+        IMcpEffectiveConfigReader? mcpEffectiveConfigReader = null,
+        ISourcePathLayout? sourcePathLayout = null,
+        Func<string, string>? personalRootResolver = null)
+        : this(
+            hubRootLocator,
+            _ => mcpProfileStore,
+            _ => mcpRuntimeStore,
+            mcpProcessController,
+            mcpAutomationService,
+            hubSettingsStoreFactory,
+            projectRegistryFactory,
+            workspaceAutomationService,
+            mcpClientConfigService,
+            mcpEffectiveConfigReader,
+            sourcePathLayout,
+            personalRootResolver)
+    {
+    }
+
+    public McpControlService(
+        IHubRootLocator hubRootLocator,
+        Func<string?, IMcpProfileStore> mcpProfileStoreFactory,
+        IMcpRuntimeStore mcpRuntimeStore,
+        IMcpProcessController mcpProcessController,
+        IMcpAutomationService mcpAutomationService,
+        Func<string?, IHubSettingsStore>? hubSettingsStoreFactory = null,
+        Func<string?, IProjectRegistry>? projectRegistryFactory = null,
+        IWorkspaceAutomationService? workspaceAutomationService = null,
+        IMcpClientConfigService? mcpClientConfigService = null,
+        IMcpEffectiveConfigReader? mcpEffectiveConfigReader = null,
+        ISourcePathLayout? sourcePathLayout = null,
+        Func<string, string>? personalRootResolver = null)
+        : this(
+            hubRootLocator,
+            mcpProfileStoreFactory,
+            _ => mcpRuntimeStore,
+            mcpProcessController,
+            mcpAutomationService,
+            hubSettingsStoreFactory,
+            projectRegistryFactory,
+            workspaceAutomationService,
+            mcpClientConfigService,
+            mcpEffectiveConfigReader,
+            sourcePathLayout,
+            personalRootResolver)
+    {
+    }
+
+    public McpControlService(
+        IHubRootLocator hubRootLocator,
+        IMcpProfileStore mcpProfileStore,
+        Func<string?, IMcpRuntimeStore> mcpRuntimeStoreFactory,
+        IMcpProcessController mcpProcessController,
+        IMcpAutomationService mcpAutomationService,
+        Func<string?, IHubSettingsStore>? hubSettingsStoreFactory = null,
+        Func<string?, IProjectRegistry>? projectRegistryFactory = null,
+        IWorkspaceAutomationService? workspaceAutomationService = null,
+        IMcpClientConfigService? mcpClientConfigService = null,
+        IMcpEffectiveConfigReader? mcpEffectiveConfigReader = null,
+        ISourcePathLayout? sourcePathLayout = null,
+        Func<string, string>? personalRootResolver = null)
+        : this(
+            hubRootLocator,
+            _ => mcpProfileStore,
+            mcpRuntimeStoreFactory,
+            mcpProcessController,
+            mcpAutomationService,
+            hubSettingsStoreFactory,
+            projectRegistryFactory,
+            workspaceAutomationService,
+            mcpClientConfigService,
+            mcpEffectiveConfigReader,
+            sourcePathLayout,
+            personalRootResolver)
     {
     }
 
@@ -42,8 +135,12 @@ public sealed partial class McpControlService
         IMcpProcessController mcpProcessController,
         IMcpAutomationService mcpAutomationService,
         Func<string?, IHubSettingsStore>? hubSettingsStoreFactory,
+        Func<string?, IProjectRegistry>? projectRegistryFactory = null,
+        IWorkspaceAutomationService? workspaceAutomationService = null,
         IMcpClientConfigService? mcpClientConfigService = null,
-        IMcpEffectiveConfigReader? mcpEffectiveConfigReader = null)
+        IMcpEffectiveConfigReader? mcpEffectiveConfigReader = null,
+        ISourcePathLayout? sourcePathLayout = null,
+        Func<string, string>? personalRootResolver = null)
     {
         _hubRootLocator = hubRootLocator;
         _mcpProfileStoreFactory = mcpProfileStoreFactory;
@@ -51,8 +148,12 @@ public sealed partial class McpControlService
         _mcpProcessController = mcpProcessController;
         _mcpAutomationService = mcpAutomationService;
         _hubSettingsStoreFactory = hubSettingsStoreFactory;
+        _projectRegistryFactory = projectRegistryFactory;
+        _workspaceAutomationService = workspaceAutomationService;
         _mcpClientConfigService = mcpClientConfigService ?? new NoOpMcpClientConfigService();
         _mcpEffectiveConfigReader = mcpEffectiveConfigReader ?? new ManifestBackedMcpEffectiveConfigReader(mcpProfileStoreFactory);
+        _sourcePathLayout = sourcePathLayout ?? new DefaultSourcePathLayout();
+        _personalRootResolver = personalRootResolver ?? GetDefaultPersonalRoot;
     }
 
     public async Task<McpWorkspaceSnapshot> LoadAsync(CancellationToken cancellationToken = default)
@@ -96,7 +197,7 @@ public sealed partial class McpControlService
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶淇濆瓨 MCP 娓呭崟銆?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. MCP manifest could not be saved.", string.Join(Environment.NewLine, resolution.Errors));
         }
         var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
         string normalizedJson;
@@ -110,8 +211,14 @@ public sealed partial class McpControlService
         }
 
         await _mcpProfileStoreFactory(resolution.RootPath).SaveManifestAsync(normalizedProfile, normalizedJson, cancellationToken);
-        var manifestPath = Path.Combine(resolution.RootPath, "mcp", "manifest", normalizedProfile + ".json");
-        return OperationResult.Ok("MCP 娓呭崟宸蹭繚瀛樸€?, manifestPath");
+        var refreshProfiles = await GetProfilesForRefreshAsync(resolution.RootPath, normalizedProfile, cancellationToken);
+        var refreshResult = await RefreshRuntimeAsync(resolution.RootPath, refreshProfiles, cancellationToken);
+        if (!refreshResult.Success)
+        {
+            return refreshResult;
+        }
+
+        return OperationResult.Ok("MCP manifest saved and runtime refreshed.", GetManifestPath(resolution.RootPath, normalizedProfile));
     }
 
     public async Task<OperationResult> SaveServerBindingsAsync(
@@ -152,6 +259,7 @@ public sealed partial class McpControlService
 
         var store = _mcpProfileStoreFactory(resolution.RootPath);
         var profiles = await store.GetAllAsync(cancellationToken);
+        var publishedProfiles = new List<string>();
 
         foreach (var profile in profiles)
         {
@@ -162,6 +270,7 @@ public sealed partial class McpControlService
             if (normalizedTargets.Contains(profile.Profile, StringComparer.OrdinalIgnoreCase))
             {
                 servers[normalizedServerName] = parsedServerDefinition?.DeepClone();
+                publishedProfiles.Add(profile.Profile);
             }
             else if (servers.ContainsKey(normalizedServerName))
             {
@@ -171,9 +280,42 @@ public sealed partial class McpControlService
             await store.SaveManifestAsync(profile.Profile, NormalizeManifestJson(manifest.ToJsonString()), cancellationToken);
         }
 
-        return OperationResult.Ok(
-            "MCP server bindings saved.",
-            $"{normalizedServerName}{Environment.NewLine}{string.Join(Environment.NewLine, normalizedTargets)}");
+        var draftPath = GetDraftPath(resolution.RootPath, normalizedServerName);
+        if (normalizedTargets.Length == 0)
+        {
+            await SaveDraftAsync(draftPath, normalizedServerName, parsedServerDefinition, cancellationToken);
+        }
+        else
+        {
+            DeleteDraftIfExists(draftPath);
+        }
+
+        var refreshProfiles = normalizedTargets.Length == 0
+            ? profiles.Select(profile => profile.Profile).ToArray()
+            : normalizedTargets.Contains(WorkspaceProfiles.GlobalId, StringComparer.OrdinalIgnoreCase)
+                ? profiles.Select(profile => profile.Profile).ToArray()
+                : normalizedTargets;
+
+        var refreshResult = await RefreshRuntimeAsync(resolution.RootPath, refreshProfiles, cancellationToken);
+        if (!refreshResult.Success)
+        {
+            return refreshResult;
+        }
+
+        var details = new List<string>
+        {
+            $"{normalizedServerName} -> {(normalizedTargets.Length == 0 ? "draft" : string.Join(", ", normalizedTargets))}"
+        };
+        if (normalizedTargets.Length == 0)
+        {
+            details.Add("Draft: " + draftPath);
+        }
+        else if (publishedProfiles.Count > 0)
+        {
+            details.Add("Published profiles: " + string.Join(", ", publishedProfiles.Distinct(StringComparer.OrdinalIgnoreCase)));
+        }
+
+        return OperationResult.Ok("MCP server bindings saved and runtime refreshed.", string.Join(Environment.NewLine, details));
     }
 
     public async Task<OperationResult> GenerateConfigsAsync(CancellationToken cancellationToken = default)
@@ -181,10 +323,23 @@ public sealed partial class McpControlService
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鐢熸垚 MCP 閰嶇疆銆?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. MCP configs could not be generated.", string.Join(Environment.NewLine, resolution.Errors));
         }
 
-        return await _mcpAutomationService.GenerateConfigsAsync(resolution.RootPath, cancellationToken);
+        var profiles = (await _mcpProfileStoreFactory(resolution.RootPath).GetAllAsync(cancellationToken))
+            .Select(item => item.Profile)
+            .DefaultIfEmpty(WorkspaceProfiles.GlobalId)
+            .ToArray();
+
+        var result = await RefreshRuntimeAsync(resolution.RootPath, profiles, cancellationToken);
+        if (!result.Success)
+        {
+            return result;
+        }
+
+        return OperationResult.Ok(
+            "MCP configs generated and active clients refreshed.",
+            result.Details);
     }
 
     public async Task<OperationResult> SaveManagedProcessAsync(string? originalName, McpRuntimeRecord draft, CancellationToken cancellationToken = default)
@@ -192,7 +347,7 @@ public sealed partial class McpControlService
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶淇濆瓨鎵樼杩涚▼瀹氫箟銆?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. Managed process definition could not be saved.", string.Join(Environment.NewLine, resolution.Errors));
         }
 
         McpRuntimeRecord normalizedRecord;
@@ -219,7 +374,7 @@ public sealed partial class McpControlService
             && originalRecord.IsRunning
             && !NamesMatch(originalRecord.Name, normalizedRecord.Name))
         {
-            return OperationResult.Fail("杩愯涓殑鎵樼杩涚▼涓嶈兘鐩存帴鏀瑰悕锛岃鍏堝仠姝㈠悗鍐嶄慨鏀瑰悕绉般€?, originalRecord.Name");
+            return OperationResult.Fail("A running managed process cannot be renamed directly. Stop it first, then rename it.", originalRecord.Name);
         }
 
         var updatedRecords = existingRecords
@@ -228,7 +383,7 @@ public sealed partial class McpControlService
 
         if (updatedRecords.Any(record => NamesMatch(record.Name, normalizedRecord.Name)))
         {
-            return OperationResult.Fail("宸插瓨鍦ㄥ悓鍚嶆墭绠¤繘绋嬶紝璇锋洿鎹㈠悕绉般€?, normalizedRecord.Name");
+            return OperationResult.Fail("A managed process with the same name already exists.", normalizedRecord.Name);
         }
 
         if (originalRecord is not null)
@@ -249,20 +404,20 @@ public sealed partial class McpControlService
         updatedRecords.Add(normalizedRecord);
         await runtimeStore.SaveAllAsync(SortManagedProcesses(updatedRecords), cancellationToken);
 
-        return OperationResult.Ok("鎵樼鍨?MCP 瀹氫箟宸蹭繚瀛樸€?, normalizedRecord.Name");
+        return OperationResult.Ok("Managed MCP definition saved.", normalizedRecord.Name);
     }
 
     public async Task<OperationResult> DeleteManagedProcessAsync(string name, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("璇峰厛閫夋嫨瑕佸垹闄ょ殑鎵樼杩涚▼銆?");
+            return OperationResult.Fail("Select the managed process to delete first.");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鍒犻櫎鎵樼杩涚▼瀹氫箟銆?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. Managed process definition could not be deleted.", string.Join(Environment.NewLine, resolution.Errors));
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -270,7 +425,7 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("鏈壘鍒拌鍒犻櫎鐨勬墭绠¤繘绋嬨€?, name");
+            return OperationResult.Fail("The managed process to delete was not found.", name);
         }
 
         if (existingRecord.IsRunning)
@@ -288,7 +443,7 @@ public sealed partial class McpControlService
             .ToArray();
 
         await runtimeStore.SaveAllAsync(updatedRecords, cancellationToken);
-        return OperationResult.Ok("鎵樼鍨?MCP 瀹氫箟宸插垹闄ゃ€?, name");
+        return OperationResult.Ok("Managed MCP definition deleted.", name);
     }
 
     public Task<OperationResult> StartManagedProcessAsync(string name, CancellationToken cancellationToken = default)
@@ -296,7 +451,7 @@ public sealed partial class McpControlService
         return ExecuteManagedProcessAsync(
             name,
             (controller, record, token) => controller.StartAsync(record, token),
-            "鎵樼鍨?MCP 宸插惎鍔ㄣ€?",
+            "Managed MCP started.",
             cancellationToken);
     }
 
@@ -305,7 +460,7 @@ public sealed partial class McpControlService
         return ExecuteManagedProcessAsync(
             name,
             (controller, record, token) => controller.StopAsync(record, token),
-            "鎵樼鍨?MCP 宸插仠姝€?",
+            "Managed MCP stopped.",
             cancellationToken);
     }
 
@@ -313,13 +468,13 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("璇峰厛閫夋嫨瑕侀噸鍚殑鎵樼杩涚▼銆?");
+            return OperationResult.Fail("Select the managed process to restart first.");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶閲嶅惎鎵樼杩涚▼銆?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. Managed process could not be restarted.", string.Join(Environment.NewLine, resolution.Errors));
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -327,7 +482,7 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("鏈壘鍒拌閲嶅惎鐨勬墭绠¤繘绋嬨€?, name");
+            return OperationResult.Fail("The managed process to restart was not found.", name);
         }
 
         var refreshedRecord = await _mcpProcessController.RefreshAsync(existingRecord, cancellationToken);
@@ -346,7 +501,7 @@ public sealed partial class McpControlService
         var startResult = await _mcpProcessController.StartAsync(refreshedRecord, cancellationToken);
         await SaveManagedProcessRecordAsync(runtimeStore, records, startResult.Record, cancellationToken);
         return startResult.Result.Success
-            ? OperationResult.Ok("鎵樼鍨?MCP 宸查噸鍚€?", startResult.Result.Details)
+            ? OperationResult.Ok("Managed MCP restarted.", startResult.Result.Details)
             : startResult.Result;
     }
 
@@ -354,13 +509,13 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("璇峰厛閫夋嫨瑕佹鏌ョ殑鎵樼杩涚▼銆?");
+            return OperationResult.Fail("Select the managed process to health-check first.");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鎵ц鍋ュ悍妫€鏌ャ€?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. Health check could not run.", string.Join(Environment.NewLine, resolution.Errors));
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -368,14 +523,14 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("鏈壘鍒拌妫€鏌ョ殑鎵樼杩涚▼銆?, name");
+            return OperationResult.Fail("The managed process to health-check was not found.", name);
         }
 
         var refreshedRecord = await _mcpProcessController.RefreshAsync(existingRecord, cancellationToken);
         await SaveManagedProcessRecordAsync(runtimeStore, records, refreshedRecord, cancellationToken);
 
         return OperationResult.Ok(
-            "鍋ュ悍妫€鏌ュ凡瀹屾垚銆?",
+            "Health check completed.",
             string.Join(Environment.NewLine, new[]
             {
                 refreshedRecord.LastHealthStatus,
@@ -399,8 +554,99 @@ public sealed partial class McpControlService
             return null;
         }
 
-        return OperationResult.Fail("棣栨杩愯鎵樼 MCP 鍓嶏紝璇峰厛瀹屾垚椋庨櫓纭銆?, resolution.RootPath");
+        return OperationResult.Fail("Accept the managed MCP risk confirmation before the first run.", resolution.RootPath);
     }
+
+    private Task<OperationResult> RefreshRuntimeAsync(
+        string hubRoot,
+        IReadOnlyList<string> affectedProfiles,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var normalizedProfiles = affectedProfiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile))
+            .Select(WorkspaceProfiles.NormalizeId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (normalizedProfiles.Length == 0)
+        {
+            return Task.FromResult(OperationResult.Ok("Runtime refresh skipped."));
+        }
+
+        _ = _personalRootResolver(hubRoot);
+
+        if (_workspaceAutomationService is not null)
+        {
+            return RefreshViaWorkspaceAutomationAsync(hubRoot, normalizedProfiles, cancellationToken);
+        }
+
+        return _mcpAutomationService.GenerateConfigsAsync(hubRoot, cancellationToken);
+    }
+
+    private async Task<OperationResult> RefreshViaWorkspaceAutomationAsync(
+        string hubRoot,
+        IReadOnlyList<string> normalizedProfiles,
+        CancellationToken cancellationToken)
+    {
+        await RuntimeRefreshCoordinator.RefreshAsync(
+            hubRoot,
+            normalizedProfiles,
+            _projectRegistryFactory,
+            _hubSettingsStoreFactory,
+            _workspaceAutomationService,
+            cancellationToken);
+
+        return OperationResult.Ok(
+            "MCP runtime and active client configs refreshed.",
+            string.Join(Environment.NewLine, normalizedProfiles));
+    }
+
+    private async Task SaveDraftAsync(
+        string draftPath,
+        string name,
+        JsonNode? parsedServerDefinition,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(Path.GetDirectoryName(draftPath)!);
+
+        var draftRecord = new McpDraftRecord
+        {
+            Name = name,
+            DraftPath = draftPath,
+            RawJson = parsedServerDefinition is null
+                ? "{}"
+                : parsedServerDefinition.ToJsonString(new JsonSerializerOptions { WriteIndented = true })
+        };
+
+        await File.WriteAllTextAsync(
+            draftPath,
+            JsonSerializer.Serialize(draftRecord, new JsonSerializerOptions { WriteIndented = true }),
+            cancellationToken);
+    }
+
+    private static void DeleteDraftIfExists(string draftPath)
+    {
+        if (File.Exists(draftPath))
+        {
+            File.Delete(draftPath);
+        }
+    }
+
+    private async Task<IReadOnlyList<string>> GetProfilesForRefreshAsync(string hubRoot, string profile, CancellationToken cancellationToken)
+    {
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
+        if (WorkspaceProfiles.IsGlobal(normalizedProfile))
+        {
+            var profiles = await _mcpProfileStoreFactory(hubRoot).GetAllAsync(cancellationToken);
+            return profiles.Select(item => item.Profile).ToArray();
+        }
+
+        return new[] { normalizedProfile };
+    }
+
     private async Task<OperationResult> ExecuteManagedProcessAsync(
         string name,
         Func<IMcpProcessController, McpRuntimeRecord, CancellationToken, Task<McpProcessCommandResult>> action,
@@ -409,13 +655,13 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(name))
         {
-            return OperationResult.Fail("璇峰厛閫夋嫨涓€涓墭绠¤繘绋嬨€?");
+            return OperationResult.Fail("Select a managed process first.");
         }
 
         var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
         if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
         {
-            return OperationResult.Fail("AI-Hub 鏍圭洰褰曟棤鏁堬紝鏃犳硶鎵ц鎵樼杩涚▼鎿嶄綔銆?, string.Join(Environment.NewLine, resolution.Errors)");
+            return OperationResult.Fail("AI-Hub root is invalid. Managed process action could not run.", string.Join(Environment.NewLine, resolution.Errors));
         }
 
         var runtimeStore = _mcpRuntimeStoreFactory(resolution.RootPath);
@@ -423,7 +669,7 @@ public sealed partial class McpControlService
         var existingRecord = records.FirstOrDefault(record => NamesMatch(record.Name, name));
         if (existingRecord is null)
         {
-            return OperationResult.Fail("鏈壘鍒板搴旂殑鎵樼杩涚▼銆?, name");
+            return OperationResult.Fail("The managed process was not found.", name);
         }
 
         var result = await action(_mcpProcessController, existingRecord, cancellationToken);
@@ -539,23 +785,23 @@ public sealed partial class McpControlService
     {
         if (string.IsNullOrWhiteSpace(record.Name))
         {
-            return "鎵樼杩涚▼鍚嶇О涓嶈兘涓虹┖銆?";
+            return "Managed process name is required.";
         }
 
         if (string.IsNullOrWhiteSpace(record.Command))
         {
-            return "鍚姩鍛戒护涓嶈兘涓虹┖銆?";
+            return "Command is required.";
         }
 
         if (!string.IsNullOrWhiteSpace(record.WorkingDirectory) && !Directory.Exists(record.WorkingDirectory))
         {
-            return "宸ヤ綔鐩綍涓嶅瓨鍦細" + record.WorkingDirectory;
+            return "Working directory does not exist: " + record.WorkingDirectory;
         }
 
         if (!string.IsNullOrWhiteSpace(record.HealthCheckUrl)
             && !Uri.TryCreate(record.HealthCheckUrl, UriKind.Absolute, out _))
         {
-            return "鍋ュ悍妫€鏌ュ湴鍧€鏃犳晥锛? + record.HealthCheckUrl";
+            return "Health check URL is invalid: " + record.HealthCheckUrl;
         }
 
         return null;
@@ -621,16 +867,16 @@ public sealed partial class McpControlService
     private static bool HasHealthAlert(McpRuntimeRecord record)
     {
         return string.Equals(NormalizeHealthValue(record.LastHealthStatus), "异常", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(NormalizeHealthValue(record.LastHealthStatus), "寮傚父", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(NormalizeHealthValue(record.LastHealthStatus), "error", StringComparison.OrdinalIgnoreCase)
             || (!string.IsNullOrWhiteSpace(record.LastHealthMessage)
                 && (record.LastHealthMessage.Contains("失败", StringComparison.OrdinalIgnoreCase)
                     || record.LastHealthMessage.Contains("错误", StringComparison.OrdinalIgnoreCase)
                     || record.LastHealthMessage.Contains("异常", StringComparison.OrdinalIgnoreCase)
                     || record.LastHealthMessage.Contains("error", StringComparison.OrdinalIgnoreCase)
                     || record.LastHealthMessage.Contains("unhealthy", StringComparison.OrdinalIgnoreCase)
-                    || record.LastHealthMessage.Contains("澶辫触", StringComparison.OrdinalIgnoreCase)
-                    || record.LastHealthMessage.Contains("閿欒", StringComparison.OrdinalIgnoreCase)
-                    || record.LastHealthMessage.Contains("寮傚父", StringComparison.OrdinalIgnoreCase)));
+                    || record.LastHealthMessage.Contains("failed", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("warning", StringComparison.OrdinalIgnoreCase)
+                    || record.LastHealthMessage.Contains("fault", StringComparison.OrdinalIgnoreCase)));
     }
 
     private static string? NormalizeHealthValue(string? value)
@@ -643,15 +889,15 @@ public sealed partial class McpControlService
         if (value.Contains("异常", StringComparison.OrdinalIgnoreCase)
             || value.Contains("error", StringComparison.OrdinalIgnoreCase)
             || value.Contains("unhealthy", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("寮傚父", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("瀵倸鐖?", StringComparison.OrdinalIgnoreCase))
+            || value.Contains("fault", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("warning", StringComparison.OrdinalIgnoreCase))
         {
             return "异常";
         }
 
         if (value.Contains("健康", StringComparison.OrdinalIgnoreCase)
             || value.Contains("healthy", StringComparison.OrdinalIgnoreCase)
-            || value.Contains("鍋ュ悍", StringComparison.OrdinalIgnoreCase))
+            || value.Contains("ok", StringComparison.OrdinalIgnoreCase))
         {
             return "健康";
         }
@@ -659,12 +905,33 @@ public sealed partial class McpControlService
         return value;
     }
 
+    private static string GetDefaultPersonalRoot(string _)
+    {
+        var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(Path.GetFullPath(userHome), "AI-Personal");
+    }
+
+    private string GetCompanySourceRoot(string hubRoot)
+    {
+        return _sourcePathLayout.GetCompanySourceRoot(hubRoot);
+    }
+
+    private string GetManifestPath(string hubRoot, string profile)
+    {
+        return _sourcePathLayout.GetProfileManifestPath(GetCompanySourceRoot(hubRoot), profile);
+    }
+
+    private string GetDraftPath(string hubRoot, string draftId)
+    {
+        return _sourcePathLayout.GetMcpDraftPath(GetCompanySourceRoot(hubRoot), draftId);
+    }
+
     private static string NormalizeManifestJson(string rawJson)
     {
         var parsedNode = string.IsNullOrWhiteSpace(rawJson) ? new JsonObject() : JsonNode.Parse(rawJson);
         if (parsedNode is not JsonObject rootNode)
         {
-            throw new InvalidOperationException("MCP 濞撳懎宕熼弽纭呭Ν閻愮懓绻€妞ょ粯妲?JSON 鐎电钖勩€?");
+            throw new InvalidOperationException("The MCP manifest root must be a JSON object.");
         }
 
         if (rootNode["mcpServers"] is null)
@@ -673,7 +940,7 @@ public sealed partial class McpControlService
         }
         else if (rootNode["mcpServers"] is not JsonObject)
         {
-            throw new InvalidOperationException("mcpServers 韫囧懘銆忛弰?JSON 鐎电钖勩€?");
+            throw new InvalidOperationException("The mcpServers node must be a JSON object.");
         }
 
         return rootNode.ToJsonString(new JsonSerializerOptions
@@ -720,4 +987,5 @@ public sealed partial class McpControlService
             return BuildEffectiveServerMap(profileRecords, profile);
         }
     }
+
 }

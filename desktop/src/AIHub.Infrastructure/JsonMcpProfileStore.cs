@@ -10,12 +10,14 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
     private readonly string? _hubRoot;
     private readonly IDiagnosticLogService? _diagnosticLogService;
     private readonly IWorkspaceProfileCatalogStore _profileCatalogStore;
+    private readonly ISourcePathLayout _sourcePathLayout;
 
-    public JsonMcpProfileStore(string? hubRoot, IDiagnosticLogService? diagnosticLogService = null)
+    public JsonMcpProfileStore(string? hubRoot, IDiagnosticLogService? diagnosticLogService = null, ISourcePathLayout? sourcePathLayout = null)
     {
         _hubRoot = hubRoot;
         _diagnosticLogService = diagnosticLogService;
-        _profileCatalogStore = new JsonWorkspaceProfileCatalogStore(hubRoot);
+        _sourcePathLayout = sourcePathLayout ?? SourceLayoutMigrationService.DefaultLayout;
+        _profileCatalogStore = new JsonWorkspaceProfileCatalogStore(hubRoot, _sourcePathLayout);
     }
 
     public Task<IReadOnlyList<McpProfileRecord>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -49,9 +51,12 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
     private McpProfileRecord CreateProfileRecord(WorkspaceProfileRecord profile)
     {
         var manifestPath = GetManifestPath(profile.Id);
+        var legacyManifestPath = GetLegacyManifestPath(profile.Id);
         var rawJson = File.Exists(manifestPath)
             ? File.ReadAllText(manifestPath)
-            : DefaultManifestJson();
+            : File.Exists(legacyManifestPath)
+                ? File.ReadAllText(legacyManifestPath)
+                : DefaultManifestJson();
 
         var serverNames = ParseServerNames(rawJson);
         var generatedClients = new[]
@@ -80,6 +85,13 @@ public sealed class JsonMcpProfileStore : IMcpProfileStore
     }
 
     private string GetManifestPath(string profile)
+    {
+        var sourceRoot = _sourcePathLayout.GetCompanySourceRoot(_hubRoot!);
+        Directory.CreateDirectory(Path.GetDirectoryName(_sourcePathLayout.GetProfileManifestPath(sourceRoot, profile))!);
+        return _sourcePathLayout.GetProfileManifestPath(sourceRoot, profile);
+    }
+
+    private string GetLegacyManifestPath(string profile)
     {
         return Path.Combine(_hubRoot!, "mcp", "manifest", WorkspaceProfiles.NormalizeId(profile) + ".json");
     }

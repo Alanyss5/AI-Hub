@@ -29,7 +29,9 @@
         <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
           <StackPanel Spacing="6">
             <TextBlock Text="{Binding Text.Scripts.DescriptionTitle}" FontSize="16" FontWeight="SemiBold" />
-            <TextBlock Text="专家模式：这里只保留 Hook 模板与外部诊断脚本；全局初始化、项目 Profile 应用和 MCP 配置生成都已迁入程序内部。" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="专家模式：这里仅保留 Hook 模板与外部诊断脚本；全局初始化、项目 Profile 应用和 MCP 配置生成都已迁入程序内部。"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
             <TextBlock Text="{Binding ScriptDescriptionDisplay}" TextWrapping="Wrap" />
             <TextBlock Text="{Binding ScriptExecutionHint}" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" />
           </StackPanel>

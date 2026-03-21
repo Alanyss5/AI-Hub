@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AIHub.Application.Abstractions;
 
 namespace AIHub.Platform.Windows;
@@ -12,19 +13,15 @@ public sealed class WindowsPlatformLinkService : IPlatformLinkService
         }
 
         var fullPath = Path.GetFullPath(path);
-        if (Directory.Exists(fullPath))
+        if (TryGetPathAttributes(fullPath, out var attributes))
         {
-            var info = new DirectoryInfo(fullPath);
-            if ((info.Attributes & FileAttributes.ReparsePoint) == 0)
+            if ((attributes & FileAttributes.Directory) != 0
+                && (attributes & FileAttributes.ReparsePoint) == 0)
             {
                 return;
             }
 
-            BackupIfExists(fullPath);
-        }
-        else if (File.Exists(fullPath))
-        {
-            BackupIfExists(fullPath);
+            BackupIfExists(fullPath, attributes);
         }
 
         Directory.CreateDirectory(fullPath);
@@ -32,13 +29,17 @@ public sealed class WindowsPlatformLinkService : IPlatformLinkService
 
     public void EnsureJunction(string linkPath, string targetPath, bool ignoreIfLocked = false)
     {
+        var fullLinkPath = Path.GetFullPath(linkPath);
         var fullTargetPath = Path.GetFullPath(targetPath);
         if (!Directory.Exists(fullTargetPath))
         {
-            throw new InvalidOperationException("Target does not exist: " + fullTargetPath);
+            throw new InvalidOperationException("Windows 链接创建失败。" + Environment.NewLine
+                + "入口：" + fullLinkPath + Environment.NewLine
+                + "目标：" + fullTargetPath + Environment.NewLine
+                + "原因：目标不存在。");
         }
 
-        var parent = Path.GetDirectoryName(linkPath);
+        var parent = Path.GetDirectoryName(fullLinkPath);
         if (!string.IsNullOrWhiteSpace(parent))
         {
             EnsureDirectory(parent);
@@ -46,23 +47,26 @@ public sealed class WindowsPlatformLinkService : IPlatformLinkService
 
         try
         {
-            var fullLinkPath = Path.GetFullPath(linkPath);
-            if (Directory.Exists(fullLinkPath) || File.Exists(fullLinkPath))
+            if (TryGetPathAttributes(fullLinkPath, out var attributes))
             {
-                var currentTarget = TryGetLinkTarget(fullLinkPath);
+                var currentTarget = TryGetLinkTarget(fullLinkPath, attributes);
                 if (!string.IsNullOrWhiteSpace(currentTarget)
                     && string.Equals(NormalizePath(currentTarget), NormalizePath(fullTargetPath), StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }
 
-                BackupIfExists(fullLinkPath);
+                BackupIfExists(fullLinkPath, attributes);
             }
 
-            Directory.CreateSymbolicLink(fullLinkPath, fullTargetPath);
+            CreateJunction(fullLinkPath, fullTargetPath);
         }
         catch when (ignoreIfLocked)
         {
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidOperationException(BuildLinkFailureMessage(fullLinkPath, fullTargetPath, exception), exception);
         }
     }
 
@@ -71,40 +75,153 @@ public sealed class WindowsPlatformLinkService : IPlatformLinkService
         return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 
-    private static string? TryGetLinkTarget(string path)
+    private static bool TryGetPathAttributes(string path, out FileAttributes attributes)
     {
-        if (!Directory.Exists(path) && !File.Exists(path))
+        try
         {
-            return null;
+            attributes = File.GetAttributes(path);
+            return true;
+        }
+        catch (FileNotFoundException)
+        {
+        }
+        catch (DirectoryNotFoundException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
 
-        FileSystemInfo info = Directory.Exists(path)
-            ? new DirectoryInfo(path)
-            : new FileInfo(path);
-        if ((info.Attributes & FileAttributes.ReparsePoint) == 0)
-        {
-            return null;
-        }
-
-        return info.LinkTarget;
+        attributes = default;
+        return false;
     }
 
-    private static void BackupIfExists(string path)
+    private static string? TryGetLinkTarget(string path, FileAttributes attributes)
+    {
+        if ((attributes & FileAttributes.ReparsePoint) == 0)
+        {
+            return null;
+        }
+
+        FileSystemInfo info = (attributes & FileAttributes.Directory) != 0
+            ? new DirectoryInfo(path)
+            : new FileInfo(path);
+
+        try
+        {
+            var resolved = info.ResolveLinkTarget(returnFinalTarget: false);
+            if (resolved is not null)
+            {
+                return NormalizePath(resolved.FullName);
+            }
+        }
+        catch
+        {
+        }
+
+        var target = info.LinkTarget;
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        return Path.IsPathRooted(target)
+            ? NormalizePath(target)
+            : NormalizePath(Path.Combine(Path.GetDirectoryName(path) ?? Path.GetPathRoot(path)!, target));
+    }
+
+    private static void BackupIfExists(string path, FileAttributes attributes)
+    {
+        if ((attributes & FileAttributes.Directory) != 0)
+        {
+            Directory.Move(path, BuildBackupPath(path));
+            return;
+        }
+
+        File.Move(path, BuildBackupPath(path));
+    }
+
+    private static string BuildBackupPath(string path)
     {
         var timestamp = DateTimeOffset.Now.ToString("yyyyMMdd-HHmmss");
         var parent = Path.GetDirectoryName(path) ?? Path.GetPathRoot(path)!;
         var fileName = Path.GetFileName(path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        var backupPath = Path.Combine(parent, fileName + ".bak." + timestamp);
+        return Path.Combine(parent, fileName + ".bak." + timestamp);
+    }
 
-        if (Directory.Exists(path))
+    private static void CreateJunction(string linkPath, string targetPath)
+    {
+        var startInfo = new ProcessStartInfo
         {
-            Directory.Move(path, backupPath);
+            FileName = "cmd.exe",
+            Arguments = $"/d /c mklink /J {Quote(linkPath)} {Quote(targetPath)}",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = Path.GetDirectoryName(linkPath) ?? Environment.SystemDirectory
+        };
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("无法启动 cmd.exe 来创建 Junction。");
+
+        var standardOutput = process.StandardOutput.ReadToEnd();
+        var standardError = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        if (process.ExitCode == 0 && Directory.Exists(linkPath))
+        {
             return;
         }
 
-        if (File.Exists(path))
+        var output = string.Join(
+            Environment.NewLine,
+            new[] { standardOutput.Trim(), standardError.Trim() }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        throw new InvalidOperationException(string.IsNullOrWhiteSpace(output)
+            ? "mklink /J 执行失败。"
+            : output);
+    }
+
+    private static string BuildLinkFailureMessage(string linkPath, string targetPath, Exception exception)
+    {
+        return string.Join(Environment.NewLine, new[]
         {
-            File.Move(path, backupPath);
+            "Windows 链接创建失败。",
+            "入口：" + linkPath,
+            "目标：" + targetPath,
+            "原因：" + ClassifyFailureReason(exception),
+            "详情：" + exception.Message
+        });
+    }
+
+    private static string ClassifyFailureReason(Exception exception)
+    {
+        if (exception is UnauthorizedAccessException
+            || exception.Message.Contains("客户端没有所需的特权", StringComparison.OrdinalIgnoreCase)
+            || exception.Message.Contains("privilege", StringComparison.OrdinalIgnoreCase))
+        {
+            return "权限不足，或系统尝试创建 SymbolicLink。";
         }
+
+        if (exception is DirectoryNotFoundException
+            || exception.Message.Contains("目标不存在", StringComparison.OrdinalIgnoreCase))
+        {
+            return "目标不存在。";
+        }
+
+        if (exception is IOException)
+        {
+            return "旧入口残留或入口正被占用。";
+        }
+
+        return "系统未能创建或重建 Junction。";
+    }
+
+    private static string Quote(string value)
+    {
+        return "\"" + value.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
     }
 }

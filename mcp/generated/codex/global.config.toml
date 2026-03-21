@@ -1,10 +1,8 @@
-﻿[mcp_servers.context7]
+[mcp_servers.context7]
 command = "cmd"
 args = ["/c", "npx", "-y", "@upstash/context7-mcp"]
-
 [mcp_servers.coplay_mcp]
 command = "uvx"
 args = ["--python", ">=3.11", "coplay-mcp-server@latest"]
 [mcp_servers.coplay_mcp.env]
 MCP_TOOL_TIMEOUT = "720000"
-

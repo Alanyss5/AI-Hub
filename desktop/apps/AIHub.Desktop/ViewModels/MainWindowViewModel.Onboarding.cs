@@ -29,7 +29,7 @@ public sealed partial class MainWindowViewModel
     private void InitializeOnboardingState()
     {
         RescanGlobalOnboardingCommand = new AsyncDelegateCommand(() => ExecuteGlobalOnboardingFlowAsync(forceRescan: true), CanUseWorkspace);
-        RescanProjectOnboardingCommand = new AsyncDelegateCommand(ExecuteSelectedProjectOnboardingRescanAsync, CanUseWorkspace);
+        RescanProjectOnboardingCommand = new AsyncDelegateCommand(ExecuteSelectedProjectOnboardingRescanAsync, CanUseSelectedWorkspaceProject);
     }
 
     private void RaiseOnboardingCommandStates()
@@ -40,14 +40,7 @@ public sealed partial class MainWindowViewModel
 
     private async Task ExecuteSelectedProjectOnboardingRescanAsync()
     {
-        if (TryCreateSelectedProjectPathMismatchNotice(ProjectPath, out var notice))
-        {
-            SetOperation(false, Text.State.ProjectPathMismatchBlocked, notice.Details);
-            await ShowNoticeAsync(notice);
-            return;
-        }
-
-        if (!TryResolveProjectForScopeSwitch(out var project, out var validationError))
+        if (!TryResolveSelectedProjectForWorkspaceAction(out var project, out var validationError))
         {
             SetOperation(false, validationError, string.Empty);
             return;

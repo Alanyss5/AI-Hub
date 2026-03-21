@@ -12,8 +12,10 @@ public sealed partial class NativeWorkspaceAutomationService
     {
         var variantsByName = new Dictionary<string, List<ScannedMcpVariant>>(StringComparer.OrdinalIgnoreCase);
         var managedServers = LayeredWorkspaceMaterializer.BuildEffectiveServerMap(hubRoot, personalRoot, profile);
-        var companyManifestPath = Path.Combine(hubRoot, "mcp", "manifest", WorkspaceProfiles.NormalizeId(profile) + ".json");
-        var privateManifestPath = Path.Combine(personalRoot, "mcp", "manifest", WorkspaceProfiles.NormalizeId(profile) + ".json");
+        var companySourceRoot = SourcePathLayout.GetCompanySourceRoot(hubRoot);
+        var personalSourceRoot = SourcePathLayout.GetPersonalSourceRoot(personalRoot);
+        var companyManifestPath = SourcePathLayout.GetProfileManifestPath(companySourceRoot, profile);
+        var privateManifestPath = SourcePathLayout.GetProfileManifestPath(personalSourceRoot, profile);
         var companyServers = ReadManifestServers(companyManifestPath);
         var privateServers = ReadManifestServers(privateManifestPath);
 
@@ -130,13 +132,11 @@ public sealed partial class NativeWorkspaceAutomationService
     private void LinkGlobalEntrypoints(string hubRoot, string userHome)
     {
         var effectiveRoot = LayeredWorkspaceMaterializer.GetEffectiveProfileRoot(hubRoot, WorkspaceProfiles.GlobalId);
-        var companySkills = Path.Combine(hubRoot, "skills", WorkspaceProfiles.GlobalId);
-        var privateSkills = Path.Combine(LayeredWorkspaceMaterializer.GetPersonalRoot(userHome), "skills", WorkspaceProfiles.GlobalId);
+        var effectiveSkills = Path.Combine(effectiveRoot, "skills");
         var effectiveCommands = Path.Combine(effectiveRoot, "claude", "commands");
         var effectiveAgents = Path.Combine(effectiveRoot, "claude", "agents");
 
-        Directory.CreateDirectory(companySkills);
-        Directory.CreateDirectory(privateSkills);
+        Directory.CreateDirectory(effectiveSkills);
 
         _platformLinkService.EnsureDirectory(Path.Combine(userHome, ".claude"));
         _platformLinkService.EnsureDirectory(Path.Combine(userHome, ".claude", "skills"));
@@ -148,21 +148,23 @@ public sealed partial class NativeWorkspaceAutomationService
         _platformLinkService.EnsureDirectory(Path.Combine(userHome, ".gemini", "antigravity"));
         _platformLinkService.EnsureDirectory(Path.Combine(userHome, ".gemini", "antigravity", "skills"));
 
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "skills", "company"), companySkills);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "skills", "personal"), privateSkills);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".agents", "skills", "company"), companySkills);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".agents", "skills", "personal"), privateSkills);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".gemini", "antigravity", "skills", "company"), companySkills);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".gemini", "antigravity", "skills", "personal"), privateSkills);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".codex", "skills", "ai-hub"), companySkills, ignoreIfLocked: true);
-        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".codex", "skills", "personal"), privateSkills, ignoreIfLocked: true);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "skills", "company"), effectiveSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "skills", "personal"), effectiveSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".agents", "skills", "company"), effectiveSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".agents", "skills", "personal"), effectiveSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".gemini", "antigravity", "skills", "company"), effectiveSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".gemini", "antigravity", "skills", "personal"), effectiveSkills);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".codex", "skills", "ai-hub"), effectiveSkills, ignoreIfLocked: true);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".codex", "skills", "personal"), effectiveSkills, ignoreIfLocked: true);
         _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "commands"), effectiveCommands);
         _platformLinkService.EnsureJunction(Path.Combine(userHome, ".claude", "agents"), effectiveAgents);
+        _platformLinkService.EnsureJunction(Path.Combine(userHome, ".agents", "agents"), effectiveAgents);
 
         CopyTextIfChanged(Path.Combine(effectiveRoot, "claude", "settings.json"), Path.Combine(userHome, ".claude", "settings.json"));
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "claude.mcp.json"), Path.Combine(userHome, ".claude.json"));
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "codex.config.toml"), Path.Combine(userHome, ".codex", "config.toml"));
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "antigravity.mcp.json"), Path.Combine(userHome, ".gemini", "antigravity", "mcp_config.json"));
+        CopyAgentBootstrapIfChanged(effectiveRoot, userHome);
     }
 
     private void LinkProjectEntrypoints(string hubRoot, string projectPath, string profile)
@@ -177,11 +179,20 @@ public sealed partial class NativeWorkspaceAutomationService
         _platformLinkService.EnsureJunction(Path.Combine(projectPath, ".claude", "commands"), Path.Combine(effectiveRoot, "claude", "commands"));
         _platformLinkService.EnsureJunction(Path.Combine(projectPath, ".claude", "agents"), Path.Combine(effectiveRoot, "claude", "agents"));
         _platformLinkService.EnsureJunction(Path.Combine(projectPath, ".agents", "skills"), Path.Combine(effectiveRoot, "skills"));
+        _platformLinkService.EnsureJunction(Path.Combine(projectPath, ".agents", "agents"), Path.Combine(effectiveRoot, "claude", "agents"));
         _platformLinkService.EnsureJunction(Path.Combine(projectPath, ".agent", "skills"), Path.Combine(effectiveRoot, "skills"));
 
         CopyTextIfChanged(Path.Combine(effectiveRoot, "claude", "settings.json"), Path.Combine(projectPath, ".claude", "settings.json"));
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "claude.mcp.json"), Path.Combine(projectPath, ".mcp.json"));
         CopyTextIfChanged(Path.Combine(effectiveRoot, "mcp", "codex.config.toml"), Path.Combine(projectPath, ".codex", "config.toml"));
+        CopyAgentBootstrapIfChanged(effectiveRoot, projectPath);
+    }
+
+    private static void CopyAgentBootstrapIfChanged(string effectiveRoot, string destinationRoot)
+    {
+        CopyTextIfChanged(
+            Path.Combine(effectiveRoot, ".agents", "AGENTS.md"),
+            Path.Combine(destinationRoot, ".agents", "AGENTS.md"));
     }
 
     private static string BuildEffectiveSettingsPreview(string hubRoot, string personalRoot, string profile)

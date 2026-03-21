@@ -130,6 +130,10 @@ internal sealed class RecordingWorkspaceAutomationService : IWorkspaceAutomation
 
     public int ApplyProjectProfileCallCount { get; private set; }
 
+    public string? LastAppliedProjectPath { get; private set; }
+
+    public string? LastAppliedProjectProfile { get; private set; }
+
     public int PreviewGlobalOnboardingCallCount { get; private set; }
 
     public int PreviewProjectOnboardingCallCount { get; private set; }
@@ -190,6 +194,8 @@ internal sealed class RecordingWorkspaceAutomationService : IWorkspaceAutomation
         CancellationToken cancellationToken = default)
     {
         ApplyProjectProfileCallCount++;
+        LastAppliedProjectPath = projectPath;
+        LastAppliedProjectProfile = profile;
         return Task.FromResult(ApplyProjectProfileResult);
     }
 }

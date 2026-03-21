@@ -3,6 +3,7 @@ using AIHub.Application.Services;
 using System.Text.Json.Nodes;
 using AIHub.Infrastructure;
 using AIHub.Contracts;
+using AIHub.Platform.Windows;
 
 namespace AIHub.Application.Tests;
 
@@ -27,6 +28,60 @@ public sealed class AutomationInternalizationTests
         Assert.DoesNotContain(snapshot.Scripts, script => string.Equals(script.RelativePath, "sync-mcp.ps1", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(snapshot.Scripts, script => string.Equals(script.RelativePath, "use-profile.ps1", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(snapshot.Scripts, script => string.Equals(script.RelativePath, "hooks/pre-tool-check.ps1", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Setup_Global_Script_Uses_Runtime_Effective_Skills_Entrypoints()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "scripts", "setup-global.ps1")))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(directory);
+        var scriptPath = Path.Combine(directory!.FullName, "scripts", "setup-global.ps1");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains("Join-Path $effectiveRoot 'skills'", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-SkillsOverlay (Join-Path $normalizedUserHome '.claude\\skills') $effectiveSkills $effectiveSkills", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("skills\\global", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Setup_Global_Script_Does_Not_Retain_Legacy_Codex_Skills_Skip()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "scripts", "setup-global.ps1")))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(directory);
+        var scriptPath = Path.Combine(directory!.FullName, "scripts", "setup-global.ps1");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.DoesNotContain("SkipLegacyCodexPath", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-Junction (Join-Path $normalizedUserHome '.codex\\skills\\ai-hub') $effectiveSkills -IgnoreIfLocked", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-Junction (Join-Path $normalizedUserHome '.codex\\skills\\personal') $effectiveSkills -IgnoreIfLocked", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Use_Profile_Script_Consumes_Runtime_Effective_Output_For_All_Entrypoints()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "scripts", "use-profile.ps1")))
+        {
+            directory = directory.Parent;
+        }
+
+        Assert.NotNull(directory);
+        var scriptPath = Path.Combine(directory!.FullName, "scripts", "use-profile.ps1");
+        var script = File.ReadAllText(scriptPath);
+
+        Assert.Contains(".runtime\\effective\\$normalizedProfile", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-Junction (Join-Path $normalizedProjectPath '.claude\\skills') (Join-Path $effectiveRoot 'skills')", script, StringComparison.Ordinal);
+        Assert.Contains("Ensure-TextCopy (Join-Path $effectiveRoot 'claude\\settings.json') (Join-Path $normalizedProjectPath '.claude\\settings.json')", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -55,8 +110,98 @@ public sealed class AutomationInternalizationTests
         Assert.True(File.Exists(settingsPath));
         var content = await File.ReadAllTextAsync(settingsPath);
         Assert.Contains(scope.RootPath.Replace("\\", "\\\\", StringComparison.Ordinal), content, StringComparison.Ordinal);
+        Assert.Contains(linkService.Junctions, item =>
+            item.LinkPath.EndsWith(Path.Combine(".claude", "skills", "company"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine(".runtime", "effective", WorkspaceProfiles.GlobalId, "skills"), StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(linkService.Junctions, item =>
+            item.LinkPath.EndsWith(Path.Combine(".claude", "skills", "personal"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine(".runtime", "effective", WorkspaceProfiles.GlobalId, "skills"), StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".agents", "agents"), StringComparison.OrdinalIgnoreCase));
         Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".claude", "commands"), StringComparison.OrdinalIgnoreCase));
         Assert.Contains(linkService.Junctions, item => item.LinkPath.EndsWith(Path.Combine(".codex", "skills", "ai-hub"), StringComparison.OrdinalIgnoreCase));
+        var bootstrapContent = await File.ReadAllTextAsync(Path.Combine(userHome, ".agents", "AGENTS.md"));
+        Assert.Contains("# AI-Hub AGENTS Bootstrap", bootstrapContent, StringComparison.Ordinal);
+        Assert.Contains("ProfileId: global", bootstrapContent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyGlobalLinksAsync_Rebuilds_Stale_Global_Entrypoints_With_Junctions()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        var staleRoot = Path.Combine(scope.RootPath, "stale-worktree");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "global"));
+        Directory.CreateDirectory(Path.Combine(staleRoot, "skills", "global"));
+        Directory.CreateDirectory(Path.Combine(staleRoot, "claude", "commands"));
+        Directory.CreateDirectory(Path.Combine(staleRoot, "claude", "agents"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            "{\"hubRoot\":\"__AI_HUB_ROOT_JSON__\"}");
+
+        var linkService = new WindowsPlatformLinkService();
+        linkService.EnsureDirectory(Path.Combine(userHome, ".claude"));
+        linkService.EnsureDirectory(Path.Combine(userHome, ".claude", "skills"));
+        linkService.EnsureJunction(Path.Combine(userHome, ".claude", "skills", "company"), Path.Combine(staleRoot, "skills", "global"));
+        linkService.EnsureJunction(Path.Combine(userHome, ".claude", "commands"), Path.Combine(staleRoot, "claude", "commands"));
+        linkService.EnsureJunction(Path.Combine(userHome, ".claude", "agents"), Path.Combine(staleRoot, "claude", "agents"));
+
+        var service = new NativeWorkspaceAutomationService(
+            linkService,
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var result = await service.ApplyGlobalLinksAsync(scope.RootPath);
+
+        Assert.True(result.Success, result.Details);
+        Assert.Contains("全局链接已应用", result.Message, StringComparison.Ordinal);
+
+        var companyLink = new DirectoryInfo(Path.Combine(userHome, ".claude", "skills", "company"));
+        var commandsLink = new DirectoryInfo(Path.Combine(userHome, ".claude", "commands"));
+        var agentsLink = new DirectoryInfo(Path.Combine(userHome, ".claude", "agents"));
+
+        Assert.Equal(
+            NormalizePath(Path.Combine(scope.RootPath, ".runtime", "effective", WorkspaceProfiles.GlobalId, "skills")),
+            NormalizePath(companyLink.ResolveLinkTarget(false)!.FullName));
+        Assert.Equal(
+            NormalizePath(Path.Combine(scope.RootPath, ".runtime", "effective", WorkspaceProfiles.GlobalId, "claude", "commands")),
+            NormalizePath(commandsLink.ResolveLinkTarget(false)!.FullName));
+        Assert.Equal(
+            NormalizePath(Path.Combine(scope.RootPath, ".runtime", "effective", WorkspaceProfiles.GlobalId, "claude", "agents")),
+            NormalizePath(agentsLink.ResolveLinkTarget(false)!.FullName));
+
+        Assert.Single(Directory.GetDirectories(Path.Combine(userHome, ".claude", "skills"), "company.bak.*"));
+        Assert.Single(Directory.GetDirectories(Path.Combine(userHome, ".claude"), "commands.bak.*"));
+        Assert.Single(Directory.GetDirectories(Path.Combine(userHome, ".claude"), "agents.bak.*"));
+    }
+
+    [Fact]
+    public async Task NativeWorkspaceAutomationService_ApplyGlobalLinksAsync_Returns_Actionable_Link_Error_Details()
+    {
+        using var scope = new TestHubRootScope();
+        var userHome = Path.Combine(scope.RootPath, "user-home");
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "global"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"),
+            "{\"hubRoot\":\"__AI_HUB_ROOT_JSON__\"}");
+
+        var service = new NativeWorkspaceAutomationService(
+            new ThrowingPlatformLinkService(new UnauthorizedAccessException("客户端没有所需的特权。")),
+            new FakePlatformCapabilitiesService(),
+            userHomeResolver: () => userHome);
+
+        var result = await service.ApplyGlobalLinksAsync(scope.RootPath);
+
+        Assert.False(result.Success);
+        Assert.Contains("全局工作区接管失败", result.Message, StringComparison.Ordinal);
+        Assert.Contains("客户端没有所需的特权", result.Details, StringComparison.Ordinal);
+        Assert.Contains("用户目录：", result.Details, StringComparison.Ordinal);
+        Assert.Contains("全局有效输出：", result.Details, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -80,10 +225,10 @@ public sealed class AutomationInternalizationTests
         Assert.True(result.Success, result.Details);
         Assert.Contains(linkService.Junctions, item =>
             item.LinkPath.EndsWith(Path.Combine(".claude", "skills", "personal"), StringComparison.OrdinalIgnoreCase)
-            && item.TargetPath.EndsWith(Path.Combine("AI-Personal", "skills", "global"), StringComparison.OrdinalIgnoreCase));
+            && item.TargetPath.EndsWith(Path.Combine(".runtime", "effective", WorkspaceProfiles.GlobalId, "skills"), StringComparison.OrdinalIgnoreCase));
         Assert.Contains(linkService.Junctions, item =>
             item.LinkPath.EndsWith(Path.Combine(".codex", "skills", "personal"), StringComparison.OrdinalIgnoreCase)
-            && item.TargetPath.EndsWith(Path.Combine("AI-Personal", "skills", "global"), StringComparison.OrdinalIgnoreCase));
+            && item.TargetPath.EndsWith(Path.Combine(".runtime", "effective", WorkspaceProfiles.GlobalId, "skills"), StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -243,7 +388,7 @@ public sealed class AutomationInternalizationTests
         var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
         var candidate = Assert.Single(preview.Candidates.Where(item => item.DisplayName == "legacy-private"));
         Assert.Equal(WorkspaceImportTargetKind.Private, candidate.SuggestedTarget);
-        Assert.EndsWith(Path.Combine("skills", "global", "imported", "codex", "legacy-private"), candidate.PrivateDestinationPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("source", "profiles", "global", "skills", "imported", "codex", "legacy-private"), candidate.PrivateDestinationPath, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(Path.DirectorySeparatorChar + "personal" + Path.DirectorySeparatorChar, candidate.PrivateDestinationPath, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -270,8 +415,8 @@ public sealed class AutomationInternalizationTests
         var preview = Assert.IsType<WorkspaceOnboardingPreview>(previewResult.Preview);
         var teamACandidate = Assert.Single(preview.Candidates.Where(item => item.SourcePath.EndsWith(Path.Combine("team-a", "shared-skill"), StringComparison.OrdinalIgnoreCase)));
         var teamBCandidate = Assert.Single(preview.Candidates.Where(item => item.SourcePath.EndsWith(Path.Combine("team-b", "shared-skill"), StringComparison.OrdinalIgnoreCase)));
-        Assert.EndsWith(Path.Combine("skills", "global", "imported", "claude", "team-a", "shared-skill"), teamACandidate.CompanyDestinationPath, StringComparison.OrdinalIgnoreCase);
-        Assert.EndsWith(Path.Combine("skills", "global", "imported", "claude", "team-b", "shared-skill"), teamBCandidate.CompanyDestinationPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("source", "profiles", "global", "skills", "imported", "claude", "team-a", "shared-skill"), teamACandidate.CompanyDestinationPath, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("source", "profiles", "global", "skills", "imported", "claude", "team-b", "shared-skill"), teamBCandidate.CompanyDestinationPath, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -398,8 +543,16 @@ public sealed class AutomationInternalizationTests
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "global"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "global"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "frontend"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "manifest"));
+        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "claude", "agents", "global", "AGENTS.md"), "# company bootstrap");
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "agents", "frontend", "AGENTS.md"),
+            """
+            # AI-Hub AGENTS Bootstrap
+            ProfileId: frontend
+            """);
         await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "claude", "settings", "global.settings.json"), "{\"hubRoot\":\"__AI_HUB_ROOT_JSON__\"}");
         await File.WriteAllTextAsync(
             Path.Combine(scope.RootPath, "mcp", "manifest", "global.json"),
@@ -570,6 +723,12 @@ public sealed class AutomationInternalizationTests
         Assert.Contains(".claude\\skills -> " + Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills"), result.Details, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(".agents\\skills -> " + Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills"), result.Details, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(".agent\\skills -> " + Path.Combine(scope.RootPath, ".runtime", "effective", "frontend", "skills"), result.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(linkService.Junctions, item =>
+            item.LinkPath.EndsWith(Path.Combine(projectPath, ".agents", "agents"), StringComparison.OrdinalIgnoreCase)
+            && item.TargetPath.EndsWith(Path.Combine(".runtime", "effective", "frontend", "claude", "agents"), StringComparison.OrdinalIgnoreCase));
+        var bootstrapContent = await File.ReadAllTextAsync(Path.Combine(projectPath, ".agents", "AGENTS.md"));
+        Assert.Contains("# AI-Hub AGENTS Bootstrap", bootstrapContent, StringComparison.Ordinal);
+        Assert.Contains("ProfileId: frontend", bootstrapContent, StringComparison.Ordinal);
         var effectiveSkillTarget = Assert.Single(linkService.Junctions.Where(item =>
             item.LinkPath.EndsWith(Path.Combine(projectPath, ".claude", "skills"), StringComparison.OrdinalIgnoreCase))).TargetPath;
         Assert.EndsWith(Path.Combine(".runtime", "effective", "frontend", "skills"), effectiveSkillTarget, StringComparison.OrdinalIgnoreCase);
@@ -696,5 +855,22 @@ public sealed class AutomationInternalizationTests
     {
         Directory.CreateDirectory(skillDirectory);
         await File.WriteAllTextAsync(Path.Combine(skillDirectory, "SKILL.md"), content);
+    }
+
+    private static string NormalizePath(string path)
+    {
+        return Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
+
+    private sealed class ThrowingPlatformLinkService(Exception exception) : AIHub.Application.Abstractions.IPlatformLinkService
+    {
+        public void EnsureDirectory(string path)
+        {
+        }
+
+        public void EnsureJunction(string linkPath, string targetPath, bool ignoreIfLocked = false)
+        {
+            throw exception;
+        }
     }
 }

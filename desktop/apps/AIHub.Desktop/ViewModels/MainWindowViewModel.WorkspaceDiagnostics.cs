@@ -98,6 +98,7 @@ public sealed partial class MainWindowViewModel
 
         if (project is null)
         {
+            ProjectWorkspaceHealthStatus = WorkspaceProjectHealthStatus.NotSelected;
             ProjectWorkspaceBindingModeDisplay = Text.State.WorkspaceBindingNotSelected;
             ProjectWorkspaceBindingDetails = Text.State.WorkspaceBindingNotSelected;
             ProjectWorkspaceBindingWarningDisplay = string.Empty;
@@ -111,11 +112,13 @@ public sealed partial class MainWindowViewModel
             CreateEntrypointSnapshot(project.Path, ".agents", "skills"),
             CreateEntrypointSnapshot(project.Path, ".agent", "skills")
         };
+        var agentsEntrypoint = CreateEntrypointSnapshot(project.Path, ".agents", "agents");
 
         var hubRoot = ResolveDiagnosticHubRoot();
         var effectiveSkillsRoot = hubRoot is null
             ? null
             : Path.Combine(hubRoot, ".runtime", "effective", WorkspaceProfiles.NormalizeId(project.Profile), "skills");
+        var agentsBootstrapPath = GetProjectAgentsBootstrapPath(project.Path);
         var legacySkillsRoot = hubRoot is null
             ? null
             : Path.Combine(hubRoot, "skills", WorkspaceProfiles.NormalizeId(project.Profile));
@@ -134,8 +137,10 @@ public sealed partial class MainWindowViewModel
             Text.State.DetailProjectPathLabel + project.Path,
             Text.State.CurrentProfileLabel + WorkspaceProfiles.ToDisplayName(project.Profile),
             Text.State.EffectiveOutputRootLabel + (effectiveSkillsRoot is null ? Text.State.NotSet : Path.GetDirectoryName(effectiveSkillsRoot)!),
+            "AGENTS bootstrap：" + (agentsBootstrapPath is null ? Text.State.NotSet : DescribePathHealth(agentsBootstrapPath)),
             ".claude\\skills -> " + entrypoints[0].DisplayTarget,
             ".agents\\skills -> " + entrypoints[1].DisplayTarget,
+            ".agents\\agents -> " + agentsEntrypoint.DisplayTarget,
             ".agent\\skills -> " + entrypoints[2].DisplayTarget
         });
 
@@ -143,6 +148,16 @@ public sealed partial class MainWindowViewModel
         if (TryCreateSelectedProjectPathMismatchNotice(ProjectPath, out _))
         {
             warnings.Add(Text.State.ProjectPathMismatchInlineWarning);
+        }
+
+        if (agentsBootstrapPath is not null && !File.Exists(agentsBootstrapPath))
+        {
+            warnings.Add("缺少 AGENTS bootstrap。");
+        }
+
+        if (agentsEntrypoint.Kind == EntrypointKind.Missing)
+        {
+            warnings.Add("缺少 .agents\\agents 入口。");
         }
 
         switch (mode)
@@ -160,6 +175,14 @@ public sealed partial class MainWindowViewModel
 
         ProjectWorkspaceBindingWarningDisplay = string.Join(Environment.NewLine, warnings);
         HasProjectWorkspaceBindingWarning = warnings.Count > 0;
+        ProjectWorkspaceHealthStatus = mode switch
+        {
+            ProjectWorkspaceBindingMode.Legacy => WorkspaceProjectHealthStatus.Legacy,
+            ProjectWorkspaceBindingMode.Unmanaged => WorkspaceProjectHealthStatus.NotOnboarded,
+            ProjectWorkspaceBindingMode.Mixed => WorkspaceProjectHealthStatus.Incomplete,
+            _ when warnings.Count > 0 => WorkspaceProjectHealthStatus.Incomplete,
+            _ => WorkspaceProjectHealthStatus.Healthy
+        };
     }
 
     private static string NormalizeDiagnosticPath(string path)
@@ -212,16 +235,38 @@ public sealed partial class MainWindowViewModel
             return new EntrypointSnapshot(entryPath, null, DesktopTextCatalog.Default.State.WorkspaceBindingDirectDirectory, EntrypointKind.DirectDirectory);
         }
 
-        var target = info.LinkTarget;
+        var target = TryResolveLinkTarget(info, entryPath, projectPath);
         if (string.IsNullOrWhiteSpace(target))
         {
             return new EntrypointSnapshot(entryPath, null, DesktopTextCatalog.Default.State.WorkspaceBindingMissingTarget, EntrypointKind.Missing);
         }
 
-        var fullTarget = Path.IsPathRooted(target)
+        return new EntrypointSnapshot(entryPath, target, target, EntrypointKind.Linked);
+    }
+
+    private static string? TryResolveLinkTarget(FileSystemInfo info, string entryPath, string projectPath)
+    {
+        try
+        {
+            var resolved = info.ResolveLinkTarget(returnFinalTarget: false);
+            if (resolved is not null)
+            {
+                return Path.GetFullPath(resolved.FullName);
+            }
+        }
+        catch
+        {
+        }
+
+        var target = info.LinkTarget;
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return null;
+        }
+
+        return Path.IsPathRooted(target)
             ? Path.GetFullPath(target)
             : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(entryPath) ?? projectPath, target));
-        return new EntrypointSnapshot(entryPath, fullTarget, fullTarget, EntrypointKind.Linked);
     }
 
     private static ProjectWorkspaceBindingMode ClassifyBindingMode(
@@ -260,6 +305,21 @@ public sealed partial class MainWindowViewModel
             Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string DescribePathHealth(string path)
+    {
+        return File.Exists(path)
+            ? path
+            : path + " (" + DesktopTextCatalog.Default.State.WorkspaceBindingMissingTarget + ")";
+    }
+
+    private static string GetProjectAgentsBootstrapPath(string projectPath)
+    {
+        return Path.Combine(
+            Path.GetFullPath(projectPath),
+            ".agents",
+            "AGENTS.md");
     }
 
     private enum ProjectWorkspaceBindingMode

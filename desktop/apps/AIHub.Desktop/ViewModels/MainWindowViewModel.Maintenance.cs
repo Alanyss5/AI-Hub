@@ -400,7 +400,9 @@ public sealed partial class MainWindowViewModel
         _currentScopeProjectPath = scope == WorkspaceScope.Project && !string.IsNullOrWhiteSpace(projectPath)
             ? projectPath
             : null;
+        RaisePropertyChanged(nameof(CurrentWorkspaceScope));
         UpdateMcpValidationSelectionState();
+        SyncSkillFilterToCurrentScope(force: false);
     }
 
     private void RememberManagedProcessRestartBaselines(IEnumerable<McpRuntimeRecord> records)
@@ -744,5 +746,3 @@ public sealed partial class MainWindowViewModel
 
     private sealed record AlertState(bool IsActive, DateTimeOffset? LastNotifiedAt);
 }
-
-

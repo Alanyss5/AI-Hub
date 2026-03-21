@@ -7,6 +7,8 @@ namespace AIHub.Application.Services;
 
 public sealed class WorkspaceProfileService
 {
+    private static readonly ISourcePathLayout SourcePathLayout = new DefaultSourcePathLayout();
+
     private readonly IHubRootLocator _hubRootLocator;
     private readonly Func<string?, IWorkspaceProfileCatalogStore> _profileCatalogStoreFactory;
     private readonly Func<string?, IProjectRegistry> _projectRegistryFactory;
@@ -144,6 +146,7 @@ public sealed class WorkspaceProfileService
         IReadOnlyList<WorkspaceProfileRecord> profiles,
         CancellationToken cancellationToken)
     {
+        var sourceRoot = SourcePathLayout.GetCompanySourceRoot(hubRoot);
         var normalizedProfiles = profiles
             .Select((profile, index) => NormalizeProfileRecord(profile, index))
             .OrderBy(profile => profile.SortOrder)
@@ -151,25 +154,27 @@ public sealed class WorkspaceProfileService
             .ToArray();
 
         var projects = await _projectRegistryFactory(hubRoot).GetAllAsync(cancellationToken);
-        var settings = await _hubSettingsStoreFactory(hubRoot).LoadAsync(cancellationToken);
-        var mcpProfiles = await _mcpProfileStoreFactory(hubRoot).GetAllAsync(cancellationToken);
-        var skillSources = await LoadProfileCountsAsync(GetSourcesPath(hubRoot), "sources", "profile", cancellationToken);
-        var skillInstalls = await LoadProfileCountsAsync(GetSkillInstallsPath(hubRoot), "installs", "profile", cancellationToken);
-        var skillStates = await LoadProfileCountsAsync(GetSkillStatesPath(hubRoot), "states", "profile", cancellationToken);
+        var skillSources = await LoadProfileCountsAsync(SourcePathLayout.GetSkillSourcesPath(sourceRoot), "sources", "profile", cancellationToken);
+        var skillInstalls = await LoadProfileCountsAsync(SourcePathLayout.GetSkillInstallsPath(sourceRoot), "installs", "profile", cancellationToken);
+        var skillStates = await LoadProfileCountsAsync(SourcePathLayout.GetSkillStatesPath(sourceRoot), "states", "profile", cancellationToken);
 
-        return normalizedProfiles
-            .Select(profile => new WorkspaceProfileDescriptor(
+        var descriptors = new List<WorkspaceProfileDescriptor>(normalizedProfiles.Length);
+        foreach (var profile in normalizedProfiles)
+        {
+            descriptors.Add(new WorkspaceProfileDescriptor(
                 profile,
                 projects.Count(project => string.Equals(WorkspaceProfiles.NormalizeId(project.Profile), profile.Id, StringComparison.OrdinalIgnoreCase)),
                 GetCount(skillSources, profile.Id),
                 GetCount(skillInstalls, profile.Id),
                 GetCount(skillStates, profile.Id),
-                CountSkillDirectories(hubRoot, profile.Id),
-                mcpProfiles.FirstOrDefault(item => string.Equals(item.Profile, profile.Id, StringComparison.OrdinalIgnoreCase))?.ServerNames.Count ?? 0,
-                string.Equals(WorkspaceProfiles.NormalizeId(settings.DefaultProfile), profile.Id, StringComparison.OrdinalIgnoreCase) ? 1 : 0,
-                CountProfileAssets(hubRoot, "claude", "commands", profile.Id),
-                CountProfileAssets(hubRoot, "claude", "agents", profile.Id)))
-            .ToArray();
+                CountSkillDirectories(sourceRoot, profile.Id),
+                await CountMcpServersAsync(sourceRoot, profile.Id, cancellationToken),
+                CountProfileSettings(sourceRoot, profile.Id),
+                CountProfileAssets(SourcePathLayout.GetProfileCommandsRoot(sourceRoot, profile.Id)),
+                CountProfileAssets(SourcePathLayout.GetProfileAgentsRoot(sourceRoot, profile.Id))));
+        }
+
+        return descriptors;
     }
 
     private static WorkspaceProfileRecord NormalizeProfileRecord(WorkspaceProfileRecord record, int fallbackSortOrder)
@@ -191,9 +196,9 @@ public sealed class WorkspaceProfileService
         return counts.TryGetValue(profileId, out var count) ? count : 0;
     }
 
-    private static int CountSkillDirectories(string hubRoot, string profileId)
+    private static int CountSkillDirectories(string sourceRoot, string profileId)
     {
-        var profileRoot = Path.Combine(hubRoot, "skills", profileId);
+        var profileRoot = SourcePathLayout.GetProfileSkillsRoot(sourceRoot, profileId);
         if (!Directory.Exists(profileRoot))
         {
             return 0;
@@ -204,9 +209,8 @@ public sealed class WorkspaceProfileService
             .Count();
     }
 
-    private static int CountProfileAssets(string hubRoot, params string[] segments)
+    private static int CountProfileAssets(string profileRoot)
     {
-        var profileRoot = Path.Combine(new[] { hubRoot }.Concat(segments).ToArray());
         if (!Directory.Exists(profileRoot))
         {
             return 0;
@@ -215,6 +219,37 @@ public sealed class WorkspaceProfileService
         return Directory
             .EnumerateFiles(profileRoot, "*", SearchOption.AllDirectories)
             .Count();
+    }
+
+    private static int CountProfileSettings(string sourceRoot, string profileId)
+    {
+        return File.Exists(SourcePathLayout.GetProfileSettingsPath(sourceRoot, profileId)) ? 1 : 0;
+    }
+
+    private static async Task<int> CountMcpServersAsync(string sourceRoot, string profileId, CancellationToken cancellationToken)
+    {
+        var manifestPath = SourcePathLayout.GetProfileManifestPath(sourceRoot, profileId);
+        if (!File.Exists(manifestPath))
+        {
+            return 0;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            using var document = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath, cancellationToken));
+            if (TryGetPropertyCaseInsensitive(document.RootElement, "mcpServers", out var servers) && servers.ValueKind == JsonValueKind.Object)
+            {
+                return servers.EnumerateObject().Count();
+            }
+        }
+        catch
+        {
+            return 0;
+        }
+
+        return 0;
     }
 
     private static async Task<IReadOnlyDictionary<string, int>> LoadProfileCountsAsync(
@@ -271,9 +306,4 @@ public sealed class WorkspaceProfileService
         return false;
     }
 
-    private static string GetSourcesPath(string hubRoot) => Path.Combine(hubRoot, "skills", "sources.json");
-
-    private static string GetSkillInstallsPath(string hubRoot) => Path.Combine(hubRoot, "config", "skills-installs.json");
-
-    private static string GetSkillStatesPath(string hubRoot) => Path.Combine(hubRoot, "config", "skills-state.json");
 }

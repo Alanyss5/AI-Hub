@@ -2,23 +2,40 @@
 using System.Text.Json;
 using AIHub.Application.Services;
 using AIHub.Contracts;
+using AIHub.Infrastructure;
 
 namespace AIHub.Application.Tests;
 
 public sealed class SkillsCatalogServiceTests
 {
+    private static string GetCompanySourceRoot(string hubRoot) => Path.Combine(hubRoot, "source");
+
+    private static string GetProfileSkillsRoot(string hubRoot, string profile) => Path.Combine(GetCompanySourceRoot(hubRoot), "profiles", profile, "skills");
+
+    private static string GetSkillLibraryRoot(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "library", "skills");
+
+    private static string GetSkillSourcesPath(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "registry", "skills-sources.json");
+
+    private static string GetSkillInstallsPath(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "registry", "skills-installs.json");
+
+    private static string GetSkillStatesPath(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "registry", "skills-state.json");
+
+    private static SkillsCatalogService CreateService(string rootPath, RecordingWorkspaceAutomationService? automationService = null)
+        => new(new FixedHubRootLocator(rootPath), null, automationService ?? new RecordingWorkspaceAutomationService());
+
     [Fact]
     public async Task LoadAsync_OrdersBackupHistoryNewestFirst()
     {
         using var scope = new TestHubRootScope();
-        var skillDirectory = Path.Combine(scope.RootPath, "skills", "global", "demo-skill");
+        var skillDirectory = GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.GlobalId);
+        skillDirectory = Path.Combine(skillDirectory, "demo-skill");
         Directory.CreateDirectory(skillDirectory);
         await File.WriteAllTextAsync(Path.Combine(skillDirectory, "SKILL.md"), "current");
 
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "backups", "skills", "global", "demo-skill", "20260307-010101-sync"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "backups", "skills", "global", "demo-skill", "20260308-020202-sync"));
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
 
         var snapshot = await service.LoadAsync();
 
@@ -34,7 +51,7 @@ public sealed class SkillsCatalogServiceTests
     public async Task RollbackInstalledSkillAsync_UsesSelectedBackupDirectory()
     {
         using var scope = new TestHubRootScope();
-        var installDirectory = Path.Combine(scope.RootPath, "skills", "global", "demo-skill");
+        var installDirectory = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.GlobalId), "demo-skill");
         Directory.CreateDirectory(installDirectory);
         await File.WriteAllTextAsync(Path.Combine(installDirectory, "SKILL.md"), "current-version");
 
@@ -42,7 +59,7 @@ public sealed class SkillsCatalogServiceTests
         Directory.CreateDirectory(selectedBackupDirectory);
         await File.WriteAllTextAsync(Path.Combine(selectedBackupDirectory, "SKILL.md"), "backup-version");
 
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "config"));
+        Directory.CreateDirectory(Path.GetDirectoryName(GetSkillStatesPath(scope.RootPath))!);
         var statesJson = JsonSerializer.Serialize(new
         {
             states = new[]
@@ -55,9 +72,9 @@ public sealed class SkillsCatalogServiceTests
                 }
             }
         });
-        await File.WriteAllTextAsync(Path.Combine(scope.RootPath, "config", "skills-state.json"), statesJson);
+        await File.WriteAllTextAsync(GetSkillStatesPath(scope.RootPath), statesJson);
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
 
         var result = await service.RollbackInstalledSkillAsync(WorkspaceProfiles.GlobalId, "demo-skill", selectedBackupDirectory);
 
@@ -89,7 +106,7 @@ public sealed class SkillsCatalogServiceTests
             }
             """);
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
 
         var snapshot = await service.LoadAsync();
 
@@ -144,7 +161,7 @@ public sealed class SkillsCatalogServiceTests
                 WriteIndented = true
             }));
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
 
         var result = await service.RunDueScheduledUpdatesAsync();
 
@@ -165,7 +182,7 @@ public sealed class SkillsCatalogServiceTests
         var sourceRoot = Path.Combine(scope.RootPath, "source-root");
         var sourceCatalogRoot = Path.Combine(sourceRoot, "catalog");
         var sourceSkillDirectory = Path.Combine(sourceCatalogRoot, "demo-skill");
-        var installDirectory = Path.Combine(scope.RootPath, "skills", "global", "demo-skill");
+        var installDirectory = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.GlobalId), "demo-skill");
         Directory.CreateDirectory(sourceSkillDirectory);
         Directory.CreateDirectory(installDirectory);
 
@@ -179,7 +196,7 @@ public sealed class SkillsCatalogServiceTests
         await File.WriteAllTextAsync(Path.Combine(installDirectory, "delete.txt"), "baseline-delete");
         await File.WriteAllTextAsync(Path.Combine(installDirectory, "conflict.txt"), "baseline-conflict");
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
         var saveSourceResult = await service.SaveSourceAsync(
             null,
             (string?)null,
@@ -373,7 +390,7 @@ public sealed class SkillsCatalogServiceTests
                 }
             }));
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
 
         var snapshot = await service.LoadAsync();
         Assert.Equal(2, snapshot.Sources.Count(item => item.LocalName == "shared-source"));
@@ -389,14 +406,74 @@ public sealed class SkillsCatalogServiceTests
     }
 
     [Fact]
-    public async Task SaveSkillBindingsAsync_Fans_Out_And_Removes_Profile_Copies()
+    public async Task LoadAsync_Includes_Unbound_Library_Skills()
     {
         using var scope = new TestHubRootScope();
-        var globalSkillDirectory = Path.Combine(scope.RootPath, "skills", "global", "demo-skill");
+        var librarySkillDirectory = Path.Combine(GetSkillLibraryRoot(scope.RootPath), "demo-skill");
+        Directory.CreateDirectory(librarySkillDirectory);
+        await File.WriteAllTextAsync(Path.Combine(librarySkillDirectory, "SKILL.md"), "demo");
+
+        var service = CreateService(scope.RootPath);
+
+        var snapshot = await service.LoadAsync();
+
+        var skill = Assert.Single(snapshot.InstalledSkills);
+        Assert.Equal("library", skill.Profile);
+        Assert.Equal("未绑定", skill.ProfileDisplayName);
+        Assert.Empty(skill.BindingProfileIds);
+        Assert.Equal(new[] { "未绑定" }, skill.BindingDisplayTags);
+        Assert.Equal("未绑定", skill.BindingSummaryDisplay);
+        Assert.Equal("demo-skill", skill.RelativePath);
+    }
+
+    [Fact]
+    public async Task LoadAsync_Aggregates_MultiBound_Skill_Into_One_Record()
+    {
+        using var scope = new TestHubRootScope();
+        var globalSkillDirectory = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.GlobalId), "demo-skill");
         Directory.CreateDirectory(globalSkillDirectory);
         await File.WriteAllTextAsync(Path.Combine(globalSkillDirectory, "SKILL.md"), "demo");
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
+        await service.SaveInstallAsync(new SkillInstallRecord
+        {
+            Name = "demo-skill",
+            Profile = WorkspaceProfiles.GlobalId,
+            InstalledRelativePath = "demo-skill",
+            CustomizationMode = SkillCustomizationMode.Local
+        });
+
+        var bindResult = await service.SaveSkillBindingsAsync(
+            WorkspaceProfiles.GlobalId,
+            "demo-skill",
+            new[] { WorkspaceProfiles.GlobalId, WorkspaceProfiles.FrontendId });
+
+        Assert.True(bindResult.Success, bindResult.Details);
+
+        var snapshot = await service.LoadAsync();
+
+        var skill = Assert.Single(snapshot.InstalledSkills.Where(item => item.RelativePath == "demo-skill"));
+        Assert.Equal(WorkspaceProfiles.GlobalId, skill.Profile);
+        Assert.Equal(
+            new[] { WorkspaceProfiles.GlobalId, WorkspaceProfiles.FrontendId },
+            skill.BindingProfileIds.OrderBy(SortProfileId).ToArray());
+        Assert.Equal(
+            new[] { WorkspaceProfiles.GlobalDisplayName, WorkspaceProfiles.FrontendDisplayName },
+            skill.BindingDisplayTags.OrderBy(SortProfileDisplay).ToArray());
+        Assert.Contains(WorkspaceProfiles.GlobalDisplayName, skill.BindingSummaryDisplay, StringComparison.Ordinal);
+        Assert.Contains(WorkspaceProfiles.FrontendDisplayName, skill.BindingSummaryDisplay, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SaveSkillBindingsAsync_Fans_Out_And_Removes_Profile_Copies()
+    {
+        using var scope = new TestHubRootScope();
+        var globalSkillDirectory = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.GlobalId), "demo-skill");
+        Directory.CreateDirectory(globalSkillDirectory);
+        await File.WriteAllTextAsync(Path.Combine(globalSkillDirectory, "SKILL.md"), "demo");
+
+        var recorder = new RecordingWorkspaceAutomationService();
+        var service = CreateService(scope.RootPath, recorder);
         await service.SaveInstallAsync(new SkillInstallRecord
         {
             Name = "demo-skill",
@@ -412,25 +489,28 @@ public sealed class SkillsCatalogServiceTests
             new[] { WorkspaceProfiles.GlobalId, WorkspaceProfiles.FrontendId });
 
         Assert.True(bindResult.Success, bindResult.Details);
-        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "frontend", "demo-skill", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.FrontendId), "demo-skill", "SKILL.md")));
 
         var snapshot = await service.LoadAsync();
-        Assert.Contains(snapshot.InstalledSkills, item => item.Profile == WorkspaceProfiles.FrontendId && item.RelativePath == "demo-skill");
+        var skill = Assert.Single(snapshot.InstalledSkills.Where(item => item.RelativePath == "demo-skill"));
+        Assert.Contains(WorkspaceProfiles.FrontendId, skill.BindingProfileIds, StringComparer.OrdinalIgnoreCase);
 
         var removeResult = await service.SaveSkillBindingsAsync(
             WorkspaceProfiles.GlobalId,
             "demo-skill",
-            new[] { WorkspaceProfiles.GlobalId });
+            Array.Empty<string>());
 
         Assert.True(removeResult.Success, removeResult.Details);
-        Assert.False(Directory.Exists(Path.Combine(scope.RootPath, "skills", "frontend", "demo-skill")));
+        Assert.True(File.Exists(Path.Combine(GetSkillLibraryRoot(scope.RootPath), "demo-skill", "SKILL.md")));
+        Assert.False(Directory.Exists(Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.FrontendId), "demo-skill")));
+        Assert.True(recorder.ApplyGlobalLinksCallCount > 0);
     }
 
     [Fact]
     public async Task SaveSkillGroupBindingsAsync_Replicates_Repository_Folder()
     {
         using var scope = new TestHubRootScope();
-        var repoRoot = Path.Combine(scope.RootPath, "skills", "global", "superpowers");
+        var repoRoot = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.GlobalId), "superpowers");
         var brainstormingDirectory = Path.Combine(repoRoot, "brainstorming");
         var dispatchingDirectory = Path.Combine(repoRoot, "dispatching-parallel-agents");
         Directory.CreateDirectory(brainstormingDirectory);
@@ -439,7 +519,7 @@ public sealed class SkillsCatalogServiceTests
         await File.WriteAllTextAsync(Path.Combine(brainstormingDirectory, "SKILL.md"), "brainstorming");
         await File.WriteAllTextAsync(Path.Combine(dispatchingDirectory, "SKILL.md"), "dispatching");
 
-        var service = new SkillsCatalogService(new FixedHubRootLocator(scope.RootPath));
+        var service = CreateService(scope.RootPath);
         await service.SaveInstallAsync(new SkillInstallRecord
         {
             Name = "brainstorming",
@@ -461,13 +541,88 @@ public sealed class SkillsCatalogServiceTests
             new[] { WorkspaceProfiles.GlobalId, WorkspaceProfiles.BackendId });
 
         Assert.True(result.Success, result.Details);
-        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "backend", "superpowers", "README.md")));
-        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "backend", "superpowers", "brainstorming", "SKILL.md")));
-        Assert.True(File.Exists(Path.Combine(scope.RootPath, "skills", "backend", "superpowers", "dispatching-parallel-agents", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.BackendId), "superpowers", "README.md")));
+        Assert.True(File.Exists(Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.BackendId), "superpowers", "brainstorming", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.BackendId), "superpowers", "dispatching-parallel-agents", "SKILL.md")));
 
         var snapshot = await service.LoadAsync();
-        Assert.Contains(snapshot.InstalledSkills, item => item.Profile == WorkspaceProfiles.BackendId && item.RelativePath == "superpowers/brainstorming");
-        Assert.Contains(snapshot.InstalledSkills, item => item.Profile == WorkspaceProfiles.BackendId && item.RelativePath == "superpowers/dispatching-parallel-agents");
+        Assert.Contains(snapshot.InstalledSkills, item =>
+            item.RelativePath == "superpowers/brainstorming"
+            && item.BindingProfileIds.Contains(WorkspaceProfiles.BackendId, StringComparer.OrdinalIgnoreCase));
+        Assert.Contains(snapshot.InstalledSkills, item =>
+            item.RelativePath == "superpowers/dispatching-parallel-agents"
+            && item.BindingProfileIds.Contains(WorkspaceProfiles.BackendId, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SaveInstallAsync_Reapplies_Onboarded_Project_Profile_For_NonGlobal_Skills()
+    {
+        using var scope = new TestHubRootScope();
+        var projectPath = Path.Combine(scope.RootPath, "project");
+        Directory.CreateDirectory(projectPath);
+
+        var settingsStore = new JsonHubSettingsStore(scope.RootPath);
+        await settingsStore.SaveAsync(new HubSettingsRecord
+        {
+            HubRoot = scope.RootPath,
+            OnboardedProjectPaths = new[] { projectPath }
+        });
+
+        var projectRegistry = new JsonProjectRegistry(scope.RootPath);
+        await projectRegistry.SaveAllAsync(new[]
+        {
+            new ProjectRecord("demo", projectPath, WorkspaceProfiles.FrontendId)
+        });
+
+        var automation = new RecordingWorkspaceAutomationService();
+        var service = new SkillsCatalogService(
+            new FixedHubRootLocator(scope.RootPath),
+            _ => settingsStore,
+            _ => projectRegistry,
+            automation);
+
+        var installDirectory = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.FrontendId), "demo-skill");
+        Directory.CreateDirectory(installDirectory);
+        await File.WriteAllTextAsync(Path.Combine(installDirectory, "SKILL.md"), "demo");
+
+        var result = await service.SaveInstallAsync(new SkillInstallRecord
+        {
+            Name = "demo-skill",
+            Profile = WorkspaceProfiles.FrontendId,
+            InstalledRelativePath = "demo-skill"
+        });
+
+        Assert.True(result.Success, result.Details);
+        Assert.Equal(1, automation.ApplyGlobalLinksCallCount);
+        Assert.Equal(1, automation.ApplyProjectProfileCallCount);
+        Assert.Equal(projectPath, automation.LastAppliedProjectPath);
+        Assert.Equal(WorkspaceProfiles.FrontendId, automation.LastAppliedProjectProfile);
+    }
+
+    [Fact]
+    public async Task LoadAsync_Migrates_Legacy_Custom_Profiles_From_Settings_And_Manifest_Files()
+    {
+        using var scope = new TestHubRootScope();
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "settings"));
+        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "manifest"));
+
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "claude", "settings", "data-ops.settings.json"),
+            "{}");
+        await File.WriteAllTextAsync(
+            Path.Combine(scope.RootPath, "mcp", "manifest", "research.json"),
+            """
+            {
+              "mcpServers": {}
+            }
+            """);
+
+        var service = CreateService(scope.RootPath);
+
+        _ = await service.LoadAsync();
+
+        Assert.True(Directory.Exists(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops")));
+        Assert.True(Directory.Exists(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "research")));
     }
 
     private static void InitializeGitRepository(string repositoryPath)
@@ -505,4 +660,20 @@ public sealed class SkillsCatalogServiceTests
 
         Assert.True(process.ExitCode == 0, string.IsNullOrWhiteSpace(standardError) ? standardOutput : standardError);
     }
+
+    private static int SortProfileId(string profileId) => profileId switch
+    {
+        var value when string.Equals(value, WorkspaceProfiles.GlobalId, StringComparison.OrdinalIgnoreCase) => 0,
+        var value when string.Equals(value, WorkspaceProfiles.FrontendId, StringComparison.OrdinalIgnoreCase) => 1,
+        var value when string.Equals(value, WorkspaceProfiles.BackendId, StringComparison.OrdinalIgnoreCase) => 2,
+        _ => 10
+    };
+
+    private static int SortProfileDisplay(string displayName) => displayName switch
+    {
+        var value when string.Equals(value, WorkspaceProfiles.GlobalDisplayName, StringComparison.OrdinalIgnoreCase) => 0,
+        var value when string.Equals(value, WorkspaceProfiles.FrontendDisplayName, StringComparison.OrdinalIgnoreCase) => 1,
+        var value when string.Equals(value, WorkspaceProfiles.BackendDisplayName, StringComparison.OrdinalIgnoreCase) => 2,
+        _ => 10
+    };
 }

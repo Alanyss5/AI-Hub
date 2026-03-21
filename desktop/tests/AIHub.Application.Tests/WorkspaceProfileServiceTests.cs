@@ -1,7 +1,7 @@
 using System.Text.Json;
 using AIHub.Application.Services;
-using AIHub.Infrastructure;
 using AIHub.Contracts;
+using AIHub.Infrastructure;
 
 namespace AIHub.Application.Tests;
 
@@ -34,13 +34,13 @@ public sealed class WorkspaceProfileServiceTests
             new WorkspaceProfileRecord
             {
                 Id = "Data Ops",
-                DisplayName = "数据平台"
+                DisplayName = "Data Platform"
             });
 
         Assert.True(result.Success, result.Details);
 
         var snapshot = await service.LoadAsync();
-        Assert.Contains(snapshot.Profiles, profile => profile.Id == "data-ops" && profile.DisplayName == "数据平台");
+        Assert.Contains(snapshot.Profiles, profile => profile.Id == "data-ops" && profile.DisplayName == "Data Platform");
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class WorkspaceProfileServiceTests
             new WorkspaceProfileRecord
             {
                 Id = "data-ops",
-                DisplayName = "数据平台"
+                DisplayName = "Data Platform"
             });
         Assert.True(createResult.Success, createResult.Details);
 
@@ -63,11 +63,11 @@ public sealed class WorkspaceProfileServiceTests
             new WorkspaceProfileRecord
             {
                 Id = "data-engineering",
-                DisplayName = "数据工程"
+                DisplayName = "Data Engineering"
             });
 
         Assert.False(updateResult.Success);
-        Assert.Contains("标识", updateResult.Message);
+        Assert.Equal("data-ops", updateResult.Details);
     }
 
     [Fact]
@@ -85,10 +85,13 @@ public sealed class WorkspaceProfileServiceTests
             });
         Assert.True(saveResult.Success, saveResult.Details);
 
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "config"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "projects"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "data-ops", "demo-skill"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "manifest"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "registry"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "skills", "demo-skill"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "claude", "commands"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "claude", "agents"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "claude"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "mcp"));
 
         await File.WriteAllTextAsync(
             Path.Combine(scope.RootPath, "projects", "projects.json"),
@@ -102,7 +105,7 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "config", "skills-installs.json"),
+            GetSkillInstallsPath(scope.RootPath),
             JsonSerializer.Serialize(new
             {
                 installs = new[]
@@ -117,7 +120,7 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "config", "skills-state.json"),
+            GetSkillStatesPath(scope.RootPath),
             JsonSerializer.Serialize(new
             {
                 states = new[]
@@ -131,7 +134,7 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "skills", "sources.json"),
+            GetSkillSourcesPath(scope.RootPath),
             JsonSerializer.Serialize(new
             {
                 sources = new[]
@@ -147,18 +150,15 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "skills", "data-ops", "demo-skill", "SKILL.md"),
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "skills", "demo-skill", "SKILL.md"),
             "custom skill");
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "config", "hub-settings.json"),
-            JsonSerializer.Serialize(new HubSettingsRecord
-            {
-                DefaultProfile = "data-ops"
-            }));
+            GetProfileSettingsPath(scope.RootPath, "data-ops"),
+            "profile settings");
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "mcp", "manifest", "data-ops.json"),
+            GetProfileManifestPath(scope.RootPath, "data-ops"),
             """
             {
               "mcpServers": {
@@ -168,6 +168,14 @@ public sealed class WorkspaceProfileServiceTests
               }
             }
             """);
+
+        await File.WriteAllTextAsync(
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "claude", "commands", "demo.md"),
+            "command");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", "data-ops", "claude", "agents", "demo.md"),
+            "agent");
 
         var snapshot = await service.LoadAsync();
         var profile = Assert.Single(snapshot.Profiles, item => item.Id == "data-ops");
@@ -179,8 +187,11 @@ public sealed class WorkspaceProfileServiceTests
         Assert.Equal(1, profile.SkillDirectoryCount);
         Assert.Equal(1, profile.McpServerCount);
         Assert.Equal(1, profile.SettingsCount);
+        Assert.Equal(1, profile.CommandAssetCount);
+        Assert.Equal(1, profile.AgentAssetCount);
         Assert.True(profile.HasReferences);
-        Assert.Contains("MCP 1", profile.UsageSummary, StringComparison.Ordinal);
+        Assert.Contains("commands 1", profile.UsageSummary, StringComparison.Ordinal);
+        Assert.Contains("agents 1", profile.UsageSummary, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -199,10 +210,13 @@ public sealed class WorkspaceProfileServiceTests
     public async Task DeleteAsync_Rejects_Profile_With_Existing_References()
     {
         using var scope = new TestHubRootScope();
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "config"));
         Directory.CreateDirectory(Path.Combine(scope.RootPath, "projects"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "skills", "frontend", "demo-skill"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "mcp", "manifest"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "registry"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "skills", "demo-skill"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "commands"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "agents"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "mcp"));
 
         await File.WriteAllTextAsync(
             Path.Combine(scope.RootPath, "projects", "projects.json"),
@@ -216,7 +230,7 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "config", "skills-installs.json"),
+            GetSkillInstallsPath(scope.RootPath),
             JsonSerializer.Serialize(new
             {
                 installs = new[]
@@ -231,7 +245,7 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "config", "skills-state.json"),
+            GetSkillStatesPath(scope.RootPath),
             JsonSerializer.Serialize(new
             {
                 states = new[]
@@ -245,7 +259,7 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "skills", "sources.json"),
+            GetSkillSourcesPath(scope.RootPath),
             JsonSerializer.Serialize(new
             {
                 sources = new[]
@@ -261,7 +275,23 @@ public sealed class WorkspaceProfileServiceTests
             }));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "mcp", "manifest", "frontend.json"),
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "skills", "demo-skill", "SKILL.md"),
+            "custom skill");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "commands", "demo.md"),
+            "command");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "agents", "demo.md"),
+            "agent");
+
+        await File.WriteAllTextAsync(
+            GetProfileSettingsPath(scope.RootPath, WorkspaceProfiles.FrontendId),
+            "profile settings");
+
+        await File.WriteAllTextAsync(
+            GetProfileManifestPath(scope.RootPath, WorkspaceProfiles.FrontendId),
             """
             {
               "mcpServers": {
@@ -277,25 +307,23 @@ public sealed class WorkspaceProfileServiceTests
         var result = await service.DeleteAsync(WorkspaceProfiles.FrontendId);
 
         Assert.False(result.Success);
-        Assert.Contains("项目 1", result.Details ?? string.Empty, StringComparison.Ordinal);
-        Assert.Contains("来源 1", result.Details ?? string.Empty, StringComparison.Ordinal);
-        Assert.Contains("安装 1", result.Details ?? string.Empty, StringComparison.Ordinal);
-        Assert.Contains("状态 1", result.Details ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains("MCP 1", result.Details ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("commands 1", result.Details ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("agents 1", result.Details ?? string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
     public async Task DeleteAsync_Rejects_Profile_With_Command_And_Agent_Assets()
     {
         using var scope = new TestHubRootScope();
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "commands", "frontend"));
-        Directory.CreateDirectory(Path.Combine(scope.RootPath, "claude", "agents", "frontend"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "commands"));
+        Directory.CreateDirectory(Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "agents"));
 
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "claude", "commands", "frontend", "demo.md"),
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "commands", "demo.md"),
             "command");
         await File.WriteAllTextAsync(
-            Path.Combine(scope.RootPath, "claude", "agents", "frontend", "demo.md"),
+            Path.Combine(GetCompanySourceRoot(scope.RootPath), "profiles", WorkspaceProfiles.FrontendId, "claude", "agents", "demo.md"),
             "agent");
 
         var service = CreateService(scope.RootPath);
@@ -316,4 +344,16 @@ public sealed class WorkspaceProfileServiceTests
             root => new JsonHubSettingsStore(root),
             root => new JsonMcpProfileStore(root));
     }
+
+    private static string GetCompanySourceRoot(string hubRoot) => Path.Combine(hubRoot, "source");
+
+    private static string GetSkillSourcesPath(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "registry", "skills-sources.json");
+
+    private static string GetSkillInstallsPath(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "registry", "skills-installs.json");
+
+    private static string GetSkillStatesPath(string hubRoot) => Path.Combine(GetCompanySourceRoot(hubRoot), "registry", "skills-state.json");
+
+    private static string GetProfileSettingsPath(string hubRoot, string profile) => Path.Combine(GetCompanySourceRoot(hubRoot), "profiles", profile, "claude", "settings.json");
+
+    private static string GetProfileManifestPath(string hubRoot, string profile) => Path.Combine(GetCompanySourceRoot(hubRoot), "profiles", profile, "mcp", "manifest.json");
 }

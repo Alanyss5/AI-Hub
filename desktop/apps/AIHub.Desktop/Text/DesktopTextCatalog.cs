@@ -1,4 +1,4 @@
-using AIHub.Contracts;
+﻿using AIHub.Contracts;
 
 namespace AIHub.Desktop.Text;
 
@@ -9,6 +9,8 @@ public sealed class DesktopTextCatalog
     public ShellText Shell { get; } = new();
 
     public ProjectsText Projects { get; } = new();
+
+    public WorkspaceText Workspace { get; } = new();
 
     public SkillsText Skills { get; } = new();
 
@@ -24,6 +26,8 @@ public sealed class DesktopTextCatalog
 
     public sealed class ShellText
     {
+        public string WorkspaceTabHeader => "工作区";
+
         public string AppTitle => "AI-Hub 控制台";
 
         public string HeroTitle => "AI-Hub 控制台";
@@ -67,9 +71,56 @@ public sealed class DesktopTextCatalog
         public string VersionDisplay(string version) => "版本 " + version;
     }
 
+    public sealed class WorkspaceText
+    {
+        public string TabHeader => "Workspace";
+
+        public string ProjectSectionTitle => "项目接管";
+
+        public string GlobalSectionTitle => "全局工作区";
+
+        public string DiagnosticsSectionTitle => "技术诊断";
+
+        public string CurrentProjectLabel => "当前项目";
+
+        public string CurrentScopeLabel => "当前作用域";
+
+        public string ProjectStatusLabel => "当前状态";
+
+        public string ProjectNoSelectionStatus => "未选择项目";
+
+        public string ProjectNotOnboardedStatus => "未接管";
+
+        public string ProjectLegacyStatus => "旧式直连";
+
+        public string ProjectIncompleteStatus => "需要修复";
+
+        public string ProjectHealthyStatus => "状态正常";
+
+        public string ProjectStartButton => "开始项目接管";
+
+        public string ProjectUpgradeButton => "切换到新版接管";
+
+        public string ProjectRepairButton => "修复项目接管";
+
+        public string ProjectReapplyButton => "重新应用项目接管";
+
+        public string ProjectRescanButton => "重新扫描项目";
+
+        public string GlobalApplyButton => "应用全局工作区";
+
+        public string GlobalRescanButton => "重新扫描全局工作区";
+
+        public string ScopeProjectButton => "项目范围";
+
+        public string ScopeGlobalButton => "全局范围";
+
+        public string DiagnosticsHint => "需要排查工作区问题时，可在这里查看入口、路径和缺失项。";
+    }
+
     public sealed class ProjectsText
     {
-        public string TabHeader => "项目与 Profile";
+        public string TabHeader => "项目";
 
         public string ListTitle => "项目列表";
 
@@ -160,7 +211,7 @@ public sealed class DesktopTextCatalog
 
         public string PathWatermark => "可选；记录来源中的目录或技能路径";
 
-        public string ReferenceLabel => "Reference";
+        public string ReferenceLabel => "引用";
 
                 public string VersionTrackingFollowLatestStableTagOption => "跟踪最新稳定标签";
 
@@ -298,7 +349,7 @@ public sealed class DesktopTextCatalog
 
     public sealed class McpText
     {
-        public string TabHeader => "MCP 管理";
+        public string TabHeader => "MCP";
 
         public string RuntimeOverviewTitle => "运行中心概览";
 
@@ -630,6 +681,12 @@ public sealed class DesktopTextCatalog
         public string NotGenerated => "未生成";
 
         public string ConfigNotGenerated => "尚未生成配置。";
+
+        public string SelectSkillGroupFirst => "请先选择要保存绑定的 Skill 组。";
+
+        public string NoSkillGroupSourceProfile => "当前 Skill 组没有可用的源分类。";
+
+        public string SelectOrEnterMcpServerName => "请先选择一个 MCP Server，或输入要保存的名称。";
 
         public string NoManagedProcessSelected => "未选择托管进程。";
 

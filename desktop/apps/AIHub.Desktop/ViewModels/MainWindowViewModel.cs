@@ -119,8 +119,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SaveProjectCommand = new AsyncDelegateCommand(SaveProjectAsync, CanUseWorkspace);
         DeleteSelectedProjectCommand = new AsyncDelegateCommand(DeleteSelectedProjectAsync, CanUseSelectedProject);
         ApplyGlobalLinksCommand = new AsyncDelegateCommand(ApplyGlobalLinksAsync, CanUseWorkspace);
-        ApplyProjectProfileCommand = new AsyncDelegateCommand(ApplyProjectProfileAsync, CanUseWorkspace);
-        SetCurrentProjectCommand = new AsyncDelegateCommand(SetCurrentProjectAsync, CanUseWorkspace);
+        ApplyProjectProfileCommand = new AsyncDelegateCommand(ApplyProjectProfileAsync, CanUseSelectedWorkspaceProject);
+        SetCurrentProjectCommand = new AsyncDelegateCommand(SetCurrentProjectAsync, CanUseSelectedWorkspaceProject);
         ClearFormCommand = new AsyncDelegateCommand(ClearFormAsync, () => !IsBusy);
         SaveMcpManifestCommand = new AsyncDelegateCommand(SaveMcpManifestAsync, CanUseMcp);
         GenerateMcpConfigsCommand = new AsyncDelegateCommand(GenerateMcpConfigsAsync, CanUseMcp);
@@ -147,7 +147,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SaveHubRootCommand = new AsyncDelegateCommand(SaveHubRootAsync, CanUseWorkspace);
         SaveAutomationSettingsCommand = new AsyncDelegateCommand(SaveAutomationSettingsAsync, CanUseWorkspace);
         SwitchToGlobalScopeCommand = new AsyncDelegateCommand(SwitchToGlobalScopeAsync, CanUseWorkspace);
-        SwitchToSelectedProjectScopeCommand = new AsyncDelegateCommand(SwitchToSelectedProjectScopeAsync, CanUseWorkspace);
+        SwitchToSelectedProjectScopeCommand = new AsyncDelegateCommand(SwitchToSelectedProjectScopeAsync, CanUseSelectedWorkspaceProject);
         InitializeFileDialogCommands();
         InitializeMaintenanceState();
         InitializeAdvancedCommands();
@@ -721,6 +721,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private bool CanUseSelectedProject() => !IsBusy && _workspaceControlService is not null && SelectedProject is not null;
 
+    private bool CanUseSelectedWorkspaceProject()
+        => !IsBusy
+           && _workspaceControlService is not null
+           && SelectedProject is not null
+           && Directory.Exists(SelectedProject.Path)
+           && !HasProjectProfileValidationWarning;
+
     private bool CanUseMcp() => !IsBusy && _mcpControlService is not null;
 
     private bool CanUseSkills() => !IsBusy && _skillsCatalogService is not null;
@@ -795,16 +802,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task ApplyProjectProfileAsync()
     {
-        if (!TryBuildDraftProject(out var project, out var validationError))
+        if (!TryResolveSelectedProjectForWorkspaceAction(out var project, out var validationError))
         {
             SetOperation(false, validationError, string.Empty);
-            return;
-        }
-
-        if (TryCreateSelectedProjectPathMismatchNotice(project.Path, out var notice))
-        {
-            SetOperation(false, Text.State.ProjectPathMismatchBlocked, notice.Details);
-            await ShowNoticeAsync(notice);
             return;
         }
 
@@ -813,34 +813,28 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task SetCurrentProjectAsync()
     {
-        if (!TryBuildDraftProject(out var project, out var validationError))
+        if (!TryResolveSelectedProjectForWorkspaceAction(out var project, out var validationError))
         {
             SetOperation(false, validationError, string.Empty);
             return;
         }
 
-        if (TryCreateSelectedProjectPathMismatchNotice(project.Path, out var notice))
+        if (project is null)
         {
-            SetOperation(false, Text.State.ProjectPathMismatchBlocked, notice.Details);
-            await ShowNoticeAsync(notice);
+            SetOperation(false, Text.State.WorkspaceBindingNotSelected, string.Empty);
             return;
         }
 
+        var selectedProject = project;
         await RunBusyAsync(async () =>
         {
-            var saveResult = await _workspaceControlService!.SaveProjectAsync(project, SelectedProject?.Path);
-            if (!saveResult.Success)
-            {
-                ApplyOperationResult(saveResult);
-                return;
-            }
-
-            var result = await _workspaceControlService.SetCurrentProjectAsync(project);
+            var result = await _workspaceControlService!.SetCurrentProjectAsync(selectedProject);
             ApplyOperationResult(result);
 
             if (result.Success)
             {
-                await ReloadAllAsync(project.Path, SelectedMcpProfile?.Profile, SelectedManagedProcess?.Name);
+                await ReloadAllAsync(selectedProject.Path, SelectedMcpProfile?.Profile, SelectedManagedProcess?.Name);
+                SyncSkillFilterToCurrentScope(force: true);
             }
         });
     }
@@ -1167,14 +1161,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             if (result.Success)
             {
-                await LoadWorkspaceAsync(null);
+                await ReloadAllAsync(null, WorkspaceProfiles.GlobalId, SelectedManagedProcess?.Name);
+                SyncSkillFilterToCurrentScope(force: true);
             }
         });
     }
 
     private async Task SwitchToSelectedProjectScopeAsync()
     {
-        if (!TryResolveProjectForScopeSwitch(out var project, out var validationError))
+        if (!TryResolveSelectedProjectForWorkspaceAction(out var project, out var validationError))
         {
             SetOperation(false, validationError, string.Empty);
             return;
@@ -1187,7 +1182,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             if (result.Success)
             {
-                await LoadWorkspaceAsync(project.Path);
+                await ReloadAllAsync(project.Path, project.Profile, SelectedManagedProcess?.Name);
+                SyncSkillFilterToCurrentScope(force: true);
             }
         });
     }
@@ -1280,7 +1276,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         var defaultProfiles = WorkspaceProfiles.CreateDefaultCatalog()
-            .Select((profile, index) => new WorkspaceProfileDescriptor(profile, 0, 0, 0, 0, 0, 0, 0))
+            .Select((profile, index) => new WorkspaceProfileDescriptor(profile, 0, 0, 0, 0, 0, 0, 0, 0, 0))
             .ToArray();
         ApplyWorkspaceProfileSnapshot(defaultProfiles);
     }
@@ -1330,6 +1326,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             ProjectProfileValidationDisplay = "项目分类无效，请重新选择一个有效分类。";
             RaisePropertyChanged(nameof(HasProjectProfileValidationWarning));
+            RaiseCommandStates();
             return;
         }
 
@@ -1339,8 +1336,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         ProjectProfileValidationDisplay = exists
             ? string.Empty
-            : $"项目当前引用的分类“{profileId}”已不在 profile catalog 中，请重新选择后再保存或切换作用域。";
+            : $"项目当前引用的分类“{profileId}”已不在分类目录中，请重新选择后再保存或切换作用域。";
         RaisePropertyChanged(nameof(HasProjectProfileValidationWarning));
+        RaiseCommandStates();
     }
 
     private void ApplyWorkspaceSnapshot(WorkspaceSnapshot snapshot, string? preferredProjectPath)
@@ -1481,6 +1479,38 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         return TryBuildDraftProject(out project, out validationError);
+    }
+
+    private bool TryResolveSelectedProjectForWorkspaceAction(out ProjectRecord project, out string validationError)
+    {
+        project = null!;
+        validationError = string.Empty;
+
+        if (SelectedProject is null)
+        {
+            validationError = Text.State.WorkspaceBindingNotSelected;
+            return false;
+        }
+
+        if (!Directory.Exists(SelectedProject.Path))
+        {
+            validationError = Text.State.ProjectDirectoryDoesNotExist(SelectedProject.Path);
+            return false;
+        }
+
+        var normalizedProfileId = WorkspaceProfiles.NormalizeId(SelectedProject.Profile);
+        var profileExists = _workspaceProfileCatalog.Any(profile =>
+            string.Equals(profile.Id, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
+        if (!profileExists)
+        {
+            validationError = string.IsNullOrWhiteSpace(ProjectProfileValidationDisplay)
+                ? $"项目当前引用的分类“{SelectedProject.Profile}”已不在分类目录中，请重新选择后再保存或切换作用域。"
+                : ProjectProfileValidationDisplay;
+            return false;
+        }
+
+        project = SelectedProject;
+        return true;
     }
 
     private bool TryBuildManagedProcessDraft(out McpRuntimeRecord record, out string? originalName, out string validationError)
@@ -1988,3 +2018,4 @@ public sealed partial class MainWindowViewModel : ObservableObject
         return arguments.ToArray();
     }
 }
+

@@ -34,8 +34,11 @@
           <Grid ColumnDefinitions="1.1*,0.9*" ColumnSpacing="18">
             <Grid Grid.Column="0" RowDefinitions="Auto,*" RowSpacing="12">
               <StackPanel Grid.Row="0" Spacing="4">
-                <TextBlock Text="Profile Catalog" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock Text="Manage dynamic workspace profiles here. New profiles appear in project, Skills, and MCP selectors. Existing profiles only support display-name edits in this version." FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="Profile 目录" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="在这里管理动态工作区 Profile。新建的 Profile 会出现在项目、Skills 和 MCP 的选择器中；当前版本仅支持编辑已有 Profile 的显示名称。"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           TextWrapping="Wrap" />
               </StackPanel>
               <ListBox Grid.Row="1"
                        ItemsSource="{Binding WorkspaceProfileItems}"
@@ -59,25 +62,25 @@
 
             <Border Grid.Column="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="16">
               <StackPanel Spacing="12">
-                <TextBlock Text="Profile Editor" FontWeight="SemiBold" />
+                <TextBlock Text="Profile 编辑器" FontWeight="SemiBold" />
                 <StackPanel Spacing="6">
                   <TextBlock Text="Profile Id" FontWeight="SemiBold" />
-                  <TextBox Text="{Binding WorkspaceProfileIdInput}" IsReadOnly="{Binding IsWorkspaceProfileIdReadOnly}" Watermark="for example: data-platform" />
+                  <TextBox Text="{Binding WorkspaceProfileIdInput}" IsReadOnly="{Binding IsWorkspaceProfileIdReadOnly}" Watermark="例如：data-platform" />
                 </StackPanel>
                 <StackPanel Spacing="6">
-                  <TextBlock Text="Display Name" FontWeight="SemiBold" />
-                  <TextBox Text="{Binding WorkspaceProfileDisplayNameInput}" Watermark="for example: Data Platform" />
+                  <TextBlock Text="显示名称" FontWeight="SemiBold" />
+                  <TextBox Text="{Binding WorkspaceProfileDisplayNameInput}" Watermark="例如：Data Platform" />
                 </StackPanel>
                 <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Padding="12">
                   <StackPanel Spacing="6">
-                    <TextBlock Text="Usage Summary" FontWeight="SemiBold" />
+                    <TextBlock Text="使用摘要" FontWeight="SemiBold" />
                     <TextBlock Text="{Binding WorkspaceProfileUsageSummary}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
                 <WrapPanel>
-                  <Button Content="Save Profile" Command="{Binding SaveWorkspaceProfileCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
-                  <Button Content="Delete Profile" Command="{Binding DeleteWorkspaceProfileCommand}" Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
-                  <Button Content="New / Clear" Command="{Binding ClearWorkspaceProfileFormCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="保存 Profile" Command="{Binding SaveWorkspaceProfileCommand}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="删除 Profile" Command="{Binding DeleteWorkspaceProfileCommand}" Background="{DynamicResource DangerBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
+                  <Button Content="新建 / 清空" Command="{Binding ClearWorkspaceProfileFormCommand}" Background="{DynamicResource NeutralButtonBrush}" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,12,12" />
                 </WrapPanel>
               </StackPanel>
             </Border>

@@ -60,7 +60,7 @@
                         <TextBlock Text="{Binding Summary}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
                       </StackPanel>
                       <Border Grid.Column="1" Background="{DynamicResource SuccessBrush}" CornerRadius="999" Padding="10,4" VerticalAlignment="Top" IsVisible="{Binding IsComplete}">
-                        <TextBlock Text="已完成" Foreground="{DynamicResource SuccessBrush}" FontSize="12" FontWeight="SemiBold" />
+                        <TextBlock Text="已完成" Foreground="{DynamicResource AccentForegroundBrush}" FontSize="12" FontWeight="SemiBold" />
                       </Border>
                     </Grid>
                   </Border>

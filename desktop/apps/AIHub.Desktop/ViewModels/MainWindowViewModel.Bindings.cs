@@ -69,6 +69,18 @@ public sealed partial class MainWindowViewModel
         set => SetProperty(ref _mcpServerEditor, value);
     }
 
+    public string SelectedSkillBindingSummaryDisplay => SelectedInstalledSkill?.BindingSummaryDisplay ?? "未选择 Skill";
+
+    public string PendingSkillBindingSummaryDisplay => BuildBindingSummaryDisplay(SkillBindingProfiles);
+
+    public string PendingSkillBindingSaveTargetDisplay => BuildBindingSaveTargetDisplay(SkillBindingProfiles);
+
+    public string SelectedSkillGroupBindingSummaryDisplay => SelectedSkillGroup?.ProfileSummary ?? "未选择分组";
+
+    public string PendingSkillGroupBindingSummaryDisplay => BuildBindingSummaryDisplay(SkillGroupBindingProfiles);
+
+    public string PendingSkillGroupBindingSaveTargetDisplay => BuildBindingSaveTargetDisplay(SkillGroupBindingProfiles);
+
     private void InitializeBindingState()
     {
         SaveSkillBindingsCommand = new AsyncDelegateCommand(SaveSelectedSkillBindingsAsync, CanSaveSelectedSkillBindings);
@@ -80,9 +92,10 @@ public sealed partial class MainWindowViewModel
 
     private void RefreshBindingOptions()
     {
-        RefreshProfileBindingCollection(SkillBindingProfiles, SelectedInstalledSkill?.Profile);
-        RefreshProfileBindingCollection(SkillGroupBindingProfiles, SelectedSkillGroup?.ProfileIds);
+        RefreshProfileBindingCollection(SkillBindingProfiles, SelectedInstalledSkill?.BindingProfileIds);
+        RefreshProfileBindingCollection(SkillGroupBindingProfiles, SelectedSkillGroup?.BindingProfileIds);
         RefreshProfileBindingCollection(McpServerBindingProfiles, SelectedMcpServer?.ProfileIds);
+        RaiseBindingSelectionState();
     }
 
     private void RefreshProfileBindingCollection(
@@ -115,61 +128,31 @@ public sealed partial class MainWindowViewModel
                     profile.Id,
                     profile.DisplayName,
                     selected.Contains(profile.Id))));
-    }
 
-    private void RefreshSkillGroups(IEnumerable<InstalledSkillRecord> skills)
-    {
-        var groupItems = skills
-            .GroupBy(skill => GetSkillGroupRootPath(skill.RelativePath), StringComparer.OrdinalIgnoreCase)
-            .Select(group =>
-            {
-                var skillItems = group
-                    .OrderBy(skill => skill.Profile, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(skill => skill.RelativePath, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-                var profileItems = skillItems
-                    .Select(skill => new { skill.Profile, skill.ProfileDisplay })
-                    .DistinctBy(item => item.Profile, StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-
-                return new SkillFolderGroupItem(
-                    group.Key,
-                    skillItems,
-                    profileItems.Select(item => item.Profile).ToArray(),
-                    profileItems.Select(item => item.ProfileDisplay).ToArray(),
-                    skillItems.Select(skill => skill.RelativePath).ToArray());
-            })
-            .OrderBy(group => group.RelativeRootPath, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        ReplaceCollection(SkillGroups, groupItems);
-
-        var preferredGroupPath = GetSkillGroupRootPath(SelectedInstalledSkill?.RelativePath)
-            ?? SelectedSkillGroup?.RelativeRootPath;
-        SelectedSkillGroup = FindSkillGroup(groupItems, preferredGroupPath) ?? groupItems.FirstOrDefault();
+        foreach (var option in target)
+        {
+            option.PropertyChanged -= OnProfileBindingOptionChanged;
+            option.PropertyChanged += OnProfileBindingOptionChanged;
+        }
     }
 
     private void ApplySelectedSkillBindings()
     {
-        RefreshProfileBindingCollection(
-            SkillBindingProfiles,
-            SelectedInstalledSkill is null
-                ? Array.Empty<string>()
-                : _installedSkillCache
-                    .Where(skill => string.Equals(skill.RelativePath, SelectedInstalledSkill.RelativePath, StringComparison.OrdinalIgnoreCase))
-                    .Select(skill => skill.Profile));
+        RefreshProfileBindingCollection(SkillBindingProfiles, SelectedInstalledSkill?.BindingProfileIds);
+        RaiseBindingSelectionState();
     }
 
     private void ApplySelectedSkillGroup()
     {
-        RefreshProfileBindingCollection(SkillGroupBindingProfiles, SelectedSkillGroup?.ProfileIds);
+        RefreshProfileBindingCollection(SkillGroupBindingProfiles, SelectedSkillGroup?.BindingProfileIds);
+        RaiseBindingSelectionState();
     }
 
     private async Task SaveSelectedSkillBindingsAsync()
     {
         if (SelectedInstalledSkill is null)
         {
-            SetOperation(false, "请先选择一个 Skill。", string.Empty);
+            SetOperation(false, Text.State.SelectInstalledSkill, string.Empty);
             return;
         }
 
@@ -179,9 +162,10 @@ public sealed partial class MainWindowViewModel
                 .Where(option => option.IsSelected)
                 .Select(option => option.ProfileId)
                 .ToArray();
+            var sourceProfile = ResolveSkillBindingSourceProfile(SelectedInstalledSkill);
 
             var result = await _skillsCatalogService!.SaveSkillBindingsAsync(
-                SelectedInstalledSkill.Profile,
+                sourceProfile,
                 SelectedInstalledSkill.RelativePath,
                 targets);
             ApplyOperationResult(result);
@@ -196,14 +180,14 @@ public sealed partial class MainWindowViewModel
     {
         if (SelectedSkillGroup is null)
         {
-            SetOperation(false, "请先选择一个 Skill 仓库或目录。", string.Empty);
+            SetOperation(false, Text.State.SelectSkillGroupFirst, string.Empty);
             return;
         }
 
-        var sourceProfile = SelectedSkillGroup.ProfileIds.FirstOrDefault();
+        var sourceProfile = SelectedSkillGroup.SourceProfileIds.FirstOrDefault();
         if (string.IsNullOrWhiteSpace(sourceProfile))
         {
-            SetOperation(false, "当前 Skill 目录没有可复制的源分类。", string.Empty);
+            SetOperation(false, Text.State.NoSkillGroupSourceProfile, string.Empty);
             return;
         }
 
@@ -213,9 +197,10 @@ public sealed partial class MainWindowViewModel
                 .Where(option => option.IsSelected)
                 .Select(option => option.ProfileId)
                 .ToArray();
+            var effectiveSourceProfile = ResolveSkillGroupBindingSourceProfile(SelectedSkillGroup, sourceProfile);
 
             var result = await _skillsCatalogService!.SaveSkillGroupBindingsAsync(
-                sourceProfile,
+                effectiveSourceProfile,
                 SelectedSkillGroup.RelativeRootPath,
                 targets);
             ApplyOperationResult(result);
@@ -295,7 +280,7 @@ public sealed partial class MainWindowViewModel
         var serverName = string.IsNullOrWhiteSpace(McpServerName) ? SelectedMcpServer?.Name : McpServerName.Trim();
         if (string.IsNullOrWhiteSpace(serverName))
         {
-            SetOperation(false, "请先选择或输入 MCP server 名称。", string.Empty);
+            SetOperation(false, Text.State.SelectOrEnterMcpServerName, string.Empty);
             return;
         }
 
@@ -337,6 +322,90 @@ public sealed partial class MainWindowViewModel
 
     private bool CanSaveSelectedMcpServerBindings()
         => !IsBusy && _mcpControlService is not null;
+
+    private void OnProfileBindingOptionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ProfileBindingOption.IsSelected))
+        {
+            RaiseBindingSelectionState();
+        }
+    }
+
+    private void RaiseBindingSelectionState()
+    {
+        RaisePropertyChanged(nameof(SelectedSkillBindingSummaryDisplay));
+        RaisePropertyChanged(nameof(PendingSkillBindingSummaryDisplay));
+        RaisePropertyChanged(nameof(PendingSkillBindingSaveTargetDisplay));
+        RaisePropertyChanged(nameof(SelectedSkillGroupBindingSummaryDisplay));
+        RaisePropertyChanged(nameof(PendingSkillGroupBindingSummaryDisplay));
+        RaisePropertyChanged(nameof(PendingSkillGroupBindingSaveTargetDisplay));
+    }
+
+    private static string BuildBindingSummaryDisplay(IEnumerable<ProfileBindingOption> options)
+    {
+        var selected = options
+            .Where(option => option.IsSelected)
+            .Select(option => option.DisplayName)
+            .ToArray();
+
+        return selected.Length == 0 ? "未绑定" : string.Join(" / ", selected);
+    }
+
+    private static string BuildBindingSaveTargetDisplay(IEnumerable<ProfileBindingOption> options)
+    {
+        var selected = options
+            .Where(option => option.IsSelected)
+            .Select(option => option.DisplayName)
+            .ToArray();
+
+        return selected.Length == 0
+            ? "保存后将显示为未绑定"
+            : $"保存到：{string.Join(" / ", selected)}";
+    }
+
+    private string ResolveSkillBindingSourceProfile(InstalledSkillRecord skill)
+    {
+        var availableProfiles = skill.BindingProfileIds.Count == 0
+            ? new[] { skill.Profile }
+            : skill.BindingProfileIds;
+
+        return ResolvePreferredBindingSourceProfile(availableProfiles, skill.Profile);
+    }
+
+    private string ResolveSkillGroupBindingSourceProfile(SkillFolderGroupItem group, string fallbackProfile)
+    {
+        var availableProfiles = group.BindingProfileIds.Count == 0
+            ? group.SourceProfileIds
+            : group.BindingProfileIds;
+
+        return ResolvePreferredBindingSourceProfile(availableProfiles, fallbackProfile);
+    }
+
+    private string ResolvePreferredBindingSourceProfile(IEnumerable<string> availableProfiles, string? fallbackProfile)
+    {
+        var normalizedProfiles = availableProfiles
+            .Where(profile => !string.IsNullOrWhiteSpace(profile))
+            .Select(WorkspaceProfiles.NormalizeId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var contextProfile = WorkspaceProfiles.NormalizeId(SkillsPageContext.SelectedTarget?.Project?.Profile);
+        if (normalizedProfiles.Contains(contextProfile, StringComparer.OrdinalIgnoreCase))
+        {
+            return contextProfile;
+        }
+
+        var normalizedFallback = string.IsNullOrWhiteSpace(fallbackProfile)
+            ? null
+            : WorkspaceProfiles.NormalizeId(fallbackProfile);
+        if (!string.IsNullOrWhiteSpace(normalizedFallback)
+            && normalizedProfiles.Contains(normalizedFallback, StringComparer.OrdinalIgnoreCase))
+        {
+            return normalizedFallback;
+        }
+
+        return normalizedProfiles.FirstOrDefault() ?? normalizedFallback ?? WorkspaceProfiles.GlobalId;
+    }
 
     private static string GetSkillGroupRootPath(string? relativePath)
     {

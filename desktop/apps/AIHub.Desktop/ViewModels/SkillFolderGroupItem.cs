@@ -7,14 +7,16 @@ public sealed class SkillFolderGroupItem
     public SkillFolderGroupItem(
         string relativeRootPath,
         IReadOnlyList<InstalledSkillRecord> skills,
-        IReadOnlyList<string> profileIds,
-        IReadOnlyList<string> profileDisplayNames,
+        IReadOnlyList<string> sourceProfileIds,
+        IReadOnlyList<string> bindingProfileIds,
+        IReadOnlyList<string> bindingDisplayTags,
         IReadOnlyList<string> containedSkillPaths)
     {
         RelativeRootPath = relativeRootPath;
         Skills = skills;
-        ProfileIds = profileIds;
-        ProfileDisplayNames = profileDisplayNames;
+        SourceProfileIds = sourceProfileIds;
+        BindingProfileIds = bindingProfileIds;
+        BindingDisplayTags = bindingDisplayTags;
         ContainedSkillPaths = containedSkillPaths;
     }
 
@@ -22,9 +24,11 @@ public sealed class SkillFolderGroupItem
 
     public IReadOnlyList<InstalledSkillRecord> Skills { get; }
 
-    public IReadOnlyList<string> ProfileIds { get; }
+    public IReadOnlyList<string> SourceProfileIds { get; }
 
-    public IReadOnlyList<string> ProfileDisplayNames { get; }
+    public IReadOnlyList<string> BindingProfileIds { get; }
+
+    public IReadOnlyList<string> BindingDisplayTags { get; }
 
     public IReadOnlyList<string> ContainedSkillPaths { get; }
 
@@ -32,7 +36,7 @@ public sealed class SkillFolderGroupItem
 
     public string SkillCountDisplay => $"{ContainedSkillPaths.Count} 个 Skills";
 
-    public string ProfileSummary => ProfileDisplayNames.Count == 0
-        ? "未绑定分类"
-        : string.Join("、", ProfileDisplayNames);
+    public string ProfileSummary => BindingDisplayTags.Count == 0
+        ? "未绑定"
+        : string.Join(" / ", BindingDisplayTags);
 }

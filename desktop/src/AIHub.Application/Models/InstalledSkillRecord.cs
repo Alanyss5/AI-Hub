@@ -38,15 +38,25 @@ public sealed record InstalledSkillRecord
 
     public string LastSyncDisplay { get; init; } = "尚未同步来源";
 
-    public string BackupSummaryDisplay { get; init; } = "尚无备份";
+    public string BackupSummaryDisplay { get; init; } = "暂无备份";
 
-    public string RecentBackupsDisplay { get; init; } = "尚无备份历史";
+    public string RecentBackupsDisplay { get; init; } = "暂无备份历史";
 
     public IReadOnlyList<SkillBackupRecord> BackupRecords { get; init; } = Array.Empty<SkillBackupRecord>();
+
+    public IReadOnlyList<string> BindingProfileIds { get; init; } = Array.Empty<string>();
+
+    public IReadOnlyList<string> BindingDisplayTags { get; init; } = Array.Empty<string>();
+
+    public bool IsUnbound => BindingProfileIds.Count == 0;
 
     public string ProfileDisplay => string.IsNullOrWhiteSpace(ProfileDisplayName)
         ? WorkspaceProfiles.ToDisplayName(Profile)
         : ProfileDisplayName;
+
+    public string BindingSummaryDisplay => BindingDisplayTags.Count == 0
+        ? "未绑定"
+        : string.Join(" / ", BindingDisplayTags);
 
     public string ManifestDisplay => HasManifest ? "已检测到 SKILL.md" : "目录中缺少 SKILL.md";
 
@@ -60,7 +70,7 @@ public sealed record InstalledSkillRecord
         {
             if (string.IsNullOrWhiteSpace(SourceLocalName))
             {
-                return CustomizationMode == SkillCustomizationMode.Local ? "本地技能" : "未绑定来源";
+                return CustomizationMode == SkillCustomizationMode.Local ? "本地 Skill" : "未绑定来源";
             }
 
             var profileDisplay = string.IsNullOrWhiteSpace(SourceProfile)
@@ -72,5 +82,7 @@ public sealed record InstalledSkillRecord
         }
     }
 
-    public string DirtyDisplay => HasBaseline ? (IsDirty ? "本地已修改" : "与基线一致") : "尚未建立基线";
+    public string DirtyDisplay => HasBaseline
+        ? (IsDirty ? "本地已修改" : "与基线一致")
+        : "尚未建立基线";
 }

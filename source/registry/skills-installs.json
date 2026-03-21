@@ -1,0 +1,22 @@
+{
+  "installs": [
+    {
+      "name": "sql-optimization-patterns",
+      "profile": "backend",
+      "installedRelativePath": "sql-optimization-patterns",
+      "sourceLocalName": null,
+      "sourceProfile": null,
+      "sourceSkillPath": null,
+      "customizationMode": "local"
+    },
+    {
+      "name": "sql-optimization-patterns",
+      "profile": "library",
+      "installedRelativePath": "sql-optimization-patterns",
+      "sourceLocalName": null,
+      "sourceProfile": null,
+      "sourceSkillPath": null,
+      "customizationMode": "local"
+    }
+  ]
+}

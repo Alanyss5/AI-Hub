@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AIHub.Desktop.Views.Tabs.WorkspaceTabView">
+  <ScrollViewer Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
+    <Grid ColumnDefinitions="1.05*,0.95*,1.15*" ColumnSpacing="20">
+      <Border Grid.Column="0" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
+        <StackPanel Spacing="14">
+          <TextBlock Text="{Binding Vm.Text.Workspace.ProjectSectionTitle}" FontSize="18" FontWeight="SemiBold" />
+          <StackPanel Spacing="6">
+            <TextBlock Text="{Binding Vm.Text.Workspace.CurrentProjectLabel}" FontWeight="SemiBold" />
+            <ComboBox ItemsSource="{Binding Vm.Projects}"
+                      SelectedItem="{Binding Vm.SelectedProject}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+          <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding Vm.Text.Workspace.ProjectStatusLabel}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ProjectStatusTitle}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Vm.ProjectOnboardingStatusDisplay}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Vm.ProjectWorkspaceBindingWarningDisplay}"
+                         Foreground="{DynamicResource DangerBrush}"
+                         TextWrapping="Wrap"
+                         IsVisible="{Binding Vm.HasProjectWorkspaceBindingWarning}" />
+            </StackPanel>
+          </Border>
+          <WrapPanel>
+            <Button x:Name="WorkspaceApplyProjectButton"
+                    Content="{Binding ProjectPrimaryActionLabel}"
+                    Command="{Binding Vm.ApplyProjectProfileCommand}"
+                    IsEnabled="{Binding HasSelectedProject}"
+                    Background="{DynamicResource AccentBrush}"
+                    Foreground="{DynamicResource AccentForegroundBrush}"
+                    Margin="0,0,10,10" />
+            <Button x:Name="WorkspaceRescanProjectButton"
+                    Content="{Binding Vm.Text.Workspace.ProjectRescanButton}"
+                    Command="{Binding Vm.RescanProjectOnboardingCommand}"
+                    IsEnabled="{Binding HasSelectedProject}"
+                    Background="{DynamicResource NeutralButtonBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
+                    Margin="0,0,10,10" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="1" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
+        <StackPanel Spacing="14">
+          <TextBlock Text="{Binding Vm.Text.Workspace.GlobalSectionTitle}" FontSize="18" FontWeight="SemiBold" />
+          <Border Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding Vm.Text.Workspace.CurrentScopeLabel}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding CurrentScopeTitle}" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding Vm.GlobalOnboardingStatusDisplay}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Vm.HubRootDisplay}" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+          <WrapPanel>
+            <Button x:Name="WorkspaceApplyGlobalButton"
+                    Content="{Binding Vm.Text.Workspace.GlobalApplyButton}"
+                    Command="{Binding Vm.ApplyGlobalLinksCommand}"
+                    Background="{DynamicResource SuccessBrush}"
+                    Foreground="{DynamicResource AccentForegroundBrush}"
+                    Margin="0,0,10,10" />
+            <Button x:Name="WorkspaceRescanGlobalButton"
+                    Content="{Binding Vm.Text.Workspace.GlobalRescanButton}"
+                    Command="{Binding Vm.RescanGlobalOnboardingCommand}"
+                    Background="{DynamicResource NeutralButtonBrush}"
+                    Foreground="{DynamicResource TextPrimaryBrush}"
+                    Margin="0,0,10,10" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="2" Background="{DynamicResource SurfaceBrush}" CornerRadius="20" Padding="20">
+        <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+          <StackPanel Spacing="4">
+            <TextBlock Text="{Binding Vm.Text.Workspace.DiagnosticsSectionTitle}" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding Vm.Text.Workspace.DiagnosticsHint}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+          </StackPanel>
+          <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" CornerRadius="16" Padding="14">
+            <StackPanel Spacing="6">
+              <TextBlock Text="{Binding Vm.RuntimeBuildIdentityDisplay}" FontWeight="SemiBold" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Vm.RuntimeExecutablePathDisplay}" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Vm.OperationSummary}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+          <TabControl Grid.Row="2" Background="Transparent">
+            <TabItem Header="项目诊断">
+              <TextBox Margin="0,8,0,0"
+                       Text="{Binding Vm.ProjectWorkspaceBindingDetails}"
+                       IsReadOnly="True"
+                       AcceptsReturn="True"
+                       TextWrapping="Wrap"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       MinHeight="260" />
+            </TabItem>
+            <TabItem Header="执行日志">
+              <TextBox Margin="0,8,0,0"
+                       Text="{Binding Vm.OperationDetails}"
+                       IsReadOnly="True"
+                       AcceptsReturn="True"
+                       TextWrapping="Wrap"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
+                       MinHeight="260" />
+            </TabItem>
+          </TabControl>
+        </Grid>
+      </Border>
+    </Grid>
+  </ScrollViewer>
+</UserControl>

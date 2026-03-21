@@ -351,10 +351,11 @@ public sealed partial class MainWindowViewModel
             ApplySelectedSkillBackups(null);
             ResetSkillMergePreview();
             ApplySelectedSkillBindings();
+            RaiseBindingSelectionState();
             return;
         }
 
-        SelectedSkillDetailsDisplay = $"{SelectedInstalledSkill.ProfileDisplay} / {SelectedInstalledSkill.RelativePath}";
+        SelectedSkillDetailsDisplay = $"路径：{SelectedInstalledSkill.RelativePath}";
         SkillInstallStatusDisplay = SelectedInstalledSkill.StatusDisplay;
         SkillInstallBaselineDisplay = SelectedInstalledSkill.BaselineDisplay;
         SkillInstallSourceDisplay = SelectedInstalledSkill.SourceDisplay;
@@ -365,6 +366,7 @@ public sealed partial class MainWindowViewModel
         ApplySelectedSkillBackups(SelectedInstalledSkill);
         ResetSkillMergePreview();
         ApplySelectedSkillBindings();
+        RaiseBindingSelectionState();
     }
 
     private void ApplySelectedSkillMode()
@@ -461,15 +463,14 @@ public sealed partial class MainWindowViewModel
         ];
     }
 
-    private static InstalledSkillRecord? FindInstalledSkill(IEnumerable<InstalledSkillRecord> items, string? relativePath, string? profileId)
+    private static InstalledSkillRecord? FindInstalledSkill(IEnumerable<InstalledSkillRecord> items, string? relativePath)
     {
-        if (string.IsNullOrWhiteSpace(relativePath) || string.IsNullOrWhiteSpace(profileId))
+        if (string.IsNullOrWhiteSpace(relativePath))
         {
             return null;
         }
 
         return items.FirstOrDefault(item =>
-            string.Equals(item.Profile, WorkspaceProfiles.NormalizeId(profileId), StringComparison.OrdinalIgnoreCase) &&
             string.Equals(item.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
     }
 }

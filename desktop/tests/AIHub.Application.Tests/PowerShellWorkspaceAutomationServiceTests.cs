@@ -1,3 +1,4 @@
+using AIHub.Contracts;
 using AIHub.Infrastructure;
 
 namespace AIHub.Application.Tests;
@@ -10,6 +11,7 @@ public sealed class PowerShellWorkspaceAutomationServiceTests
         using var hubScope = new TestHubRootScope();
         using var userHomeScope = new TestHubRootScope();
         Directory.CreateDirectory(Path.Combine(hubScope.RootPath, "mcp", "manifest"));
+        Directory.CreateDirectory(Path.Combine(hubScope.RootPath, "claude", "agents", "global"));
         await File.WriteAllTextAsync(
             Path.Combine(hubScope.RootPath, "mcp", "manifest", "global.json"),
             """
@@ -21,7 +23,6 @@ public sealed class PowerShellWorkspaceAutomationServiceTests
               }
             }
             """);
-
         var expectedEffectiveRoot = Path.Combine(hubScope.RootPath, ".runtime", "effective", WorkspaceProfiles.GlobalId);
         var scriptExecutionService = new RecordingScriptExecutionService
         {
@@ -31,10 +32,12 @@ public sealed class PowerShellWorkspaceAutomationServiceTests
                 Assert.True(Directory.Exists(Path.Combine(expectedEffectiveRoot, "skills")));
                 Assert.True(Directory.Exists(Path.Combine(expectedEffectiveRoot, "claude", "commands")));
                 Assert.True(Directory.Exists(Path.Combine(expectedEffectiveRoot, "claude", "agents")));
+                Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, ".agents", "AGENTS.md")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "claude", "settings.json")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "mcp", "claude.mcp.json")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "mcp", "codex.config.toml")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "mcp", "antigravity.mcp.json")));
+                Assert.Contains("ProfileId: global", File.ReadAllText(Path.Combine(expectedEffectiveRoot, ".agents", "AGENTS.md")), StringComparison.Ordinal);
             }
         };
         var service = new PowerShellWorkspaceAutomationService(scriptExecutionService, () => userHomeScope.RootPath);
@@ -56,6 +59,7 @@ public sealed class PowerShellWorkspaceAutomationServiceTests
         var projectPath = Path.Combine(hubScope.RootPath, "projects", "demo");
         Directory.CreateDirectory(projectPath);
         Directory.CreateDirectory(Path.Combine(hubScope.RootPath, "mcp", "manifest"));
+        Directory.CreateDirectory(Path.Combine(hubScope.RootPath, "claude", "agents", "data-ops"));
         await File.WriteAllTextAsync(
             Path.Combine(hubScope.RootPath, "mcp", "manifest", "data-ops.json"),
             """
@@ -67,7 +71,6 @@ public sealed class PowerShellWorkspaceAutomationServiceTests
               }
             }
             """);
-
         var expectedEffectiveRoot = Path.Combine(hubScope.RootPath, ".runtime", "effective", "data-ops");
         var scriptExecutionService = new RecordingScriptExecutionService
         {
@@ -77,9 +80,11 @@ public sealed class PowerShellWorkspaceAutomationServiceTests
                 Assert.True(Directory.Exists(Path.Combine(expectedEffectiveRoot, "skills")));
                 Assert.True(Directory.Exists(Path.Combine(expectedEffectiveRoot, "claude", "commands")));
                 Assert.True(Directory.Exists(Path.Combine(expectedEffectiveRoot, "claude", "agents")));
+                Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, ".agents", "AGENTS.md")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "claude", "settings.json")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "mcp", "claude.mcp.json")));
                 Assert.True(File.Exists(Path.Combine(expectedEffectiveRoot, "mcp", "codex.config.toml")));
+                Assert.Contains("ProfileId: data-ops", File.ReadAllText(Path.Combine(expectedEffectiveRoot, ".agents", "AGENTS.md")), StringComparison.Ordinal);
             }
         };
         var service = new PowerShellWorkspaceAutomationService(scriptExecutionService, () => userHomeScope.RootPath);

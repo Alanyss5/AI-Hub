@@ -57,16 +57,19 @@
         <tabs:OverviewTabView />
       </TabItem>
       <TabItem x:Name="ProjectsTab" Header="{Binding Text.Projects.TabHeader}">
-        <tabs:ProjectsTabView />
+        <tabs:ProjectsTabView DataContext="{Binding ProjectsPage}" />
+      </TabItem>
+      <TabItem x:Name="WorkspaceTab" Header="{Binding Text.Shell.WorkspaceTabHeader}">
+        <tabs:WorkspaceTabView DataContext="{Binding WorkspacePage}" />
       </TabItem>
       <TabItem x:Name="SkillsTab" Header="{Binding Text.Skills.TabHeader}">
-        <tabs:SkillsTabView />
+        <tabs:SkillsTabView DataContext="{Binding SkillsPage}" />
       </TabItem>
       <TabItem x:Name="ScriptsTab" Header="{Binding Text.Scripts.TabHeader}">
         <tabs:ScriptsTabView />
       </TabItem>
       <TabItem x:Name="McpTab" Header="{Binding Text.Mcp.TabHeader}">
-        <tabs:McpTabView />
+        <tabs:McpTabView DataContext="{Binding McpPage}" />
       </TabItem>
       <TabItem x:Name="SettingsTab" Header="{Binding Text.Settings.TabHeader}">
         <tabs:SettingsTabView />

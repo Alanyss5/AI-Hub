@@ -14,10 +14,12 @@ public sealed class JsonWorkspaceProfileCatalogStore : IWorkspaceProfileCatalogS
     };
 
     private readonly string? _hubRoot;
+    private readonly ISourcePathLayout _sourcePathLayout;
 
-    public JsonWorkspaceProfileCatalogStore(string? hubRoot)
+    public JsonWorkspaceProfileCatalogStore(string? hubRoot, ISourcePathLayout? sourcePathLayout = null)
     {
         _hubRoot = hubRoot;
+        _sourcePathLayout = sourcePathLayout ?? SourceLayoutMigrationService.DefaultLayout;
     }
 
     public Task<IReadOnlyList<WorkspaceProfileRecord>> LoadAsync(CancellationToken cancellationToken = default)
@@ -32,7 +34,13 @@ public sealed class JsonWorkspaceProfileCatalogStore : IWorkspaceProfileCatalogS
         var catalogPath = GetCatalogPath();
         if (!File.Exists(catalogPath))
         {
-            return Task.FromResult<IReadOnlyList<WorkspaceProfileRecord>>(WorkspaceProfiles.CreateDefaultCatalog());
+            var legacyPath = GetLegacyCatalogPath();
+            if (!File.Exists(legacyPath))
+            {
+                return Task.FromResult<IReadOnlyList<WorkspaceProfileRecord>>(WorkspaceProfiles.CreateDefaultCatalog());
+            }
+
+            catalogPath = legacyPath;
         }
 
         try
@@ -69,6 +77,13 @@ public sealed class JsonWorkspaceProfileCatalogStore : IWorkspaceProfileCatalogS
     }
 
     private string GetCatalogPath()
+    {
+        var sourceRoot = _sourcePathLayout.GetCompanySourceRoot(_hubRoot!);
+        Directory.CreateDirectory(_sourcePathLayout.GetRegistryRoot(sourceRoot));
+        return _sourcePathLayout.GetProfileCatalogPath(sourceRoot);
+    }
+
+    private string GetLegacyCatalogPath()
     {
         return Path.Combine(_hubRoot!, "config", "profile-catalog.json");
     }

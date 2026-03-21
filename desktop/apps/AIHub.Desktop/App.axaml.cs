@@ -40,11 +40,12 @@ public partial class App : Avalonia.Application
                 var mcpEffectiveConfigReader = new LayeredMcpEffectiveConfigReader();
                 var notificationService = new WindowsNotificationService(diagnosticsService);
                 var scriptExecutionService = new PowerShellScriptExecutionService(diagnosticsService);
+                ISourcePathLayout sourcePathLayout = new DefaultSourcePathLayout();
 
                 Func<string?, JsonProjectRegistry> projectRegistryFactory = root => new JsonProjectRegistry(root, diagnosticsService);
                 Func<string?, JsonHubSettingsStore> hubSettingsStoreFactory = root => new JsonHubSettingsStore(root, diagnosticsService);
-                Func<string?, JsonWorkspaceProfileCatalogStore> profileCatalogStoreFactory = root => new JsonWorkspaceProfileCatalogStore(root);
-                Func<string?, JsonMcpProfileStore> mcpProfileStoreFactory = root => new JsonMcpProfileStore(root, diagnosticsService);
+                Func<string?, JsonWorkspaceProfileCatalogStore> profileCatalogStoreFactory = root => new JsonWorkspaceProfileCatalogStore(root, sourcePathLayout);
+                Func<string?, JsonMcpProfileStore> mcpProfileStoreFactory = root => new JsonMcpProfileStore(root, diagnosticsService, sourcePathLayout);
                 Func<string?, JsonMcpRuntimeStore> mcpRuntimeStoreFactory = root => new JsonMcpRuntimeStore(root, diagnosticsService);
 
                 var workspaceControlService = new WorkspaceControlService(
@@ -75,10 +76,16 @@ public partial class App : Avalonia.Application
                     mcpProcessController,
                     mcpAutomationService,
                     hubSettingsStoreFactory,
+                    projectRegistryFactory,
+                    workspaceAutomationService,
                     mcpClientConfigService,
                     mcpEffectiveConfigReader);
 
-                var skillsCatalogService = new SkillsCatalogService(rootLocator, hubSettingsStoreFactory);
+                var skillsCatalogService = new SkillsCatalogService(
+                    rootLocator,
+                    hubSettingsStoreFactory,
+                    projectRegistryFactory,
+                    workspaceAutomationService);
                 var scriptCenterService = new ScriptCenterService(rootLocator, scriptExecutionService);
 
                 var mainWindow = new MainWindow();

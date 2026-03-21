@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using AIHub.Application.Abstractions;
 using AIHub.Contracts;
 using Tomlyn;
 using Tomlyn.Model;
@@ -9,6 +10,7 @@ namespace AIHub.Infrastructure;
 
 internal static class LayeredWorkspaceMaterializer
 {
+    private static readonly ISourcePathLayout SourcePathLayout = SourceLayoutMigrationService.DefaultLayout;
     private static readonly string[] DefaultProfiles =
     [
         WorkspaceProfiles.GlobalId,
@@ -57,14 +59,19 @@ internal static class LayeredWorkspaceMaterializer
     public static void EnsurePrivateLayerStructure(string? hubRoot, string personalRoot)
     {
         var normalizedPersonalRoot = Path.GetFullPath(personalRoot);
+        var personalSourceRoot = SourcePathLayout.GetPersonalSourceRoot(normalizedPersonalRoot);
         foreach (var profile in GetKnownProfiles(hubRoot).Select(WorkspaceProfiles.NormalizeId))
         {
-            Directory.CreateDirectory(Path.Combine(normalizedPersonalRoot, "skills", profile));
-            Directory.CreateDirectory(Path.Combine(normalizedPersonalRoot, "claude", "commands", profile));
-            Directory.CreateDirectory(Path.Combine(normalizedPersonalRoot, "claude", "agents", profile));
-            Directory.CreateDirectory(Path.Combine(normalizedPersonalRoot, "claude", "settings"));
-            Directory.CreateDirectory(Path.Combine(normalizedPersonalRoot, "mcp", "manifest"));
+            Directory.CreateDirectory(SourcePathLayout.GetProfileSkillsRoot(personalSourceRoot, profile));
+            Directory.CreateDirectory(SourcePathLayout.GetProfileCommandsRoot(personalSourceRoot, profile));
+            Directory.CreateDirectory(SourcePathLayout.GetProfileAgentsRoot(personalSourceRoot, profile));
+            Directory.CreateDirectory(Path.GetDirectoryName(SourcePathLayout.GetProfileSettingsPath(personalSourceRoot, profile))!);
+            Directory.CreateDirectory(Path.GetDirectoryName(SourcePathLayout.GetProfileManifestPath(personalSourceRoot, profile))!);
         }
+
+        Directory.CreateDirectory(SourcePathLayout.GetSkillsLibraryRoot(personalSourceRoot));
+        Directory.CreateDirectory(SourcePathLayout.GetMcpDraftsRoot(personalSourceRoot));
+        Directory.CreateDirectory(SourcePathLayout.GetRegistryRoot(personalSourceRoot));
     }
 
     public static EffectiveWorkspaceProfile MaterializeProfile(string hubRoot, string personalRoot, string profile)
@@ -72,6 +79,7 @@ internal static class LayeredWorkspaceMaterializer
         var normalizedHubRoot = Path.GetFullPath(hubRoot);
         var normalizedPersonalRoot = Path.GetFullPath(personalRoot);
         var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
+        SourceLayoutMigrationService.EnsureMigrated(normalizedHubRoot, normalizedPersonalRoot, GetKnownProfiles(normalizedHubRoot), SourcePathLayout);
         EnsurePrivateLayerStructure(normalizedHubRoot, normalizedPersonalRoot);
 
         var effectiveRoot = GetEffectiveProfileRoot(normalizedHubRoot, normalizedProfile);
@@ -81,10 +89,12 @@ internal static class LayeredWorkspaceMaterializer
         var commandsRoot = Path.Combine(effectiveRoot, "claude", "commands");
         var agentsRoot = Path.Combine(effectiveRoot, "claude", "agents");
         var mcpRoot = Path.Combine(effectiveRoot, "mcp");
+        var agentsBootstrapRoot = Path.Combine(effectiveRoot, ".agents");
         Directory.CreateDirectory(skillsRoot);
         Directory.CreateDirectory(commandsRoot);
         Directory.CreateDirectory(agentsRoot);
         Directory.CreateDirectory(mcpRoot);
+        Directory.CreateDirectory(agentsBootstrapRoot);
 
         foreach (var layer in BuildLayers(normalizedHubRoot, normalizedPersonalRoot, normalizedProfile))
         {
@@ -92,6 +102,9 @@ internal static class LayeredWorkspaceMaterializer
             CopyDirectoryContents(layer.CommandsRoot, commandsRoot);
             CopyDirectoryContents(layer.AgentsRoot, agentsRoot);
         }
+
+        var agentsBootstrapPath = Path.Combine(agentsBootstrapRoot, "AGENTS.md");
+        File.WriteAllText(agentsBootstrapPath, BuildAgentsBootstrapContent(normalizedProfile), new UTF8Encoding(false));
 
         var settingsContent = BuildEffectiveSettingsContent(normalizedHubRoot, normalizedPersonalRoot, normalizedProfile);
         var settingsPath = Path.Combine(effectiveRoot, "claude", "settings.json");
@@ -161,6 +174,7 @@ internal static class LayeredWorkspaceMaterializer
         string personalRoot,
         string profile)
     {
+        SourceLayoutMigrationService.EnsureMigrated(hubRoot, personalRoot, GetKnownProfiles(hubRoot), SourcePathLayout);
         var servers = new Dictionary<string, McpServerDefinitionRecord>(StringComparer.OrdinalIgnoreCase);
         foreach (var manifestPath in EnumerateManifestLayerPaths(Path.GetFullPath(hubRoot), Path.GetFullPath(personalRoot), profile))
         {
@@ -176,39 +190,43 @@ internal static class LayeredWorkspaceMaterializer
     private static IEnumerable<LayerDescriptor> BuildLayers(string hubRoot, string personalRoot, string profile)
     {
         var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
-        yield return CreateLayer(hubRoot, WorkspaceProfiles.GlobalId);
-        yield return CreateLayer(personalRoot, WorkspaceProfiles.GlobalId);
+        yield return CreateLayer(SourcePathLayout.GetCompanySourceRoot(hubRoot), WorkspaceProfiles.GlobalId);
+        yield return CreateLayer(SourcePathLayout.GetPersonalSourceRoot(personalRoot), WorkspaceProfiles.GlobalId);
 
         if (!WorkspaceProfiles.IsGlobal(normalizedProfile))
         {
-            yield return CreateLayer(hubRoot, normalizedProfile);
-            yield return CreateLayer(personalRoot, normalizedProfile);
+            yield return CreateLayer(SourcePathLayout.GetCompanySourceRoot(hubRoot), normalizedProfile);
+            yield return CreateLayer(SourcePathLayout.GetPersonalSourceRoot(personalRoot), normalizedProfile);
         }
     }
 
     private static IEnumerable<string> EnumerateSettingsLayerPaths(string hubRoot, string personalRoot, string profile)
     {
         var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
-        yield return Path.Combine(hubRoot, "claude", "settings", "global.settings.json");
-        yield return Path.Combine(personalRoot, "claude", "settings", "global.settings.json");
+        var companySourceRoot = SourcePathLayout.GetCompanySourceRoot(hubRoot);
+        var personalSourceRoot = SourcePathLayout.GetPersonalSourceRoot(personalRoot);
+        yield return SourcePathLayout.GetProfileSettingsPath(companySourceRoot, WorkspaceProfiles.GlobalId);
+        yield return SourcePathLayout.GetProfileSettingsPath(personalSourceRoot, WorkspaceProfiles.GlobalId);
 
         if (!WorkspaceProfiles.IsGlobal(normalizedProfile))
         {
-            yield return Path.Combine(hubRoot, "claude", "settings", normalizedProfile + ".settings.json");
-            yield return Path.Combine(personalRoot, "claude", "settings", normalizedProfile + ".settings.json");
+            yield return SourcePathLayout.GetProfileSettingsPath(companySourceRoot, normalizedProfile);
+            yield return SourcePathLayout.GetProfileSettingsPath(personalSourceRoot, normalizedProfile);
         }
     }
 
     private static IEnumerable<string> EnumerateManifestLayerPaths(string hubRoot, string personalRoot, string profile)
     {
         var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
-        yield return Path.Combine(hubRoot, "mcp", "manifest", "global.json");
-        yield return Path.Combine(personalRoot, "mcp", "manifest", "global.json");
+        var companySourceRoot = SourcePathLayout.GetCompanySourceRoot(hubRoot);
+        var personalSourceRoot = SourcePathLayout.GetPersonalSourceRoot(personalRoot);
+        yield return SourcePathLayout.GetProfileManifestPath(companySourceRoot, WorkspaceProfiles.GlobalId);
+        yield return SourcePathLayout.GetProfileManifestPath(personalSourceRoot, WorkspaceProfiles.GlobalId);
 
         if (!WorkspaceProfiles.IsGlobal(normalizedProfile))
         {
-            yield return Path.Combine(hubRoot, "mcp", "manifest", normalizedProfile + ".json");
-            yield return Path.Combine(personalRoot, "mcp", "manifest", normalizedProfile + ".json");
+            yield return SourcePathLayout.GetProfileManifestPath(companySourceRoot, normalizedProfile);
+            yield return SourcePathLayout.GetProfileManifestPath(personalSourceRoot, normalizedProfile);
         }
     }
 
@@ -216,9 +234,9 @@ internal static class LayeredWorkspaceMaterializer
     {
         var profileValue = WorkspaceProfiles.NormalizeId(profile);
         return new LayerDescriptor(
-            Path.Combine(root, "skills", profileValue),
-            Path.Combine(root, "claude", "commands", profileValue),
-            Path.Combine(root, "claude", "agents", profileValue));
+            SourcePathLayout.GetProfileSkillsRoot(root, profileValue),
+            SourcePathLayout.GetProfileCommandsRoot(root, profileValue),
+            SourcePathLayout.GetProfileAgentsRoot(root, profileValue));
     }
 
     private static string BuildEffectiveSettingsContent(string hubRoot, string personalRoot, string profile)
@@ -264,6 +282,25 @@ internal static class LayeredWorkspaceMaterializer
         }
 
         return target;
+    }
+
+    private static string BuildAgentsBootstrapContent(string profile)
+    {
+        var displayName = WorkspaceProfiles.ToDisplayName(profile);
+        return string.Join(Environment.NewLine, new[]
+        {
+            "# AI-Hub AGENTS Bootstrap",
+            string.Empty,
+            "Profile: " + displayName,
+            "ProfileId: " + WorkspaceProfiles.NormalizeId(profile),
+            string.Empty,
+            "Use the nearby effective workspace paths directly:",
+            "- .agents\\skills -> profile-scoped skills for this workspace",
+            "- .agents\\agents -> profile-scoped agent definitions near this bootstrap",
+            string.Empty,
+            "Keep this file lightweight.",
+            "No workflow metadata parsing, DAG, or planner lives here."
+        });
     }
 
     private static Dictionary<string, McpServerDefinitionRecord> ParseManifest(string path)
