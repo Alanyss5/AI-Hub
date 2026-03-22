@@ -78,7 +78,7 @@ public sealed class EncodingGuardTests
         Assert.Contains("Text=\"{Binding Vm.Text.Workspace.GlobalSectionTitle}\"", workspace, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding Vm.Text.Workspace.DiagnosticsSectionTitle}\"", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("Project Onboarding", workspace, StringComparison.Ordinal);
-        Assert.Contains("当前操作对象", skills, StringComparison.Ordinal);
+        Assert.Contains("当前分类", skills, StringComparison.Ordinal);
         Assert.Contains("绑定", skills, StringComparison.Ordinal);
         Assert.Contains("来源", skills, StringComparison.Ordinal);
         Assert.Contains("维护", skills, StringComparison.Ordinal);

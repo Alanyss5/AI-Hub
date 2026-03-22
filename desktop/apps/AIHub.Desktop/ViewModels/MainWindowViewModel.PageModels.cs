@@ -16,7 +16,7 @@ public sealed partial class MainWindowViewModel
 
     public WorkspaceViewModel WorkspacePage => _workspacePage ??= new WorkspaceViewModel(this);
 
-    public SkillsPageContextViewModel SkillsPageContext => _skillsPageContext ??= new SkillsPageContextViewModel(this);
+    public SkillsPageContextViewModel SkillsPageContext => _skillsPageContext ??= new SkillsPageContextViewModel(this, _workspaceProfileCatalog);
 
     public SkillsViewModel SkillsPage => _skillsPage ??= new SkillsViewModel(this, SkillsPageContext);
 

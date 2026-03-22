@@ -3,6 +3,8 @@ namespace AIHub.Desktop.ViewModels;
 public sealed partial class MainWindowViewModel
 {
     private SkillsSection _selectedSkillsSection = SkillsSection.Browse;
+    private SkillsBindingListMode _selectedSkillsBindingListMode = SkillsBindingListMode.Skill;
+    private SkillsBindingEditor _selectedSkillsBindingEditor = SkillsBindingEditor.Skill;
     private McpSection _selectedMcpSection = McpSection.Overview;
 
     public SkillsSection SelectedSkillsSection
@@ -31,6 +33,37 @@ public sealed partial class MainWindowViewModel
         }
     }
 
+    public int SelectedSkillsBindingEditorIndex
+    {
+        get => (int)_selectedSkillsBindingEditor;
+        set
+        {
+            if (value < (int)SkillsBindingEditor.Skill || value > (int)SkillsBindingEditor.SkillGroup)
+            {
+                value = (int)SkillsBindingEditor.Skill;
+            }
+
+            if (SetProperty(ref _selectedSkillsBindingEditor, (SkillsBindingEditor)value))
+            {
+                RaisePropertyChanged(nameof(SelectedBindingTargetsImpactDisplay));
+            }
+        }
+    }
+
+    public int SelectedSkillsBindingListIndex
+    {
+        get => (int)_selectedSkillsBindingListMode;
+        set
+        {
+            if (value < (int)SkillsBindingListMode.Skill || value > (int)SkillsBindingListMode.SkillGroup)
+            {
+                value = (int)SkillsBindingListMode.Skill;
+            }
+
+            SetProperty(ref _selectedSkillsBindingListMode, (SkillsBindingListMode)value);
+        }
+    }
+
     public McpSection SelectedMcpSection
     {
         get => _selectedMcpSection;
@@ -55,5 +88,17 @@ public sealed partial class MainWindowViewModel
 
             SelectedMcpSection = (McpSection)value;
         }
+    }
+
+    private enum SkillsBindingEditor
+    {
+        Skill,
+        SkillGroup
+    }
+
+    private enum SkillsBindingListMode
+    {
+        Skill,
+        SkillGroup
     }
 }

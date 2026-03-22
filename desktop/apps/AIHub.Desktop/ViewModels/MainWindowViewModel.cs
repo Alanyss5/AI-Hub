@@ -1,5 +1,6 @@
 ﻿
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Text;
 using AIHub.Application.Models;
@@ -25,6 +26,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private McpProfileListItem? _selectedMcpProfile;
     private McpManagedProcessItem? _selectedManagedProcess;
     private SkillSourceRecord? _selectedSkillSource;
+    private SkillSourceRecord? _selectedSkillBrowserSource;
     private ProfileOption? _selectedSkillSourceProfileOption;
     private ScriptDefinitionRecord? _selectedScript;
     private ProfileOption? _selectedScriptProfileOption;
@@ -86,6 +88,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string _scriptArgumentsText = string.Empty;
     private string _scriptExecutionHint = DefaultText.State.ScriptUsagePlaceholder;
     private string _projectProfileValidationDisplay = string.Empty;
+    private string _skillSourceProfileValidationDisplay = string.Empty;
+    private string _editingSkillSourceProfileId = WorkspaceProfiles.GlobalId;
 
     public MainWindowViewModel(
         IFileDialogService? fileDialogService = null,
@@ -114,6 +118,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _selectedSkillModeOption = SkillModeOptions.FirstOrDefault(option => option.Value == SkillCustomizationMode.Local);
         _selectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == SkillSourceKind.GitRepository);
         _selectedScriptProfileOption = ScriptProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        Projects.CollectionChanged += OnProjectsCollectionChanged;
+        PropertyChanged += OnMainWindowViewModelPropertyChanged;
 
         RefreshCommand = new AsyncDelegateCommand(RefreshAsync, CanRefresh);
         SaveProjectCommand = new AsyncDelegateCommand(SaveProjectAsync, CanUseWorkspace);
@@ -280,6 +286,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     public bool HasProjectProfileValidationWarning => !string.IsNullOrWhiteSpace(ProjectProfileValidationDisplay);
+
+    public string SkillSourceProfileValidationDisplay
+    {
+        get => _skillSourceProfileValidationDisplay;
+        private set => SetProperty(ref _skillSourceProfileValidationDisplay, value);
+    }
+
+    public bool HasSkillSourceProfileValidationWarning => !string.IsNullOrWhiteSpace(SkillSourceProfileValidationDisplay);
 
     public string HubRootInput
     {
@@ -638,7 +652,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public ProfileOption? SelectedProfileOption
     {
         get => _selectedProfileOption;
-        set => SetProperty(ref _selectedProfileOption, value);
+        set
+        {
+            if (SetProperty(ref _selectedProfileOption, value))
+            {
+                UpdateProjectProfileValidation(value?.Value);
+            }
+        }
     }
 
     public McpProfileListItem? SelectedMcpProfile
@@ -667,23 +687,50 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    public SkillSourceRecord? SelectedSkillSource
+    public SkillSourceRecord? SelectedBrowserSkillSource
+    {
+        get => _selectedSkillBrowserSource;
+        set => SetSelectedSkillSourceBrowser(value, raiseCommandStates: true);
+    }
+
+    public SkillSourceRecord? SelectedEditableSkillSource
     {
         get => _selectedSkillSource;
+        set => SetSelectedSkillSourceEditor(value, raiseCommandStates: true);
+    }
+
+    public SkillSourceRecord? SelectedSkillSource
+    {
+        get => SelectedSkillsSection == SkillsSection.Browse
+            ? _selectedSkillBrowserSource
+            : _selectedSkillSource;
         set
         {
-            if (SetProperty(ref _selectedSkillSource, value))
+            if (SelectedSkillsSection == SkillsSection.Browse)
             {
-                ApplySelectedSkillSource();
-                RaiseCommandStates();
+                SetSelectedSkillSourceBrowser(value, raiseCommandStates: true);
+                return;
             }
+
+            SetSelectedSkillSourceEditor(value, raiseCommandStates: true);
         }
     }
 
     public ProfileOption? SelectedSkillSourceProfileOption
     {
         get => _selectedSkillSourceProfileOption;
-        set => SetProperty(ref _selectedSkillSourceProfileOption, value);
+        set
+        {
+            if (SetProperty(ref _selectedSkillSourceProfileOption, value))
+            {
+                _editingSkillSourceProfileId = value?.Value ?? WorkspaceProfiles.GlobalId;
+                CleanupSkillSourceProfileOptions(
+                    IsWorkspaceProfileInCatalog(_editingSkillSourceProfileId)
+                        ? null
+                        : _editingSkillSourceProfileId);
+                UpdateSkillSourceProfileValidation(_editingSkillSourceProfileId);
+            }
+        }
     }
 
     public ScriptDefinitionRecord? SelectedScript
@@ -732,7 +779,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private bool CanUseSkills() => !IsBusy && _skillsCatalogService is not null;
 
-    private bool CanUseSelectedSkillSource() => !IsBusy && _skillsCatalogService is not null && SelectedSkillSource is not null;
+    private bool CanUseSelectedSkillSource() => !IsBusy && _skillsCatalogService is not null && GetSelectedSkillSourceEditor() is not null;
 
     private bool CanUseSelectedScript() => !IsBusy && _scriptCenterService is not null && SelectedScript is not null;
 
@@ -1038,9 +1085,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         await RunBusyAsync(async () =>
         {
+            var selectedEditorSource = GetSelectedSkillSourceEditor();
             var result = await _skillsCatalogService!.SaveSourceAsync(
-                SelectedSkillSource?.LocalName,
-                SelectedSkillSource?.Profile,
+                selectedEditorSource?.LocalName,
+                selectedEditorSource?.Profile,
                 draft);
             ApplyOperationResult(result);
 
@@ -1053,13 +1101,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task DeleteSelectedSkillSourceAsync()
     {
-        if (SelectedSkillSource is null)
+        var selectedEditorSource = GetSelectedSkillSourceEditor();
+        if (selectedEditorSource is null)
         {
             SetOperation(false, Text.State.SelectSkillSourceToDelete, string.Empty);
             return;
         }
 
-        var confirmed = await ConfirmAsync(CreateDeleteSkillSourceConfirmation(SelectedSkillSource));
+        var confirmed = await ConfirmAsync(CreateDeleteSkillSourceConfirmation(selectedEditorSource));
         if (!confirmed)
         {
             return;
@@ -1068,13 +1117,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         await RunBusyAsync(async () =>
         {
             var result = await _skillsCatalogService!.DeleteSourceAsync(
-                SelectedSkillSource.LocalName,
-                SelectedSkillSource.Profile);
+                selectedEditorSource.LocalName,
+                selectedEditorSource.Profile);
             ApplyOperationResult(result);
 
             if (result.Success)
             {
-                SelectedSkillSource = null;
+                SetSelectedSkillSourceEditor(null, raiseCommandStates: true);
                 ClearSkillSourceFormFields();
                 await LoadSkillsAsync();
             }
@@ -1083,7 +1132,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private Task ClearSkillSourceFormAsync()
     {
-        SelectedSkillSource = null;
+        SetSelectedSkillSourceEditor(null, raiseCommandStates: true);
         ClearSkillSourceFormFields();
         SetOperation(true, Text.State.SkillSourceFormCleared, string.Empty);
         return Task.CompletedTask;
@@ -1246,6 +1295,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         var snapshot = await _skillsCatalogService.LoadAsync();
         CacheSkillSnapshot(snapshot);
+        ReconcileSelectedSkillSourceEditor(preferredLocalName, preferredProfile);
         ApplySkillBrowserFilters(preferredLocalName, preferredProfile);
     }
 
@@ -1286,18 +1336,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _workspaceProfileCatalog = profiles.Count == 0 ? WorkspaceProfiles.CreateDefaultCatalog() : profiles;
 
         var selectedProfileId = SelectedProfileOption?.Value ?? WorkspaceProfiles.GlobalId;
-        var selectedSkillSourceProfileId = SelectedSkillSourceProfileOption?.Value ?? WorkspaceProfiles.GlobalId;
+        var selectedSkillSourceProfileId = _editingSkillSourceProfileId;
         var selectedScriptProfileId = SelectedScriptProfileOption?.Value ?? WorkspaceProfiles.GlobalId;
 
         ReplaceCollection(ProfileOptions, CreateProfileOptions(_workspaceProfileCatalog));
         ReplaceCollection(SkillSourceProfileOptions, CreateProfileOptions(_workspaceProfileCatalog));
         ReplaceCollection(ScriptProfileOptions, CreateProfileOptions(_workspaceProfileCatalog));
         RefreshSkillBrowserFilterOptions(_workspaceProfileCatalog);
+        _skillsPageContext?.UpdateProfiles(_workspaceProfileCatalog);
 
         SelectedProfileOption = FindProfileOption(ProfileOptions, selectedProfileId)
             ?? ProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
-        SelectedSkillSourceProfileOption = FindProfileOption(SkillSourceProfileOptions, selectedSkillSourceProfileId)
-            ?? SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        SetSkillSourceProfileSelection(selectedSkillSourceProfileId);
         SelectedScriptProfileOption = FindProfileOption(ScriptProfileOptions, selectedScriptProfileId)
             ?? ScriptProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
 
@@ -1309,6 +1359,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RefreshBindingOptions();
     }
 
+    private void OnProjectsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        RaisePropertyChanged(nameof(CurrentSkillBindingImpactDisplay));
+        RaisePropertyChanged(nameof(CurrentSkillGroupBindingImpactDisplay));
+        RaisePropertyChanged(nameof(CurrentSkillsContextImpactDisplay));
+        RaisePropertyChanged(nameof(SelectedBindingTargetsImpactDisplay));
+    }
+
     private static ProfileOption? FindProfileOption(IEnumerable<ProfileOption> profiles, string? profileId)
     {
         if (string.IsNullOrWhiteSpace(profileId))
@@ -1318,6 +1376,79 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
         return profiles.FirstOrDefault(option => string.Equals(option.Value, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void SetSkillSourceProfileSelection(string? profileId)
+    {
+        var normalizedProfileId = string.IsNullOrWhiteSpace(profileId)
+            ? WorkspaceProfiles.GlobalId
+            : WorkspaceProfiles.NormalizeId(profileId);
+        _editingSkillSourceProfileId = normalizedProfileId;
+
+        CleanupSkillSourceProfileOptions(
+            IsWorkspaceProfileInCatalog(normalizedProfileId)
+                ? null
+                : normalizedProfileId);
+
+        var option = FindProfileOption(SkillSourceProfileOptions, normalizedProfileId);
+        if (option is null)
+        {
+            option = new ProfileOption(normalizedProfileId, $"已失效分类（{normalizedProfileId}）");
+            SkillSourceProfileOptions.Add(option);
+        }
+
+        SelectedSkillSourceProfileOption = option;
+        UpdateSkillSourceProfileValidation(normalizedProfileId);
+    }
+
+    private void CleanupSkillSourceProfileOptions(string? keepOrphanedProfileId)
+    {
+        var normalizedKeepProfileId = string.IsNullOrWhiteSpace(keepOrphanedProfileId)
+            ? null
+            : WorkspaceProfiles.NormalizeId(keepOrphanedProfileId);
+        var retainedOptions = SkillSourceProfileOptions
+            .Where(option =>
+            {
+                var normalizedOptionId = WorkspaceProfiles.NormalizeId(option.Value);
+                return IsWorkspaceProfileInCatalog(normalizedOptionId)
+                       || string.Equals(normalizedOptionId, normalizedKeepProfileId, StringComparison.OrdinalIgnoreCase);
+            })
+            .ToArray();
+
+        if (retainedOptions.Length != SkillSourceProfileOptions.Count)
+        {
+            ReplaceCollection(SkillSourceProfileOptions, retainedOptions);
+        }
+    }
+
+    private bool IsWorkspaceProfileInCatalog(string? profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return false;
+        }
+
+        var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
+        return _workspaceProfileCatalog.Any(profile =>
+            string.Equals(profile.Id, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void UpdateSkillSourceProfileValidation(string? profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            SkillSourceProfileValidationDisplay = "来源分类无效，请重新选择一个有效分类。";
+            RaisePropertyChanged(nameof(HasSkillSourceProfileValidationWarning));
+            return;
+        }
+
+        var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
+        var exists = IsWorkspaceProfileInCatalog(normalizedProfileId);
+
+        SkillSourceProfileValidationDisplay = exists
+            ? string.Empty
+            : $"当前来源绑定的分类“{normalizedProfileId}”已不在分类目录中；保存其他字段时会保留原分类，只有显式改选后才会迁移。";
+        RaisePropertyChanged(nameof(HasSkillSourceProfileValidationWarning));
     }
 
     private void UpdateProjectProfileValidation(string? profileId)
@@ -1498,10 +1629,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return false;
         }
 
-        var normalizedProfileId = WorkspaceProfiles.NormalizeId(SelectedProject.Profile);
-        var profileExists = _workspaceProfileCatalog.Any(profile =>
-            string.Equals(profile.Id, normalizedProfileId, StringComparison.OrdinalIgnoreCase));
-        if (!profileExists)
+        if (HasProjectProfileValidationWarning)
         {
             validationError = string.IsNullOrWhiteSpace(ProjectProfileValidationDisplay)
                 ? $"项目当前引用的分类“{SelectedProject.Profile}”已不在分类目录中，请重新选择后再保存或切换作用域。"
@@ -1509,7 +1637,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return false;
         }
 
-        project = SelectedProject;
+        if (SelectedProfileOption is null)
+        {
+            validationError = string.IsNullOrWhiteSpace(ProjectProfileValidationDisplay)
+                ? $"项目当前引用的分类“{SelectedProject.Profile}”已不在分类目录中，请重新选择后再保存或切换作用域。"
+                : ProjectProfileValidationDisplay;
+            return false;
+        }
+
+        project = SelectedProject with
+        {
+            Profile = SelectedProfileOption.Value
+        };
         return true;
     }
 
@@ -1607,7 +1746,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         var selectedKind = SelectedSkillSourceKindOption?.Value ?? SkillSourceKind.GitRepository;
-        var baseRecord = SelectedSkillSource ?? new SkillSourceRecord();
+        var baseRecord = GetSelectedSkillSourceEditor() ?? new SkillSourceRecord();
         int? scheduledInterval = SkillSourceAutoUpdate
             ? SelectedSkillScheduleIntervalOption?.Value ?? 24
             : null;
@@ -1618,7 +1757,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         record = baseRecord with
         {
             LocalName = SkillSourceLocalName.Trim(),
-            Profile = SelectedSkillSourceProfileOption?.Value ?? WorkspaceProfiles.GlobalId,
+            Profile = _editingSkillSourceProfileId,
             Kind = selectedKind,
             Location = SkillSourceRepository.Trim(),
             CatalogPath = string.IsNullOrWhiteSpace(SkillSourcePath) ? null : SkillSourcePath.Trim(),
@@ -1703,27 +1842,26 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ManagedProcessHealthTimeoutText = "5";
     }
 
-    private void ApplySelectedSkillSource()
+    private void ApplySelectedSkillSource(SkillSourceRecord? selectedSource)
     {
-        if (SelectedSkillSource is null)
+        if (selectedSource is null)
         {
             ClearSkillSourceFormFields();
             return;
         }
 
-        SkillSourceLocalName = SelectedSkillSource.LocalName;
-        SkillSourceRepository = SelectedSkillSource.Location;
-        SkillSourcePath = SelectedSkillSource.CatalogPath ?? string.Empty;
-        SkillSourceReference = string.IsNullOrWhiteSpace(SelectedSkillSource.Reference) ? "main" : SelectedSkillSource.Reference;
-        SkillSourceEnabled = SelectedSkillSource.IsEnabled;
-        SkillSourceAutoUpdate = SelectedSkillSource.AutoUpdate;
-        SelectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == SelectedSkillSource.Kind)
+        SkillSourceLocalName = selectedSource.LocalName;
+        SkillSourceRepository = selectedSource.Location;
+        SkillSourcePath = selectedSource.CatalogPath ?? string.Empty;
+        SkillSourceReference = string.IsNullOrWhiteSpace(selectedSource.Reference) ? "main" : selectedSource.Reference;
+        SkillSourceEnabled = selectedSource.IsEnabled;
+        SkillSourceAutoUpdate = selectedSource.AutoUpdate;
+        SelectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == selectedSource.Kind)
             ?? SkillSourceKindOptions.FirstOrDefault(option => option.Value == SkillSourceKind.GitRepository);
-        SelectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == SelectedSkillSource.Profile)
-            ?? SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
-        ApplySelectedSkillSourceReference(SelectedSkillSource);
-        ApplySkillSourceScheduleState(SelectedSkillSource);
-        ApplySkillSourceVersionState(SelectedSkillSource);
+        SetSkillSourceProfileSelection(selectedSource.Profile);
+        ApplySelectedSkillSourceReference(selectedSource);
+        ApplySkillSourceScheduleState(selectedSource);
+        ApplySkillSourceVersionState(selectedSource);
     }
 
     private void ClearSkillSourceFormFields()
@@ -1735,10 +1873,62 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SkillSourceEnabled = true;
         SkillSourceAutoUpdate = true;
         SelectedSkillSourceKindOption = SkillSourceKindOptions.FirstOrDefault(option => option.Value == SkillSourceKind.GitRepository);
-        SelectedSkillSourceProfileOption = SkillSourceProfileOptions.FirstOrDefault(option => option.Value == WorkspaceProfiles.GlobalId);
+        SetSkillSourceProfileSelection(WorkspaceProfiles.GlobalId);
         SelectedSkillSourceReferenceOption = null;
         ApplySkillSourceScheduleState(null);
         ApplySkillSourceVersionState(null);
+    }
+
+    private void OnMainWindowViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectedSkillsSection))
+        {
+            RaisePropertyChanged(nameof(SelectedSkillSource));
+            RaiseCommandStates();
+        }
+    }
+
+    private SkillSourceRecord? GetSelectedSkillSourceEditor() => _selectedSkillSource;
+
+    private SkillSourceRecord? GetSelectedSkillSourceBrowser() => _selectedSkillBrowserSource;
+
+    private void SetSelectedSkillSourceEditor(SkillSourceRecord? value, bool raiseCommandStates = false)
+    {
+        if (SetProperty(ref _selectedSkillSource, value, nameof(SelectedSkillSource)))
+        {
+            RaisePropertyChanged(nameof(SelectedEditableSkillSource));
+            ApplySelectedSkillSource(value);
+            if (raiseCommandStates)
+            {
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    private void SetSelectedSkillSourceBrowser(SkillSourceRecord? value, bool raiseCommandStates = false)
+    {
+        if (SetProperty(ref _selectedSkillBrowserSource, value, nameof(SelectedSkillSource)))
+        {
+            RaisePropertyChanged(nameof(SelectedBrowserSkillSource));
+            if (raiseCommandStates)
+            {
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    private void ReconcileSelectedSkillSourceEditor(string? preferredLocalName = null, string? preferredProfile = null)
+    {
+        var selectedEditorSource = FindSkillSource(_skillSourceCache, GetSelectedSkillSourceEditor()?.LocalName, GetSelectedSkillSourceEditor()?.Profile)
+            ?? ((string.IsNullOrWhiteSpace(preferredLocalName) && string.IsNullOrWhiteSpace(preferredProfile))
+                ? null
+                : FindSkillSource(_skillSourceCache, preferredLocalName, preferredProfile));
+
+        SetSelectedSkillSourceEditor(selectedEditorSource, raiseCommandStates: true);
+        if (selectedEditorSource is null)
+        {
+            ClearSkillSourceFormFields();
+        }
     }
     private void ApplySelectedScript()
     {
@@ -1867,6 +2057,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         SaveSkillGroupBindingsCommand.RaiseCanExecuteChanged();
         SaveMcpServerBindingsCommand.RaiseCanExecuteChanged();
         ClearMcpServerSelectionCommand.RaiseCanExecuteChanged();
+        OpenSelectedSkillBindingsCommand.RaiseCanExecuteChanged();
+        OpenSelectedSkillGroupBindingsCommand.RaiseCanExecuteChanged();
+        OpenSelectedSkillSourceManagementCommand.RaiseCanExecuteChanged();
     }
 
     private static ProjectRecord? FindProjectByPath(IEnumerable<ProjectRecord> projects, string? path)

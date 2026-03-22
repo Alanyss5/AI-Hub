@@ -10,6 +10,7 @@ public sealed partial class MainWindowViewModel
     private const string UnboundSkillsFilterValue = "__unbound__";
 
     private readonly ObservableCollection<SkillBrowserFilterOption> _skillFilterOptions = new();
+    private readonly ObservableCollection<SkillSourceRecord> _skillBrowserSources = new();
     private IReadOnlyList<InstalledSkillRecord> _installedSkillCache = Array.Empty<InstalledSkillRecord>();
     private IReadOnlyList<SkillSourceRecord> _skillSourceCache = Array.Empty<SkillSourceRecord>();
     private SkillBrowserFilterOption? _selectedSkillFilterOption;
@@ -18,6 +19,8 @@ public sealed partial class MainWindowViewModel
     private bool _updatingSkillFilterFromContext;
 
     public ObservableCollection<SkillBrowserFilterOption> SkillFilterOptions => _skillFilterOptions;
+
+    public ObservableCollection<SkillSourceRecord> SkillBrowserSources => _skillBrowserSources;
 
     public SkillBrowserFilterOption? SelectedSkillFilterOption
     {
@@ -56,11 +59,15 @@ public sealed partial class MainWindowViewModel
         RefreshSkillBrowserFilterOptions(_workspaceProfileCatalog);
     }
 
-    internal void ApplySkillsPageContextSelection(ProjectRecord? project)
+    internal void ApplySkillsPageContextSelection(string? profileId)
     {
-        var filterValue = project?.Profile ?? WorkspaceProfiles.GlobalId;
+        var filterValue = WorkspaceProfiles.NormalizeId(profileId);
         _skillFilterFollowsContext = true;
         SelectSkillFilter(filterValue, fromContext: true);
+        QueueBindingResolutionPreviewRefresh();
+        RaisePropertyChanged(nameof(CurrentSkillBindingImpactDisplay));
+        RaisePropertyChanged(nameof(CurrentSkillGroupBindingImpactDisplay));
+        RaisePropertyChanged(nameof(CurrentSkillsContextImpactDisplay));
     }
 
     private void RefreshSkillBrowserFilterOptions(IReadOnlyList<WorkspaceProfileRecord> profiles)
@@ -84,7 +91,7 @@ public sealed partial class MainWindowViewModel
             ?? SkillFilterOptions.FirstOrDefault();
         if (_skillFilterFollowsContext && _skillsPageContext?.SelectedTarget is not null)
         {
-            ApplySkillsPageContextSelection(_skillsPageContext.SelectedTarget.Project);
+            ApplySkillsPageContextSelection(_skillsPageContext.SelectedTarget.ProfileId);
         }
     }
 
@@ -111,27 +118,23 @@ public sealed partial class MainWindowViewModel
             .ToArray();
 
         ReplaceCollection(InstalledSkills, filteredSkills);
-        ReplaceCollection(SkillSources, filteredSources);
-        RefreshSkillGroups(filteredSkills);
+        ReplaceCollection(SkillSources, _skillSourceCache);
+        ReplaceCollection(SkillBrowserSources, filteredSources);
+
+        var selectedInstalledSkill = ResolveFilteredSkillSelection(filteredSkills);
+        SelectedInstalledSkill = selectedInstalledSkill;
+        RefreshSkillGroups(filteredSkills, selectedInstalledSkill);
 
         var registeredSkillCount = filteredSkills.Count(skill => skill.IsRegistered);
         SkillsSummaryDisplay = Text.State.InstalledSkillsSummary(filteredSkills.Length, registeredSkillCount);
-        SkillSourcesSummaryDisplay = Text.State.SkillSourcesSummary(filteredSources.Length);
-
-        var selectedInstalledSkill = FindInstalledSkill(filteredSkills, SelectedInstalledSkill?.RelativePath)
-            ?? filteredSkills.FirstOrDefault();
-        SelectedInstalledSkill = selectedInstalledSkill;
+        SkillSourcesSummaryDisplay = Text.State.SkillSourcesSummary(_skillSourceCache.Count);
 
         var selectedSource = FindSkillSource(filteredSources, preferredLocalName, preferredProfile)
-            ?? FindSkillSource(filteredSources, SelectedSkillSource?.LocalName, SelectedSkillSource?.Profile)
+            ?? FindSkillSource(filteredSources, GetSelectedSkillSourceBrowser()?.LocalName, GetSelectedSkillSourceBrowser()?.Profile)
+            ?? FindSkillSource(filteredSources, GetSelectedSkillSourceEditor()?.LocalName, GetSelectedSkillSourceEditor()?.Profile)
             ?? FindSkillSource(filteredSources, SelectedSkillInstallSource?.LocalName, SelectedSkillInstallSource?.Profile)
             ?? filteredSources.FirstOrDefault();
-        SelectedSkillSource = selectedSource;
-
-        if (selectedSource is null)
-        {
-            ClearSkillSourceFormFields();
-        }
+        SetSelectedSkillSourceBrowser(selectedSource, raiseCommandStates: true);
 
         if (SelectedInstalledSkill is null)
         {
@@ -139,54 +142,102 @@ public sealed partial class MainWindowViewModel
         }
         else if (SelectedSkillInstallSource is not null)
         {
-            SelectedSkillInstallSource = FindSkillSource(filteredSources, SelectedSkillInstallSource.LocalName, SelectedSkillInstallSource.Profile);
+            SelectedSkillInstallSource = FindSkillSource(_skillSourceCache, SelectedSkillInstallSource.LocalName, SelectedSkillInstallSource.Profile);
         }
     }
 
-    private void RefreshSkillGroups(IEnumerable<InstalledSkillRecord> skills)
+    private InstalledSkillRecord? ResolveFilteredSkillSelection(IReadOnlyList<InstalledSkillRecord> filteredSkills)
     {
+        var currentSelection = FindInstalledSkill(filteredSkills, SelectedInstalledSkill?.RelativePath);
+        if (currentSelection is not null)
+        {
+            return currentSelection;
+        }
+
+        var selectedGroupPath = SelectedSkillGroup?.RelativeRootPath;
+        if (!string.IsNullOrWhiteSpace(selectedGroupPath))
+        {
+            var groupSelection = filteredSkills.FirstOrDefault(skill =>
+                string.Equals(GetSkillGroupRootPath(skill.RelativePath), selectedGroupPath, StringComparison.OrdinalIgnoreCase));
+            if (groupSelection is not null)
+            {
+                return groupSelection;
+            }
+        }
+
+        var previousSkillGroupPath = GetSkillGroupRootPath(SelectedInstalledSkill?.RelativePath);
+        if (!string.IsNullOrWhiteSpace(previousSkillGroupPath))
+        {
+            var sameGroupSelection = filteredSkills.FirstOrDefault(skill =>
+                string.Equals(GetSkillGroupRootPath(skill.RelativePath), previousSkillGroupPath, StringComparison.OrdinalIgnoreCase));
+            if (sameGroupSelection is not null)
+            {
+                return sameGroupSelection;
+            }
+        }
+
+        return filteredSkills.FirstOrDefault();
+    }
+
+    private void RefreshSkillGroups(IEnumerable<InstalledSkillRecord> skills, InstalledSkillRecord? selectedInstalledSkill)
+    {
+        var fullGroupMembers = _installedSkillCache
+            .GroupBy(skill => GetSkillGroupRootPath(skill.RelativePath), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(skill => skill.RelativePath, StringComparer.OrdinalIgnoreCase)
+                    .ToArray(),
+                StringComparer.OrdinalIgnoreCase);
+
         var groupItems = skills
             .GroupBy(skill => GetSkillGroupRootPath(skill.RelativePath), StringComparer.OrdinalIgnoreCase)
             .Select(group =>
             {
-                var skillItems = group
+                var visibleSkillItems = group
                     .OrderBy(skill => skill.RelativePath, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
-                var sourceProfileIds = skillItems
+                var semanticSkillItems = fullGroupMembers.TryGetValue(group.Key, out var fullSkillItems)
+                    ? fullSkillItems
+                    : visibleSkillItems;
+                var sourceProfileIds = semanticSkillItems
                     .Select(skill => skill.Profile)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
-                var bindingProfileIds = skillItems
+                var bindingProfileIds = semanticSkillItems
                     .SelectMany(skill => skill.BindingProfileIds)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(profile => profile, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
-                var bindingDisplayTags = skillItems
+                var bindingDisplayTags = semanticSkillItems
                     .SelectMany(skill => skill.BindingDisplayTags)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
                 return new SkillFolderGroupItem(
                     group.Key,
-                    skillItems,
+                    semanticSkillItems,
                     sourceProfileIds,
                     bindingProfileIds,
                     bindingDisplayTags,
-                    skillItems.Select(skill => skill.RelativePath).ToArray());
+                    visibleSkillItems.Select(skill => skill.RelativePath).ToArray());
             })
             .OrderBy(group => group.RelativeRootPath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         ReplaceCollection(SkillGroups, groupItems);
 
-        var preferredGroupPath = GetSkillGroupRootPath(SelectedInstalledSkill?.RelativePath)
-            ?? SelectedSkillGroup?.RelativeRootPath;
-        SelectedSkillGroup = FindSkillGroup(groupItems, preferredGroupPath) ?? groupItems.FirstOrDefault();
+        var selectedGroupPath = SelectedSkillGroup?.RelativeRootPath;
+        var selectedSkillGroupPath = GetSkillGroupRootPath(selectedInstalledSkill?.RelativePath);
+
+        SelectedSkillGroup = FindSkillGroup(groupItems, selectedGroupPath)
+            ?? FindSkillGroup(groupItems, selectedSkillGroupPath)
+            ?? groupItems.FirstOrDefault();
     }
 
     private string GetSkillsContextDefaultFilterValue()
     {
-        return _skillsPageContext?.SelectedTarget?.Project?.Profile ?? WorkspaceProfiles.GlobalId;
+        return _skillsPageContext?.SelectedTarget?.ProfileId ?? WorkspaceProfiles.GlobalId;
     }
 
     private void SelectSkillFilter(string filterValue, bool fromContext = false)

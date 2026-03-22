@@ -77,6 +77,160 @@ public sealed partial class SkillsCatalogService
 
         return new SkillCatalogSnapshot(resolution, installedSkills, sources);
     }
+
+    public async Task<BindingResolutionPreview> PreviewSkillBindingResolutionAsync(
+        string sourceProfile,
+        string relativePath,
+        IReadOnlyList<string> targetProfiles,
+        CancellationToken cancellationToken = default)
+    {
+        var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
+        if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
+        {
+            var invalidPreviewTargets = NormalizeProfiles(targetProfiles);
+            var materializedProfiles = invalidPreviewTargets.Count == 0
+                ? new[] { LibraryProfileId }
+                : invalidPreviewTargets.ToArray();
+            return BuildBindingResolutionPreview(
+                BindingResolutionStatus.Unresolvable,
+                "AI-Hub hub root is invalid.",
+                string.Empty,
+                string.Empty,
+                materializedProfiles.First(),
+                materializedProfiles,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>());
+        }
+
+        EnsureSourceLayoutMigrated(resolution.RootPath);
+        var normalizedSourceProfile = WorkspaceProfiles.NormalizeId(sourceProfile);
+        var normalizedRelativePath = NormalizePath(relativePath);
+        if (string.IsNullOrWhiteSpace(normalizedRelativePath))
+        {
+            var materializedProfiles = ResolveMaterializedProfiles(targetProfiles);
+            return BuildBindingResolutionPreview(
+                BindingResolutionStatus.Unresolvable,
+                "Select a skill before editing bindings.",
+                string.Empty,
+                string.Empty,
+                materializedProfiles.First(),
+                materializedProfiles,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>());
+        }
+
+        var normalizedTargets = NormalizeProfiles(targetProfiles);
+        var installs = await LoadInstallsAsync(resolution.RootPath, cancellationToken);
+        var states = await LoadStatesAsync(resolution.RootPath, cancellationToken);
+        var sourceDirectory = GetInstalledSkillDirectory(resolution.RootPath, normalizedSourceProfile, normalizedRelativePath);
+        var libraryDirectory = GetInstalledSkillDirectory(resolution.RootPath, LibraryProfileId, normalizedRelativePath);
+        var impactedProfiles = GetExistingSkillProfiles(resolution.RootPath, installs, states, normalizedRelativePath)
+            .Concat(normalizedTargets)
+            .Append(normalizedSourceProfile)
+            .Append(LibraryProfileId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var transferPlan = ResolveSkillBindingTransferPlan(
+            resolution.RootPath,
+            normalizedSourceProfile,
+            normalizedRelativePath,
+            normalizedTargets,
+            installs,
+            states,
+            sourceDirectory,
+            libraryDirectory,
+            impactedProfiles);
+
+        return BuildBindingResolutionPreview(
+            transferPlan.ResolutionStatus,
+            transferPlan.ResolutionReason,
+            transferPlan.ContentDonorProfileId,
+            transferPlan.MetadataDonorProfileId,
+            transferPlan.PrimaryDestinationProfileId,
+            transferPlan.MaterializedProfiles,
+            transferPlan.RefreshedProfiles,
+            transferPlan.RemovedProfiles,
+            new[] { normalizedRelativePath });
+    }
+
+    public async Task<BindingResolutionPreview> PreviewSkillGroupBindingResolutionAsync(
+        string sourceProfile,
+        string relativeGroupPath,
+        IReadOnlyList<string> targetProfiles,
+        CancellationToken cancellationToken = default)
+    {
+        var resolution = await _hubRootLocator.ResolveAsync(cancellationToken);
+        if (!resolution.IsValid || string.IsNullOrWhiteSpace(resolution.RootPath))
+        {
+            var invalidPreviewTargets = NormalizeProfiles(targetProfiles);
+            var materializedProfiles = invalidPreviewTargets.Count == 0
+                ? new[] { LibraryProfileId }
+                : invalidPreviewTargets.ToArray();
+            return BuildBindingResolutionPreview(
+                BindingResolutionStatus.Unresolvable,
+                "AI-Hub hub root is invalid.",
+                string.Empty,
+                string.Empty,
+                materializedProfiles.First(),
+                materializedProfiles,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>());
+        }
+
+        EnsureSourceLayoutMigrated(resolution.RootPath);
+        var normalizedSourceProfile = WorkspaceProfiles.NormalizeId(sourceProfile);
+        var normalizedGroupPath = NormalizePath(relativeGroupPath);
+        if (string.IsNullOrWhiteSpace(normalizedGroupPath))
+        {
+            var materializedProfiles = ResolveMaterializedProfiles(targetProfiles);
+            return BuildBindingResolutionPreview(
+                BindingResolutionStatus.Unresolvable,
+                "Select a skill repository or folder before editing bindings.",
+                string.Empty,
+                string.Empty,
+                materializedProfiles.First(),
+                materializedProfiles,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                Array.Empty<string>());
+        }
+
+        var normalizedTargets = NormalizeProfiles(targetProfiles);
+        var installs = await LoadInstallsAsync(resolution.RootPath, cancellationToken);
+        var states = await LoadStatesAsync(resolution.RootPath, cancellationToken);
+        var sourceGroupDirectory = GetInstalledSkillDirectory(resolution.RootPath, normalizedSourceProfile, normalizedGroupPath);
+        var libraryGroupDirectory = GetInstalledSkillDirectory(resolution.RootPath, LibraryProfileId, normalizedGroupPath);
+        var impactedProfiles = GetExistingGroupProfiles(resolution.RootPath, installs, states, normalizedGroupPath)
+            .Concat(normalizedTargets)
+            .Append(normalizedSourceProfile)
+            .Append(LibraryProfileId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var transferPlan = ResolveSkillGroupBindingTransferPlan(
+            resolution.RootPath,
+            normalizedSourceProfile,
+            normalizedGroupPath,
+            normalizedTargets,
+            installs,
+            states,
+            sourceGroupDirectory,
+            libraryGroupDirectory,
+            impactedProfiles);
+
+        return BuildBindingResolutionPreview(
+            transferPlan.ResolutionStatus,
+            transferPlan.ResolutionReason,
+            transferPlan.ContentDonorProfileId,
+            transferPlan.MetadataDonorProfileId,
+            transferPlan.PrimaryDestinationProfileId,
+            transferPlan.MaterializedProfiles,
+            transferPlan.RefreshedProfiles,
+            transferPlan.RemovedProfiles,
+            transferPlan.AuthoritativeMemberPaths);
+    }
     public async Task<OperationResult> SaveSourceAsync(
         string? originalLocalName,
         string? originalProfile,
@@ -299,107 +453,74 @@ public sealed partial class SkillsCatalogService
             .Append(LibraryProfileId)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var publishSourceDirectory = Directory.Exists(sourceDirectory)
-            ? sourceDirectory
-            : libraryDirectory;
-        if (normalizedTargets.Count > 0 && !Directory.Exists(publishSourceDirectory))
+        var transferPlan = ResolveSkillBindingTransferPlan(
+            resolution.RootPath,
+            normalizedSourceProfile,
+            normalizedRelativePath,
+            normalizedTargets,
+            installs,
+            states,
+            sourceDirectory,
+            libraryDirectory,
+            impactedProfiles);
+        if (transferPlan.ResolutionStatus != BindingResolutionStatus.Resolved)
         {
-            return OperationResult.Fail("The selected skill source directory does not exist.", sourceDirectory);
+            return OperationResult.Fail(
+                string.IsNullOrWhiteSpace(transferPlan.ResolutionReason)
+                    ? "Unable to resolve a usable skill source."
+                    : transferPlan.ResolutionReason,
+                normalizedRelativePath);
         }
-        var moveToLibrary = normalizedTargets.Count == 0 && !IsLibraryProfile(normalizedSourceProfile);
-        if (moveToLibrary
-            && !string.Equals(publishSourceDirectory, libraryDirectory, StringComparison.OrdinalIgnoreCase)
-            && Directory.Exists(publishSourceDirectory))
+        if (!Directory.Exists(transferPlan.PublishSourceDirectory))
         {
-            if (Directory.Exists(libraryDirectory))
-            {
-                DeleteDirectory(libraryDirectory);
-            }
-
-            CopyDirectory(publishSourceDirectory, libraryDirectory);
-            publishSourceDirectory = libraryDirectory;
+            return OperationResult.Fail("The selected skill source directory does not exist.", transferPlan.PublishSourceDirectory);
         }
-
-        var sourceInstall = installs.FirstOrDefault(item =>
-            string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(item.InstalledRelativePath, normalizedRelativePath, StringComparison.OrdinalIgnoreCase));
-        var sourceState = states.FirstOrDefault(item =>
-            string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(item.InstalledRelativePath, normalizedRelativePath, StringComparison.OrdinalIgnoreCase));
-        foreach (var profile in impactedProfiles)
+        var existingInstallTemplates = installs.ToDictionary(
+            item => GetInstallKey(item.Profile, item.InstalledRelativePath),
+            item => item,
+            StringComparer.OrdinalIgnoreCase);
+        var existingStateTemplates = states.ToDictionary(
+            item => GetInstallKey(item.Profile, item.InstalledRelativePath),
+            item => item,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var profile in transferPlan.RefreshedProfiles)
         {
             var destinationDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedRelativePath);
-            var isSelected = normalizedTargets.Contains(profile, StringComparer.OrdinalIgnoreCase);
-            if (IsLibraryProfile(profile))
+            var shouldReplaceDirectory = ShouldReplaceInstalledDirectory(destinationDirectory, transferPlan.PublishSourceDirectory);
+            var shouldRefreshMetadataLineage = shouldReplaceDirectory
+                || ShouldRefreshRetainedMetadataLineage(profile, transferPlan.ContentDonorProfileId, transferPlan.MetadataDonorProfileId);
+            if (shouldReplaceDirectory)
             {
-                continue;
+                ReplaceDirectoryWithSource(transferPlan.PublishSourceDirectory, destinationDirectory);
             }
 
-            if (isSelected)
-            {
-                if (!string.Equals(profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase))
-                {
-                    ReplaceDirectoryWithSource(publishSourceDirectory, destinationDirectory);
-                }
-                installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
-                if (sourceInstall is not null)
-                {
-                    installs.Add(sourceInstall with { Profile = profile });
-                }
-                states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
-                if (sourceState is not null)
-                {
-                    states.Add(sourceState with { Profile = profile });
-                }
-            }
-            else if (string.Equals(profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase))
-            {
-                if (moveToLibrary)
-                {
-                    installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
-                    states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
-                    if (Directory.Exists(destinationDirectory))
-                    {
-                        DeleteDirectory(destinationDirectory);
-                    }
-                }
-            }
-            else
-            {
-                installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
-                states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
-                if (Directory.Exists(destinationDirectory))
-                {
-                    DeleteDirectory(destinationDirectory);
-                }
-            }
+            existingInstallTemplates.TryGetValue(GetInstallKey(profile, normalizedRelativePath), out var existingInstallTemplate);
+            existingStateTemplates.TryGetValue(GetInstallKey(profile, normalizedRelativePath), out var existingStateTemplate);
+            installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
+            installs.Add(BuildSingleSkillInstallTemplate(
+                existingInstallTemplate,
+                transferPlan.MetadataInstallTemplate,
+                profile,
+                normalizedRelativePath,
+                shouldRefreshMetadataLineage));
+            states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
+            states.Add(BuildSingleSkillStateTemplate(
+                existingStateTemplate,
+                transferPlan.MetadataStateTemplate,
+                profile,
+                normalizedRelativePath,
+                destinationDirectory,
+                shouldReplaceDirectory,
+                shouldRefreshMetadataLineage));
         }
-        if (moveToLibrary)
+        foreach (var profile in transferPlan.RemovedProfiles)
         {
-            installs.RemoveAll(item => IsSkillInstall(item, LibraryProfileId, normalizedRelativePath));
-            states.RemoveAll(item => IsSkillState(item, LibraryProfileId, normalizedRelativePath));
-            if (sourceInstall is not null)
+            var destinationDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedRelativePath);
+            installs.RemoveAll(item => IsSkillInstall(item, profile, normalizedRelativePath));
+            states.RemoveAll(item => IsSkillState(item, profile, normalizedRelativePath));
+            if (Directory.Exists(destinationDirectory))
             {
-                installs.Add(sourceInstall with { Profile = LibraryProfileId });
-            }
-            else
-            {
-                installs.Add(new SkillInstallRecord
-                {
-                    Name = Path.GetFileName(normalizedRelativePath),
-                    Profile = LibraryProfileId,
-                    InstalledRelativePath = normalizedRelativePath,
-                    CustomizationMode = SkillCustomizationMode.Local
-                });
-            }
-
-            if (sourceState is not null)
-            {
-                states.Add(sourceState with { Profile = LibraryProfileId });
-            }
-            else
-            {
-                states.Add(CreateStateRecord(LibraryProfileId, normalizedRelativePath, libraryDirectory));
+                DeleteDirectory(destinationDirectory);
             }
         }
 
@@ -414,7 +535,7 @@ public sealed partial class SkillsCatalogService
             cancellationToken);
         return OperationResult.Ok(
             "Skill bindings saved.",
-            $"{normalizedRelativePath}{Environment.NewLine}{string.Join(Environment.NewLine, normalizedTargets)}");
+            $"{normalizedRelativePath}{Environment.NewLine}{string.Join(Environment.NewLine, transferPlan.MaterializedProfiles)}");
     }
     public async Task<OperationResult> SaveSkillGroupBindingsAsync(
         string sourceProfile,
@@ -446,97 +567,103 @@ public sealed partial class SkillsCatalogService
             .Append(LibraryProfileId)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var publishSourceDirectory = Directory.Exists(sourceGroupDirectory)
-            ? sourceGroupDirectory
-            : libraryGroupDirectory;
-        if (normalizedTargets.Count > 0 && !Directory.Exists(publishSourceDirectory))
+        var transferPlan = ResolveSkillGroupBindingTransferPlan(
+            resolution.RootPath,
+            normalizedSourceProfile,
+            normalizedGroupPath,
+            normalizedTargets,
+            installs,
+            states,
+            sourceGroupDirectory,
+            libraryGroupDirectory,
+            impactedProfiles);
+        if (transferPlan.ResolutionStatus != BindingResolutionStatus.Resolved)
         {
-            return OperationResult.Fail("The selected skill repository or folder does not exist.", sourceGroupDirectory);
+            return OperationResult.Fail(
+                string.IsNullOrWhiteSpace(transferPlan.ResolutionReason)
+                    ? "Unable to resolve a usable skill group source."
+                    : transferPlan.ResolutionReason,
+                normalizedGroupPath);
         }
-        var moveToLibrary = normalizedTargets.Count == 0 && !IsLibraryProfile(normalizedSourceProfile);
-        if (moveToLibrary
-            && !string.Equals(publishSourceDirectory, libraryGroupDirectory, StringComparison.OrdinalIgnoreCase)
-            && Directory.Exists(publishSourceDirectory))
+        if (!Directory.Exists(transferPlan.PublishSourceDirectory))
         {
-            if (Directory.Exists(libraryGroupDirectory))
-            {
-                DeleteDirectory(libraryGroupDirectory);
-            }
-
-            CopyDirectory(publishSourceDirectory, libraryGroupDirectory);
-            publishSourceDirectory = libraryGroupDirectory;
+            return OperationResult.Fail("The selected skill repository or folder does not exist.", transferPlan.PublishSourceDirectory);
         }
-
-        var sourceInstalls = installs
-            .Where(item => string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase)
-                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath))
-            .Select(item => item with { })
-            .ToArray();
-        var sourceStates = states
-            .Where(item => string.Equals(item.Profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase)
-                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath))
-            .Select(item => item with { })
-            .ToArray();
-        foreach (var profile in impactedProfiles)
+        var existingInstallTemplates = installs.ToDictionary(
+            item => GetInstallKey(item.Profile, item.InstalledRelativePath),
+            item => item,
+            StringComparer.OrdinalIgnoreCase);
+        var existingStateTemplates = states.ToDictionary(
+            item => GetInstallKey(item.Profile, item.InstalledRelativePath),
+            item => item,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var profile in transferPlan.RefreshedProfiles)
         {
             var destinationDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedGroupPath);
-            var isSelected = normalizedTargets.Contains(profile, StringComparer.OrdinalIgnoreCase);
-            if (IsLibraryProfile(profile))
+            var shouldReplaceDirectory = ShouldReplaceInstalledDirectory(destinationDirectory, transferPlan.PublishSourceDirectory);
+            var shouldRefreshMetadataLineage = shouldReplaceDirectory
+                || ShouldRefreshRetainedMetadataLineage(profile, transferPlan.ContentDonorProfileId, transferPlan.MetadataDonorProfileId);
+            if (shouldReplaceDirectory)
             {
-                continue;
-            }
-
-            if (isSelected)
-            {
-                if (!string.Equals(profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (Directory.Exists(destinationDirectory))
-                    {
-                        DeleteDirectory(destinationDirectory);
-                    }
-                    CopyDirectory(publishSourceDirectory, destinationDirectory);
-                }
-                installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
-                                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-                installs.AddRange(sourceInstalls.Select(item => item with { Profile = profile }));
-                states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
-                                         && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-                states.AddRange(sourceStates.Select(item => item with { Profile = profile }));
-            }
-            else if (string.Equals(profile, normalizedSourceProfile, StringComparison.OrdinalIgnoreCase))
-            {
-                if (moveToLibrary)
-                {
-                    installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
-                                               && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-                    states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
-                                             && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-                    if (Directory.Exists(destinationDirectory))
-                    {
-                        DeleteDirectory(destinationDirectory);
-                    }
-                }
-            }
-            else
-            {
-                installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
-                                           && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-                states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
-                                         && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
                 if (Directory.Exists(destinationDirectory))
                 {
                     DeleteDirectory(destinationDirectory);
                 }
+
+                CopyDirectory(transferPlan.PublishSourceDirectory, destinationDirectory);
+            }
+
+            PruneGroupMembersToAuthoritativeSet(
+                resolution.RootPath,
+                profile,
+                normalizedGroupPath,
+                transferPlan.AuthoritativeMemberPaths);
+
+            installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                       && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
+            states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                     && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
+            foreach (var relativeSkillPath in transferPlan.AuthoritativeMemberPaths)
+            {
+                var memberDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, relativeSkillPath);
+                existingInstallTemplates.TryGetValue(GetInstallKey(profile, relativeSkillPath), out var existingInstallTemplate);
+                existingStateTemplates.TryGetValue(GetInstallKey(profile, relativeSkillPath), out var existingStateTemplate);
+                installs.Add(BuildPreservedCustomizationInstallTemplate(
+                    existingInstallTemplate,
+                    transferPlan.MetadataInstallTemplates.TryGetValue(relativeSkillPath, out var metadataInstallTemplate) ? metadataInstallTemplate : null,
+                    profile,
+                    relativeSkillPath,
+                    transferPlan.AllowContentMetadataFallback
+                        && transferPlan.ContentInstallTemplates.TryGetValue(relativeSkillPath, out var contentInstallTemplate)
+                        ? contentInstallTemplate
+                        : null,
+                    shouldRefreshMetadataLineage));
+                states.Add(BuildPreservedCustomizationStateTemplate(
+                    existingStateTemplate,
+                    transferPlan.MetadataStateTemplates.TryGetValue(relativeSkillPath, out var metadataStateTemplate) ? metadataStateTemplate : null,
+                    profile,
+                    relativeSkillPath,
+                    memberDirectory,
+                    transferPlan.AllowContentMetadataFallback
+                        && transferPlan.ContentStateTemplates.TryGetValue(relativeSkillPath, out var contentStateTemplate)
+                        ? contentStateTemplate
+                        : null,
+                    shouldReplaceDirectory,
+                    shouldRefreshMetadataLineage));
             }
         }
-        if (moveToLibrary)
+
+        foreach (var profile in transferPlan.RemovedProfiles)
         {
-            installs.RemoveAll(item => string.Equals(item.Profile, LibraryProfileId, StringComparison.OrdinalIgnoreCase)
+            var destinationDirectory = GetInstalledSkillDirectory(resolution.RootPath, profile, normalizedGroupPath);
+            installs.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
                                        && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-            states.RemoveAll(item => string.Equals(item.Profile, LibraryProfileId, StringComparison.OrdinalIgnoreCase)
+            states.RemoveAll(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
                                      && IsPathWithinScope(item.InstalledRelativePath, normalizedGroupPath));
-            installs.AddRange(sourceInstalls.Select(item => item with { Profile = LibraryProfileId }));
-            states.AddRange(sourceStates.Select(item => item with { Profile = LibraryProfileId }));
+            if (Directory.Exists(destinationDirectory))
+            {
+                DeleteDirectory(destinationDirectory);
+            }
         }
 
         await SaveInstallsAsync(resolution.RootPath, installs, cancellationToken);
@@ -550,7 +677,7 @@ public sealed partial class SkillsCatalogService
             cancellationToken);
         return OperationResult.Ok(
             "Skill repository bindings saved.",
-            $"{normalizedGroupPath}{Environment.NewLine}{string.Join(Environment.NewLine, normalizedTargets)}");
+            $"{normalizedGroupPath}{Environment.NewLine}{string.Join(Environment.NewLine, transferPlan.MaterializedProfiles)}");
     }
     public async Task<OperationResult> CaptureBaselineAsync(
         string profile,
@@ -1113,14 +1240,840 @@ public sealed partial class SkillsCatalogService
 
     private static SkillInstallStateRecord CreateStateRecord(string profile, string relativePath, string skillDirectory)
     {
+        var baselineFiles = CaptureFingerprints(skillDirectory).ToList();
         return new SkillInstallStateRecord
         {
             Profile = WorkspaceProfiles.NormalizeId(profile),
             InstalledRelativePath = NormalizePath(relativePath),
             BaselineCapturedAt = DateTimeOffset.UtcNow,
-            BaselineFiles = CaptureFingerprints(skillDirectory).ToList()
+            BaselineFiles = baselineFiles,
+            SourceBaselineFiles = baselineFiles.ToList()
         };
     }
+
+    private static SkillBindingTransferPlan ResolveSkillBindingTransferPlan(
+        string hubRoot,
+        string sourceProfile,
+        string relativePath,
+        IReadOnlyList<string> targetProfiles,
+        IReadOnlyList<SkillInstallRecord> installs,
+        IReadOnlyList<SkillInstallStateRecord> states,
+        string sourceDirectory,
+        string libraryDirectory,
+        IReadOnlyList<string> impactedProfiles)
+    {
+        var installMap = installs.ToDictionary(
+            item => GetInstallKey(item.Profile, item.InstalledRelativePath),
+            item => item,
+            StringComparer.OrdinalIgnoreCase);
+        var stateMap = states.ToDictionary(
+            item => GetInstallKey(item.Profile, item.InstalledRelativePath),
+            item => item,
+            StringComparer.OrdinalIgnoreCase);
+        var materializedProfiles = ResolveMaterializedProfiles(targetProfiles);
+        var primaryDestinationProfileId = materializedProfiles.First();
+        var donorResolution = ResolveSkillContentDonorProfile(
+            hubRoot,
+            sourceProfile,
+            relativePath,
+            materializedProfiles
+                .Where(profile => !string.Equals(profile, sourceProfile, StringComparison.OrdinalIgnoreCase)
+                                  && !IsLibraryProfile(profile))
+                .ToArray());
+        var contentDonorProfileId = donorResolution.ProfileId;
+        var publishSourceDirectory = string.IsNullOrWhiteSpace(contentDonorProfileId)
+            ? libraryDirectory
+            : GetInstalledSkillDirectory(hubRoot, contentDonorProfileId, relativePath);
+        var metadataDonorProfileId = HasSkillMetadata(installMap, stateMap, sourceProfile, relativePath)
+            ? sourceProfile
+            : donorResolution.RequiresSyntheticMetadata
+            ? string.Empty
+            : contentDonorProfileId;
+        installMap.TryGetValue(GetInstallKey(sourceProfile, relativePath), out var sourceInstallTemplate);
+        stateMap.TryGetValue(GetInstallKey(sourceProfile, relativePath), out var sourceStateTemplate);
+        installMap.TryGetValue(GetInstallKey(contentDonorProfileId, relativePath), out var contentInstallTemplate);
+        stateMap.TryGetValue(GetInstallKey(contentDonorProfileId, relativePath), out var contentStateTemplate);
+        var metadataInstallTemplate = string.IsNullOrWhiteSpace(metadataDonorProfileId)
+            ? null
+            : MergeSkillInstallMetadataTemplate(
+                string.Equals(metadataDonorProfileId, sourceProfile, StringComparison.OrdinalIgnoreCase) ? sourceInstallTemplate : null,
+                contentInstallTemplate,
+                metadataDonorProfileId,
+                relativePath);
+        var metadataStateTemplate = string.IsNullOrWhiteSpace(metadataDonorProfileId)
+            ? null
+            : MergeSkillStateMetadataTemplate(
+                string.Equals(metadataDonorProfileId, sourceProfile, StringComparison.OrdinalIgnoreCase) ? sourceStateTemplate : null,
+                contentStateTemplate,
+                metadataDonorProfileId,
+                relativePath);
+
+        return new SkillBindingTransferPlan(
+            donorResolution.Status,
+            donorResolution.Reason,
+            contentDonorProfileId,
+            metadataDonorProfileId,
+            publishSourceDirectory,
+            IsLibraryProfile(primaryDestinationProfileId) ? BindingSourceKind.Library : BindingSourceKind.Category,
+            primaryDestinationProfileId,
+            metadataInstallTemplate,
+            metadataStateTemplate,
+            materializedProfiles,
+            materializedProfiles,
+            impactedProfiles
+                .Where(profile => !materializedProfiles.Contains(profile, StringComparer.OrdinalIgnoreCase))
+                .Where(profile => !string.Equals(profile, contentDonorProfileId, StringComparison.OrdinalIgnoreCase)
+                                  || !IsLibraryProfile(profile))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+    }
+
+    private static SkillGroupTransferPlan ResolveSkillGroupBindingTransferPlan(
+        string hubRoot,
+        string sourceProfile,
+        string groupPath,
+        IReadOnlyList<string> targetProfiles,
+        IReadOnlyList<SkillInstallRecord> installs,
+        IReadOnlyList<SkillInstallStateRecord> states,
+        string sourceGroupDirectory,
+        string libraryGroupDirectory,
+        IReadOnlyList<string> impactedProfiles)
+    {
+        var materializedProfiles = ResolveMaterializedProfiles(targetProfiles);
+        var primaryDestinationProfileId = materializedProfiles.First();
+        var donorResolution = ResolveGroupContentDonorProfile(
+            hubRoot,
+            sourceProfile,
+            groupPath,
+            materializedProfiles
+                .Where(profile => !string.Equals(profile, sourceProfile, StringComparison.OrdinalIgnoreCase)
+                                  && !IsLibraryProfile(profile))
+                .ToArray());
+        var contentDonorProfileId = donorResolution.ProfileId;
+        var publishSourceDirectory = string.IsNullOrWhiteSpace(contentDonorProfileId)
+            ? libraryGroupDirectory
+            : GetInstalledSkillDirectory(hubRoot, contentDonorProfileId, groupPath);
+        var authoritativeMemberPaths = donorResolution.Status == BindingResolutionStatus.Resolved
+            ? EnumerateGroupMembersFromDirectory(publishSourceDirectory, groupPath)
+            : Array.Empty<string>();
+        var physicalMembers = impactedProfiles
+            .Append(sourceProfile)
+            .Append(LibraryProfileId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .SelectMany(profile => EnumerateGroupMembersFromDirectory(GetInstalledSkillDirectory(hubRoot, profile, groupPath), groupPath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var metadataMemberPaths = installs
+            .Where(item => impactedProfiles.Contains(item.Profile, StringComparer.OrdinalIgnoreCase)
+                           && IsPathWithinScope(item.InstalledRelativePath, groupPath))
+            .Select(item => NormalizePath(item.InstalledRelativePath))
+            .Concat(states
+                .Where(item => impactedProfiles.Contains(item.Profile, StringComparer.OrdinalIgnoreCase)
+                               && IsPathWithinScope(item.InstalledRelativePath, groupPath))
+                .Select(item => NormalizePath(item.InstalledRelativePath)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var orphanedMetadataMemberPaths = metadataMemberPaths
+            .Where(path => !physicalMembers.Contains(path, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var metadataDonorProfileId = HasGroupMetadata(installs, states, sourceProfile, authoritativeMemberPaths)
+            ? sourceProfile
+            : donorResolution.RequiresSyntheticMetadata
+            ? string.Empty
+            : contentDonorProfileId;
+        var metadataInstallTemplates = installs
+            .Where(item => !string.IsNullOrWhiteSpace(metadataDonorProfileId)
+                           && string.Equals(item.Profile, metadataDonorProfileId, StringComparison.OrdinalIgnoreCase)
+                           && authoritativeMemberPaths.Contains(NormalizePath(item.InstalledRelativePath), StringComparer.OrdinalIgnoreCase))
+            .ToDictionary(item => NormalizePath(item.InstalledRelativePath), item => item, StringComparer.OrdinalIgnoreCase);
+        var metadataStateTemplates = states
+            .Where(item => !string.IsNullOrWhiteSpace(metadataDonorProfileId)
+                           && string.Equals(item.Profile, metadataDonorProfileId, StringComparison.OrdinalIgnoreCase)
+                           && authoritativeMemberPaths.Contains(NormalizePath(item.InstalledRelativePath), StringComparer.OrdinalIgnoreCase))
+            .ToDictionary(item => NormalizePath(item.InstalledRelativePath), item => item, StringComparer.OrdinalIgnoreCase);
+        var contentInstallTemplates = installs
+            .Where(item => string.Equals(item.Profile, contentDonorProfileId, StringComparison.OrdinalIgnoreCase)
+                           && authoritativeMemberPaths.Contains(NormalizePath(item.InstalledRelativePath), StringComparer.OrdinalIgnoreCase))
+            .ToDictionary(item => NormalizePath(item.InstalledRelativePath), item => item, StringComparer.OrdinalIgnoreCase);
+        var contentStateTemplates = states
+            .Where(item => string.Equals(item.Profile, contentDonorProfileId, StringComparison.OrdinalIgnoreCase)
+                           && authoritativeMemberPaths.Contains(NormalizePath(item.InstalledRelativePath), StringComparer.OrdinalIgnoreCase))
+            .ToDictionary(item => NormalizePath(item.InstalledRelativePath), item => item, StringComparer.OrdinalIgnoreCase);
+
+        return new SkillGroupTransferPlan(
+            donorResolution.Status,
+            donorResolution.Reason,
+            contentDonorProfileId,
+            metadataDonorProfileId,
+            publishSourceDirectory,
+            IsLibraryProfile(primaryDestinationProfileId) ? BindingSourceKind.Library : BindingSourceKind.Category,
+            primaryDestinationProfileId,
+            authoritativeMemberPaths,
+            orphanedMetadataMemberPaths,
+            metadataInstallTemplates,
+            metadataStateTemplates,
+            contentInstallTemplates,
+            contentStateTemplates,
+            !donorResolution.RequiresSyntheticMetadata,
+            materializedProfiles,
+            materializedProfiles,
+            impactedProfiles
+                .Where(profile => !materializedProfiles.Contains(profile, StringComparer.OrdinalIgnoreCase))
+                .Where(profile => !string.Equals(profile, contentDonorProfileId, StringComparison.OrdinalIgnoreCase)
+                                  || !IsLibraryProfile(profile))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+    }
+
+    private static SkillInstallRecord BuildSkillInstallTemplate(
+        SkillInstallRecord? preferredTemplate,
+        string profile,
+        string relativePath,
+        SkillInstallRecord? fallbackTemplate = null)
+    {
+        var template = preferredTemplate ?? fallbackTemplate;
+        return template is not null
+            ? template with
+            {
+                Profile = WorkspaceProfiles.NormalizeId(profile),
+                InstalledRelativePath = NormalizePath(relativePath),
+                Name = Path.GetFileName(NormalizePath(relativePath))
+            }
+            : new SkillInstallRecord
+            {
+                Name = Path.GetFileName(NormalizePath(relativePath)),
+                Profile = WorkspaceProfiles.NormalizeId(profile),
+                InstalledRelativePath = NormalizePath(relativePath),
+                CustomizationMode = SkillCustomizationMode.Local
+            };
+    }
+
+    private static SkillInstallStateRecord BuildSkillStateTemplate(
+        SkillInstallStateRecord? preferredTemplate,
+        string profile,
+        string relativePath,
+        string skillDirectory,
+        SkillInstallStateRecord? fallbackTemplate = null)
+    {
+        var template = preferredTemplate ?? fallbackTemplate;
+        return template is not null
+            ? NormalizeState(template with
+            {
+                Profile = WorkspaceProfiles.NormalizeId(profile),
+                InstalledRelativePath = NormalizePath(relativePath)
+            })
+            : CreateStateRecord(profile, relativePath, skillDirectory);
+    }
+
+    private static SkillInstallRecord BuildSingleSkillInstallTemplate(
+        SkillInstallRecord? existingTemplate,
+        SkillInstallRecord? donorTemplate,
+        string profile,
+        string relativePath,
+        bool shouldRefreshLineage)
+    {
+        if (existingTemplate is null)
+        {
+            return BuildSkillInstallTemplate(donorTemplate, profile, relativePath);
+        }
+
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
+        var normalizedRelativePath = NormalizePath(relativePath);
+        var shouldRefreshFromDonor = shouldRefreshLineage && donorTemplate is not null;
+        return new SkillInstallRecord
+        {
+            Name = Path.GetFileName(normalizedRelativePath),
+            Profile = normalizedProfile,
+            InstalledRelativePath = normalizedRelativePath,
+            SourceLocalName = shouldRefreshFromDonor
+                ? donorTemplate?.SourceLocalName
+                : string.IsNullOrWhiteSpace(existingTemplate.SourceLocalName)
+                ? donorTemplate?.SourceLocalName
+                : existingTemplate.SourceLocalName,
+            SourceProfile = shouldRefreshFromDonor
+                ? donorTemplate?.SourceProfile
+                : string.IsNullOrWhiteSpace(existingTemplate.SourceProfile)
+                ? donorTemplate?.SourceProfile
+                : existingTemplate.SourceProfile,
+            SourceSkillPath = shouldRefreshFromDonor
+                ? donorTemplate?.SourceSkillPath
+                : string.IsNullOrWhiteSpace(existingTemplate.SourceSkillPath)
+                ? donorTemplate?.SourceSkillPath
+                : existingTemplate.SourceSkillPath,
+            CustomizationMode = existingTemplate.CustomizationMode
+        };
+    }
+
+    private static SkillInstallRecord? MergeSkillInstallMetadataTemplate(
+        SkillInstallRecord? primaryTemplate,
+        SkillInstallRecord? fallbackTemplate,
+        string profile,
+        string relativePath)
+    {
+        if (primaryTemplate is null && fallbackTemplate is null)
+        {
+            return null;
+        }
+
+        return primaryTemplate is null
+            ? BuildSkillInstallTemplate(fallbackTemplate, profile, relativePath)
+            : BuildSingleSkillInstallTemplate(primaryTemplate, fallbackTemplate, profile, relativePath, shouldRefreshLineage: false);
+    }
+
+    private static SkillInstallStateRecord BuildSingleSkillStateTemplate(
+        SkillInstallStateRecord? existingTemplate,
+        SkillInstallStateRecord? donorTemplate,
+        string profile,
+        string relativePath,
+        string skillDirectory,
+        bool shouldRefreshBaseline,
+        bool shouldRefreshLineage)
+    {
+        var currentFingerprints = CaptureFingerprints(skillDirectory).ToList();
+        if (existingTemplate is null)
+        {
+            var template = BuildSkillStateTemplate(donorTemplate, profile, relativePath, skillDirectory);
+            return NormalizeState(template with
+            {
+                BaselineCapturedAt = DateTimeOffset.UtcNow,
+                BaselineFiles = currentFingerprints,
+                SourceBaselineFiles = ResolveSourceBaselineFiles(template.SourceBaselineFiles, currentFingerprints).ToList()
+            });
+        }
+
+        if (!shouldRefreshBaseline)
+        {
+            var template = BuildSkillStateTemplate(existingTemplate, profile, relativePath, skillDirectory, donorTemplate);
+            if (!shouldRefreshLineage)
+            {
+                return template;
+            }
+
+            return NormalizeState(template with
+            {
+                SourceBaselineFiles = ResolveSourceBaselineFiles(donorTemplate?.SourceBaselineFiles, currentFingerprints).ToList(),
+                LastSyncAt = donorTemplate?.LastSyncAt ?? template.LastSyncAt,
+                LastCheckedAt = donorTemplate?.LastCheckedAt ?? template.LastCheckedAt,
+                LastAppliedReference = donorTemplate?.LastAppliedReference ?? template.LastAppliedReference,
+                LastBackupPath = donorTemplate?.LastBackupPath ?? template.LastBackupPath
+            });
+        }
+
+        var normalizedProfile = WorkspaceProfiles.NormalizeId(profile);
+        var normalizedRelativePath = NormalizePath(relativePath);
+        return new SkillInstallStateRecord
+        {
+            Profile = normalizedProfile,
+            InstalledRelativePath = normalizedRelativePath,
+            BaselineCapturedAt = DateTimeOffset.UtcNow,
+            BaselineFiles = currentFingerprints,
+            SourceBaselineFiles = ResolveSourceBaselineFiles(
+                donorTemplate is not null
+                    ? donorTemplate.SourceBaselineFiles
+                    : existingTemplate.SourceBaselineFiles,
+                currentFingerprints).ToList(),
+            OverlayDeletedFiles = NormalizePathValues(existingTemplate.OverlayDeletedFiles).ToList(),
+            LastSyncAt = shouldRefreshLineage && donorTemplate is not null
+                ? donorTemplate?.LastSyncAt
+                : existingTemplate.LastSyncAt ?? donorTemplate?.LastSyncAt,
+            LastCheckedAt = shouldRefreshLineage && donorTemplate is not null
+                ? donorTemplate?.LastCheckedAt
+                : existingTemplate.LastCheckedAt ?? donorTemplate?.LastCheckedAt,
+            LastAppliedReference = shouldRefreshLineage && donorTemplate is not null
+                ? donorTemplate?.LastAppliedReference
+                : existingTemplate.LastAppliedReference ?? donorTemplate?.LastAppliedReference,
+            LastBackupPath = shouldRefreshLineage && donorTemplate is not null
+                ? donorTemplate?.LastBackupPath
+                : existingTemplate.LastBackupPath ?? donorTemplate?.LastBackupPath
+        };
+    }
+
+    private static SkillInstallStateRecord? MergeSkillStateMetadataTemplate(
+        SkillInstallStateRecord? primaryTemplate,
+        SkillInstallStateRecord? fallbackTemplate,
+        string profile,
+        string relativePath)
+    {
+        if (primaryTemplate is null && fallbackTemplate is null)
+        {
+            return null;
+        }
+
+        if (primaryTemplate is null)
+        {
+            return NormalizeState(fallbackTemplate! with
+            {
+                Profile = WorkspaceProfiles.NormalizeId(profile),
+                InstalledRelativePath = NormalizePath(relativePath)
+            });
+        }
+
+        return NormalizeState(primaryTemplate with
+        {
+            Profile = WorkspaceProfiles.NormalizeId(profile),
+            InstalledRelativePath = NormalizePath(relativePath),
+            BaselineCapturedAt = primaryTemplate.BaselineCapturedAt == default
+                ? fallbackTemplate?.BaselineCapturedAt ?? default
+                : primaryTemplate.BaselineCapturedAt,
+            BaselineFiles = NormalizeFingerprints(primaryTemplate.BaselineFiles).ToList(),
+            SourceBaselineFiles = NormalizeFingerprints(primaryTemplate.SourceBaselineFiles).ToList(),
+            OverlayDeletedFiles = NormalizePathValues(primaryTemplate.OverlayDeletedFiles).ToList(),
+            LastSyncAt = primaryTemplate.LastSyncAt ?? fallbackTemplate?.LastSyncAt,
+            LastCheckedAt = primaryTemplate.LastCheckedAt ?? fallbackTemplate?.LastCheckedAt,
+            LastAppliedReference = primaryTemplate.LastAppliedReference ?? fallbackTemplate?.LastAppliedReference,
+            LastBackupPath = primaryTemplate.LastBackupPath ?? fallbackTemplate?.LastBackupPath
+        });
+    }
+
+    private static IReadOnlyList<SkillFileFingerprintRecord> ResolveSourceBaselineFiles(
+        IReadOnlyList<SkillFileFingerprintRecord>? preferredSourceBaselineFiles,
+        IReadOnlyList<SkillFileFingerprintRecord> fallbackFingerprints)
+    {
+        return NormalizeFingerprints(preferredSourceBaselineFiles is not null && preferredSourceBaselineFiles.Count > 0
+            ? preferredSourceBaselineFiles
+            : fallbackFingerprints).ToList();
+    }
+
+    private static SkillInstallRecord BuildPreservedCustomizationInstallTemplate(
+        SkillInstallRecord? existingTemplate,
+        SkillInstallRecord? preferredTemplate,
+        string profile,
+        string relativePath,
+        SkillInstallRecord? fallbackTemplate,
+        bool shouldRefreshLineage)
+    {
+        var template = BuildSingleSkillInstallTemplate(
+            existingTemplate,
+            preferredTemplate ?? fallbackTemplate,
+            profile,
+            relativePath,
+            shouldRefreshLineage);
+        return existingTemplate is null
+            ? template
+            : template with
+            {
+                CustomizationMode = existingTemplate.CustomizationMode
+            };
+    }
+
+    private static SkillInstallStateRecord BuildPreservedCustomizationStateTemplate(
+        SkillInstallStateRecord? existingTemplate,
+        SkillInstallStateRecord? preferredTemplate,
+        string profile,
+        string relativePath,
+        string skillDirectory,
+        SkillInstallStateRecord? fallbackTemplate,
+        bool shouldRefreshBaseline,
+        bool shouldRefreshLineage)
+    {
+        return BuildSingleSkillStateTemplate(
+            existingTemplate,
+            preferredTemplate ?? fallbackTemplate,
+            profile,
+            relativePath,
+            skillDirectory,
+            shouldRefreshBaseline,
+            shouldRefreshLineage);
+    }
+
+    private static IReadOnlyList<string> EnumerateGroupMembersFromDirectory(string groupDirectory, string groupPath)
+    {
+        if (!Directory.Exists(groupDirectory))
+        {
+            return Array.Empty<string>();
+        }
+
+        return Directory.EnumerateFiles(groupDirectory, "SKILL.md", SearchOption.AllDirectories)
+            .Select(path => Path.GetDirectoryName(path))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path =>
+            {
+                var relativeMemberPath = NormalizePath(Path.GetRelativePath(groupDirectory, path!));
+                return string.IsNullOrWhiteSpace(relativeMemberPath)
+                    ? NormalizePath(groupPath)
+                    : NormalizePath(Path.Combine(groupPath, relativeMemberPath));
+            })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyList<string> ResolveMaterializedProfiles(IReadOnlyList<string> targetProfiles)
+    {
+        var normalizedTargets = NormalizeProfiles(targetProfiles);
+        return normalizedTargets.Count > 0 ? normalizedTargets : new[] { LibraryProfileId };
+    }
+
+    private static bool HasUsableSkillMirror(
+        string hubRoot,
+        string profile,
+        string relativePath)
+    {
+        var skillDirectory = GetInstalledSkillDirectory(hubRoot, profile, relativePath);
+        return Directory.Exists(skillDirectory)
+               && File.Exists(Path.Combine(skillDirectory, "SKILL.md"));
+    }
+
+    private static bool HasUsableGroupMirror(string hubRoot, string profile, string groupPath)
+    {
+        var groupDirectory = GetInstalledSkillDirectory(hubRoot, profile, groupPath);
+        return EnumerateGroupMembersFromDirectory(groupDirectory, groupPath).Count > 0;
+    }
+
+    private static bool HasSkillMetadata(
+        IReadOnlyDictionary<string, SkillInstallRecord> installMap,
+        IReadOnlyDictionary<string, SkillInstallStateRecord> stateMap,
+        string profile,
+        string relativePath)
+    {
+        return installMap.ContainsKey(GetInstallKey(profile, relativePath))
+               || stateMap.ContainsKey(GetInstallKey(profile, relativePath));
+    }
+
+    private static bool HasGroupMetadata(
+        IReadOnlyList<SkillInstallRecord> installs,
+        IReadOnlyList<SkillInstallStateRecord> states,
+        string profile,
+        IReadOnlyList<string> authoritativeMemberPaths)
+    {
+        if (authoritativeMemberPaths.Count == 0)
+        {
+            return false;
+        }
+
+        var authoritativeMembers = authoritativeMemberPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(NormalizePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return installs.Any(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                    && authoritativeMembers.Contains(NormalizePath(item.InstalledRelativePath)))
+               || states.Any(item => string.Equals(item.Profile, profile, StringComparison.OrdinalIgnoreCase)
+                                     && authoritativeMembers.Contains(NormalizePath(item.InstalledRelativePath)));
+    }
+
+    private static bool ShouldRefreshRetainedMetadataLineage(
+        string profile,
+        string contentDonorProfileId,
+        string metadataDonorProfileId)
+    {
+        return !string.IsNullOrWhiteSpace(metadataDonorProfileId)
+               && string.Equals(profile, contentDonorProfileId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static DonorResolution ResolveSkillContentDonorProfile(
+        string hubRoot,
+        string sourceProfile,
+        string relativePath,
+        IReadOnlyList<string> fallbackProfiles)
+    {
+        if (HasUsableSkillMirror(hubRoot, sourceProfile, relativePath))
+        {
+            return new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, sourceProfile);
+        }
+
+        if (HasUsableSkillMirror(hubRoot, LibraryProfileId, relativePath))
+        {
+            return new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, LibraryProfileId);
+        }
+
+        var usableFallbacks = fallbackProfiles
+            .Where(profile => HasUsableSkillMirror(hubRoot, profile, relativePath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (usableFallbacks.Length == 1)
+        {
+            return new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, usableFallbacks[0]);
+        }
+
+        if (usableFallbacks.Length > 1)
+        {
+            return AreSkillMirrorsEquivalent(hubRoot, relativePath, usableFallbacks)
+                ? new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, usableFallbacks[0], RequiresSyntheticMetadata: true)
+                : new DonorResolution(BindingResolutionStatus.Ambiguous, "Multiple target mirrors disagree; select a single usable donor first.", string.Empty);
+        }
+
+        return new DonorResolution(BindingResolutionStatus.Unresolvable, "No usable physical skill mirror exists for the requested binding.", string.Empty);
+    }
+
+    private static DonorResolution ResolveGroupContentDonorProfile(
+        string hubRoot,
+        string sourceProfile,
+        string groupPath,
+        IReadOnlyList<string> fallbackProfiles)
+    {
+        if (HasUsableGroupMirror(hubRoot, sourceProfile, groupPath))
+        {
+            return new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, sourceProfile);
+        }
+
+        if (HasUsableGroupMirror(hubRoot, LibraryProfileId, groupPath))
+        {
+            return new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, LibraryProfileId);
+        }
+
+        var usableFallbacks = fallbackProfiles
+            .Where(profile => HasUsableGroupMirror(hubRoot, profile, groupPath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (usableFallbacks.Length == 1)
+        {
+            return new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, usableFallbacks[0]);
+        }
+
+        if (usableFallbacks.Length > 1)
+        {
+            return AreGroupMirrorsEquivalent(hubRoot, groupPath, usableFallbacks)
+                ? new DonorResolution(BindingResolutionStatus.Resolved, string.Empty, usableFallbacks[0], RequiresSyntheticMetadata: true)
+                : new DonorResolution(BindingResolutionStatus.Ambiguous, "Multiple target group mirrors disagree; select a single usable donor first.", string.Empty);
+        }
+
+        return new DonorResolution(BindingResolutionStatus.Unresolvable, "No usable physical skill group mirror exists for the requested binding.", string.Empty);
+    }
+
+    private static bool AreSkillMirrorsEquivalent(
+        string hubRoot,
+        string relativePath,
+        IReadOnlyList<string> candidateProfiles)
+    {
+        if (candidateProfiles.Count < 2)
+        {
+            return true;
+        }
+
+        var baseline = CaptureFingerprints(GetInstalledSkillDirectory(hubRoot, candidateProfiles[0], relativePath));
+        foreach (var profile in candidateProfiles.Skip(1))
+        {
+            if (!FingerprintsEqual(baseline, CaptureFingerprints(GetInstalledSkillDirectory(hubRoot, profile, relativePath))))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool AreGroupMirrorsEquivalent(
+        string hubRoot,
+        string groupPath,
+        IReadOnlyList<string> candidateProfiles)
+    {
+        if (candidateProfiles.Count < 2)
+        {
+            return true;
+        }
+
+        var baselineDirectory = GetInstalledSkillDirectory(hubRoot, candidateProfiles[0], groupPath);
+        var baselineMembers = EnumerateGroupMembersFromDirectory(baselineDirectory, groupPath)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var baselineFingerprints = CaptureFingerprints(baselineDirectory);
+        foreach (var profile in candidateProfiles.Skip(1))
+        {
+            var candidateDirectory = GetInstalledSkillDirectory(hubRoot, profile, groupPath);
+            var candidateMembers = EnumerateGroupMembersFromDirectory(candidateDirectory, groupPath)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (!baselineMembers.SequenceEqual(candidateMembers, StringComparer.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!FingerprintsEqual(baselineFingerprints, CaptureFingerprints(candidateDirectory)))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static BindingResolutionPreview BuildBindingResolutionPreview(
+        BindingResolutionStatus resolutionStatus,
+        string resolutionReason,
+        string contentDonorProfileId,
+        string metadataDonorProfileId,
+        string primaryDestinationProfileId,
+        IReadOnlyList<string> materializedProfiles,
+        IReadOnlyList<string> refreshedProfiles,
+        IReadOnlyList<string> removedProfiles,
+        IReadOnlyList<string> materializedMemberPaths)
+    {
+        var normalizedDonorProfile = string.IsNullOrWhiteSpace(contentDonorProfileId)
+            ? string.Empty
+            : WorkspaceProfiles.NormalizeId(contentDonorProfileId);
+        var normalizedMetadataDonorProfile = string.IsNullOrWhiteSpace(metadataDonorProfileId)
+            ? string.Empty
+            : WorkspaceProfiles.NormalizeId(metadataDonorProfileId);
+        var normalizedDestinationProfile = string.IsNullOrWhiteSpace(primaryDestinationProfileId)
+            ? string.Empty
+            : WorkspaceProfiles.NormalizeId(primaryDestinationProfileId);
+        var resolvedDestinationProfile = resolutionStatus == BindingResolutionStatus.Resolved
+            ? normalizedDestinationProfile
+            : string.Empty;
+        var resolvedMaterializedProfiles = resolutionStatus == BindingResolutionStatus.Resolved
+            ? materializedProfiles
+            : Array.Empty<string>();
+        var resolvedRefreshedProfiles = resolutionStatus == BindingResolutionStatus.Resolved
+            ? refreshedProfiles
+            : Array.Empty<string>();
+        var resolvedRemovedProfiles = resolutionStatus == BindingResolutionStatus.Resolved
+            ? removedProfiles
+            : Array.Empty<string>();
+        var resolvedMaterializedMemberPaths = resolutionStatus == BindingResolutionStatus.Resolved
+            ? materializedMemberPaths
+            : Array.Empty<string>();
+        return new BindingResolutionPreview(
+            resolutionStatus,
+            resolutionReason,
+            ResolveBindingSourceKind(normalizedDonorProfile),
+            normalizedDonorProfile,
+            ResolveBindingSourceKind(resolvedDestinationProfile),
+            resolvedDestinationProfile,
+            resolvedMaterializedProfiles
+                .Where(profile => !string.IsNullOrWhiteSpace(profile))
+                .Select(WorkspaceProfiles.NormalizeId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            resolvedMaterializedMemberPaths
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(NormalizePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToArray())
+        {
+            MetadataDonorKind = ResolveBindingSourceKind(normalizedMetadataDonorProfile),
+            MetadataDonorProfileId = normalizedMetadataDonorProfile,
+            RefreshedProfileIds = resolvedRefreshedProfiles
+                .Where(profile => !string.IsNullOrWhiteSpace(profile))
+                .Select(WorkspaceProfiles.NormalizeId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            RemovedProfileIds = resolvedRemovedProfiles
+                .Where(profile => !string.IsNullOrWhiteSpace(profile))
+                .Select(WorkspaceProfiles.NormalizeId)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+        };
+    }
+
+    private static BindingSourceKind ResolveBindingSourceKind(string? profileId)
+    {
+        if (string.IsNullOrWhiteSpace(profileId))
+        {
+            return BindingSourceKind.None;
+        }
+
+        return IsLibraryProfile(profileId)
+            ? BindingSourceKind.Library
+            : BindingSourceKind.Category;
+    }
+
+    private static bool ShouldReplaceInstalledDirectory(string destinationDirectory, string publishSourceDirectory)
+    {
+        return !Directory.Exists(destinationDirectory)
+               || !string.Equals(
+                   Path.GetFullPath(destinationDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                   Path.GetFullPath(publishSourceDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void PruneGroupMembersToAuthoritativeSet(
+        string hubRoot,
+        string profile,
+        string groupPath,
+        IReadOnlyList<string> authoritativeMemberPaths)
+    {
+        var groupDirectory = GetInstalledSkillDirectory(hubRoot, profile, groupPath);
+        if (!Directory.Exists(groupDirectory))
+        {
+            return;
+        }
+
+        var authoritativeMembers = authoritativeMemberPaths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(NormalizePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var memberPath in EnumerateGroupMembersFromDirectory(groupDirectory, groupPath))
+        {
+            if (authoritativeMembers.Contains(memberPath)
+                || string.Equals(memberPath, NormalizePath(groupPath), StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var memberDirectory = GetInstalledSkillDirectory(hubRoot, profile, memberPath);
+            if (!Directory.Exists(memberDirectory))
+            {
+                continue;
+            }
+
+            DeleteDirectory(memberDirectory);
+            DeleteEmptyAncestorDirectories(memberDirectory, groupDirectory);
+        }
+    }
+
+    private static void DeleteEmptyAncestorDirectories(string childDirectory, string stopDirectory)
+    {
+        var normalizedStopDirectory = Path.GetFullPath(stopDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var parentDirectory = Directory.GetParent(childDirectory);
+        while (parentDirectory is not null)
+        {
+            var normalizedParentDirectory = Path.GetFullPath(parentDirectory.FullName)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (string.Equals(normalizedParentDirectory, normalizedStopDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            if (Directory.EnumerateFileSystemEntries(parentDirectory.FullName).Any())
+            {
+                break;
+            }
+
+            parentDirectory.Delete();
+            parentDirectory = parentDirectory.Parent;
+        }
+    }
+
+    private sealed record SkillBindingTransferPlan(
+        BindingResolutionStatus ResolutionStatus,
+        string ResolutionReason,
+        string ContentDonorProfileId,
+        string MetadataDonorProfileId,
+        string PublishSourceDirectory,
+        BindingSourceKind PrimaryDestinationKind,
+        string PrimaryDestinationProfileId,
+        SkillInstallRecord? MetadataInstallTemplate,
+        SkillInstallStateRecord? MetadataStateTemplate,
+        IReadOnlyList<string> MaterializedProfiles,
+        IReadOnlyList<string> RefreshedProfiles,
+        IReadOnlyList<string> RemovedProfiles);
+
+    private sealed record SkillGroupTransferPlan(
+        BindingResolutionStatus ResolutionStatus,
+        string ResolutionReason,
+        string ContentDonorProfileId,
+        string MetadataDonorProfileId,
+        string PublishSourceDirectory,
+        BindingSourceKind PrimaryDestinationKind,
+        string PrimaryDestinationProfileId,
+        IReadOnlyList<string> AuthoritativeMemberPaths,
+        IReadOnlyList<string> OrphanedMetadataMemberPaths,
+        IReadOnlyDictionary<string, SkillInstallRecord> MetadataInstallTemplates,
+        IReadOnlyDictionary<string, SkillInstallStateRecord> MetadataStateTemplates,
+        IReadOnlyDictionary<string, SkillInstallRecord> ContentInstallTemplates,
+        IReadOnlyDictionary<string, SkillInstallStateRecord> ContentStateTemplates,
+        bool AllowContentMetadataFallback,
+        IReadOnlyList<string> MaterializedProfiles,
+        IReadOnlyList<string> RefreshedProfiles,
+        IReadOnlyList<string> RemovedProfiles);
+
+    private sealed record DonorResolution(
+        BindingResolutionStatus Status,
+        string Reason,
+        string ProfileId,
+        bool RequiresSyntheticMetadata = false);
 
     private static IReadOnlyList<SkillFileFingerprintRecord> CaptureFingerprints(string skillDirectory)
     {
@@ -1999,11 +2952,31 @@ public sealed partial class SkillsCatalogService
         {
             Profile = WorkspaceProfiles.NormalizeId(record.Profile),
             InstalledRelativePath = NormalizePath(record.InstalledRelativePath),
-            BaselineFiles = record.BaselineFiles
+            BaselineFiles = NormalizeFingerprints(record.BaselineFiles)
                 .Select(item => item with { RelativePath = NormalizePath(item.RelativePath) })
                 .OrderBy(item => item.RelativePath, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            SourceBaselineFiles = NormalizeFingerprints(record.SourceBaselineFiles)
+                .Select(item => item with { RelativePath = NormalizePath(item.RelativePath) })
+                .OrderBy(item => item.RelativePath, StringComparer.OrdinalIgnoreCase)
+                .ToList(),
+            OverlayDeletedFiles = NormalizePathValues(record.OverlayDeletedFiles)
+                .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
                 .ToList()
         };
+    }
+
+    private static IEnumerable<SkillFileFingerprintRecord> NormalizeFingerprints(IEnumerable<SkillFileFingerprintRecord>? fingerprints)
+    {
+        return fingerprints ?? Array.Empty<SkillFileFingerprintRecord>();
+    }
+
+    private static IEnumerable<string> NormalizePathValues(IEnumerable<string>? values)
+    {
+        return (values ?? Array.Empty<string>())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(NormalizePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static string? ValidateSource(SkillSourceRecord record)

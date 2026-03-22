@@ -5,25 +5,25 @@ namespace AIHub.Desktop.ViewModels;
 public enum SkillsPageTargetKind
 {
     Global,
-    Project
+    Category
 }
 
 public sealed class SkillsPageTargetOption
 {
-    public SkillsPageTargetOption(SkillsPageTargetKind kind, string displayName, ProjectRecord? project = null)
+    public SkillsPageTargetOption(SkillsPageTargetKind kind, string profileId, string displayName)
     {
         Kind = kind;
+        ProfileId = WorkspaceProfiles.NormalizeId(profileId);
         DisplayName = displayName;
-        Project = project;
     }
 
     public SkillsPageTargetKind Kind { get; }
 
+    public string ProfileId { get; }
+
     public string DisplayName { get; }
 
-    public ProjectRecord? Project { get; }
-
-    public string ProfileId => Project?.Profile ?? WorkspaceProfiles.GlobalId;
+    public bool IsGlobal => Kind == SkillsPageTargetKind.Global;
 
     public override string ToString() => DisplayName;
 }
