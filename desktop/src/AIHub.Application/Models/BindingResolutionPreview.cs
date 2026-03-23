@@ -24,10 +24,17 @@ public sealed record BindingResolutionPreview(
     IReadOnlyList<string> MaterializedProfileIds,
     IReadOnlyList<string> MaterializedMemberPaths)
 {
-    // Front-end source semantics now follow the metadata donor.
-    public BindingSourceKind SourceKind => MetadataDonorKind;
+    // Front-end source semantics follow the metadata donor unless preview is
+    // using synthesized metadata derived from equivalent physical mirrors.
+    public BindingSourceKind SourceKind => UsesSyntheticMetadataSource
+        ? ContentDonorKind
+        : MetadataDonorKind;
 
-    public string SourceProfileId => MetadataDonorProfileId;
+    public string SourceProfileId => UsesSyntheticMetadataSource
+        ? ContentDonorProfileId
+        : MetadataDonorProfileId;
+
+    public bool UsesSyntheticMetadataSource { get; init; }
 
     public BindingSourceKind MetadataDonorKind { get; init; }
 

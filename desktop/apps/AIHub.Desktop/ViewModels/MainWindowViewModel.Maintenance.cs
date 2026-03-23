@@ -140,7 +140,8 @@ public sealed partial class MainWindowViewModel
 
     private async Task RunSelectedSkillScheduledUpdateAsync()
     {
-        if (SelectedSkillSource is null)
+        var selectedEditorSource = GetSelectedSkillSourceEditor();
+        if (selectedEditorSource is null)
         {
             SetOperation(false, Text.State.SelectSkillsSourceFirst, string.Empty);
             return;
@@ -149,10 +150,10 @@ public sealed partial class MainWindowViewModel
         await RunBusyAsync(async () =>
         {
             var result = await _skillsCatalogService!.RunScheduledUpdateForSourceAsync(
-                SelectedSkillSource.LocalName,
-                SelectedSkillSource.Profile);
+                selectedEditorSource.LocalName,
+                selectedEditorSource.Profile);
             ApplyScheduledUpdateBatchResult(result, Text.State.SkillScheduledPolicyExecuted);
-            await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            await LoadSkillsAsync(preferredEditorSource: selectedEditorSource);
             await PublishMaintenanceAlertsAsync(result.Sources.Select(item => item.Alert).Where(item => item is not null).Cast<MaintenanceAlertRecord>());
         });
     }
@@ -209,7 +210,7 @@ public sealed partial class MainWindowViewModel
             if (result.Success)
             {
                 ResetSkillMergePreview();
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -308,7 +309,7 @@ public sealed partial class MainWindowViewModel
             if (scheduledResult.Sources.Count > 0)
             {
                 alerts.AddRange(scheduledResult.Sources.Select(item => item.Alert).Where(item => item is not null).Cast<MaintenanceAlertRecord>());
-                await LoadSkillsAsync(SelectedSkillSource?.LocalName, SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
 
             await _mcpControlService.MaintainManagedProcessesAsync();
@@ -366,7 +367,7 @@ public sealed partial class MainWindowViewModel
             return;
         }
 
-        if (SelectedSkillSource?.LastScheduledRunAt is DateTimeOffset lastRunAt)
+        if (GetSelectedSkillSourceEditor()?.LastScheduledRunAt is DateTimeOffset lastRunAt)
         {
             SkillSourceScheduledNextRunDisplay = Text.State.NextRunAt(lastRunAt.AddHours(intervalHours));
             return;
@@ -652,7 +653,7 @@ public sealed partial class MainWindowViewModel
 
     private bool CanRunSelectedSkillScheduledUpdate()
     {
-        return !IsBusy && _skillsCatalogService is not null && SelectedSkillSource is not null;
+        return !IsBusy && _skillsCatalogService is not null && GetSelectedSkillSourceEditor() is not null;
     }
 
     private bool CanPreviewOverlayMerge()

@@ -378,10 +378,13 @@ public sealed class MainWindowViewModelTests
         var backendProjectPath = Path.Combine(scope.RootPath, "backend-project");
         var frontendProjectPath = Path.Combine(scope.RootPath, "frontend-project");
         var globalSkillDirectory = Path.Combine(scope.RootPath, "source", "profiles", WorkspaceProfiles.GlobalId, "skills", "demo-skill");
+        var backendSkillDirectory = Path.Combine(scope.RootPath, "source", "profiles", WorkspaceProfiles.BackendId, "skills", "demo-skill");
         Directory.CreateDirectory(backendProjectPath);
         Directory.CreateDirectory(frontendProjectPath);
         Directory.CreateDirectory(globalSkillDirectory);
+        Directory.CreateDirectory(backendSkillDirectory);
         await File.WriteAllTextAsync(Path.Combine(globalSkillDirectory, "SKILL.md"), "demo");
+        await File.WriteAllTextAsync(Path.Combine(backendSkillDirectory, "SKILL.md"), "backend-demo");
 
         var viewModel = await CreateWorkspaceViewModelAsync(
             scope.RootPath,
@@ -404,12 +407,12 @@ public sealed class MainWindowViewModelTests
         viewModel.SkillBindingProfiles.Single(option => option.ProfileId == WorkspaceProfiles.FrontendId).IsSelected = true;
 
         Assert.Contains(WorkspaceProfiles.FrontendDisplayName, viewModel.CurrentSkillBindingImpactDisplay, StringComparison.Ordinal);
-        Assert.DoesNotContain(WorkspaceProfiles.BackendDisplayName, viewModel.CurrentSkillBindingImpactDisplay, StringComparison.Ordinal);
+        Assert.Contains(WorkspaceProfiles.BackendDisplayName, viewModel.CurrentSkillBindingImpactDisplay, StringComparison.Ordinal);
         Assert.Contains("FrontendProject", viewModel.CurrentSkillBindingImpactDisplay, StringComparison.Ordinal);
+        Assert.Contains("BackendProject", viewModel.CurrentSkillBindingImpactDisplay, StringComparison.Ordinal);
         Assert.Contains(WorkspaceProfiles.BackendDisplayName, viewModel.CurrentSkillsContextImpactDisplay, StringComparison.Ordinal);
         Assert.DoesNotContain(WorkspaceProfiles.FrontendDisplayName, viewModel.CurrentSkillsContextImpactDisplay, StringComparison.Ordinal);
-        Assert.Contains(WorkspaceProfiles.FrontendDisplayName, viewModel.SelectedBindingTargetsImpactDisplay, StringComparison.Ordinal);
-        Assert.DoesNotContain(WorkspaceProfiles.BackendDisplayName, viewModel.SelectedBindingTargetsImpactDisplay, StringComparison.Ordinal);
+        Assert.Equal(viewModel.CurrentSkillBindingImpactDisplay, viewModel.SelectedBindingTargetsImpactDisplay);
     }
 
     [Fact]

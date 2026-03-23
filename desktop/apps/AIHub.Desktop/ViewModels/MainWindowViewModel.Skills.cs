@@ -83,7 +83,7 @@ public sealed partial class MainWindowViewModel
         {
             if (SetProperty(ref _selectedSkillSourceKindOption, value))
             {
-                ApplySkillSourceVersionState(SelectedSkillSource);
+                ApplySkillSourceVersionState(GetSelectedSkillSourceEditor());
                 RaiseCommandStates();
             }
         }
@@ -147,7 +147,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(SelectedSkillSource?.LocalName, SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -173,7 +173,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(SelectedSkillSource?.LocalName, SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -193,7 +193,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -213,14 +213,15 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
 
     private async Task ScanSelectedSkillSourceAsync()
     {
-        if (SelectedSkillSource is null)
+        var selectedEditorSource = GetSelectedSkillSourceEditor();
+        if (selectedEditorSource is null)
         {
             SetOperation(false, Text.State.SelectSkillsSourceToScan, string.Empty);
             return;
@@ -228,12 +229,12 @@ public sealed partial class MainWindowViewModel
 
         await RunBusyAsync(async () =>
         {
-            var result = await _skillsCatalogService!.ScanSourceAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            var result = await _skillsCatalogService!.ScanSourceAsync(selectedEditorSource.LocalName, selectedEditorSource.Profile);
             ApplyOperationResult(result);
 
             if (result.Success)
             {
-                await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+                await LoadSkillsAsync(preferredEditorSource: selectedEditorSource);
             }
         });
     }
@@ -253,7 +254,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -273,7 +274,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -299,7 +300,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -332,7 +333,7 @@ public sealed partial class MainWindowViewModel
 
             if (result.Success)
             {
-                await LoadSkillsAsync(installedSkill.SourceLocalName ?? SelectedSkillSource?.LocalName, installedSkill.SourceProfile ?? SelectedSkillSource?.Profile);
+                await LoadSkillsAsync();
             }
         });
     }
@@ -416,7 +417,7 @@ public sealed partial class MainWindowViewModel
 
     private bool CanScanSelectedSkillSource()
     {
-        return !IsBusy && _skillsCatalogService is not null && SelectedSkillSource is not null;
+        return !IsBusy && _skillsCatalogService is not null && GetSelectedSkillSourceEditor() is not null;
     }
 
     private bool CanCheckSelectedSkillUpdate()

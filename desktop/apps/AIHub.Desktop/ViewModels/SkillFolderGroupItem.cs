@@ -34,7 +34,7 @@ public sealed class SkillFolderGroupItem
 
     public string DisplayName => RelativeRootPath;
 
-    public string SkillCountDisplay => $"{Skills.Count} 个 Skills";
+    public string SkillCountDisplay => $"整组成员：{Skills.Count}";
 
     public string VisibleSkillCountDisplay => $"当前筛选可见成员：{ContainedSkillPaths.Count}";
 

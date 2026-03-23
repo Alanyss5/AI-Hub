@@ -665,6 +665,7 @@ public sealed class SkillsCatalogServiceTests
         Assert.Equal("library", preview.ContentDonorProfileId);
         Assert.Equal(BindingSourceKind.Category, preview.MetadataDonorKind);
         Assert.Equal(WorkspaceProfiles.BackendId, preview.MetadataDonorProfileId);
+        Assert.Equal(false, typeof(BindingResolutionPreview).GetProperty("UsesSyntheticMetadataSource")?.GetValue(preview));
         Assert.Equal(BindingSourceKind.Category, typeof(BindingResolutionPreview).GetProperty("SourceKind")?.GetValue(preview));
         Assert.Equal(WorkspaceProfiles.BackendId, typeof(BindingResolutionPreview).GetProperty("SourceProfileId")?.GetValue(preview));
     }
@@ -861,7 +862,7 @@ public sealed class SkillsCatalogServiceTests
     }
 
     [Fact]
-    public async Task PreviewSkillBindingResolutionAsync_Equivalent_Target_Fallbacks_Report_No_Metadata_Donor()
+    public async Task PreviewSkillBindingResolutionAsync_Equivalent_Target_Fallbacks_Expose_Synthetic_Source_Semantics()
     {
         using var scope = new TestHubRootScope();
         var frontendSkillDirectory = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.FrontendId), "demo-skill");
@@ -917,6 +918,9 @@ public sealed class SkillsCatalogServiceTests
         Assert.Equal(WorkspaceProfiles.FrontendId, preview.ContentDonorProfileId);
         Assert.Equal(BindingSourceKind.None, preview.MetadataDonorKind);
         Assert.Equal(string.Empty, preview.MetadataDonorProfileId);
+        Assert.Equal(true, typeof(BindingResolutionPreview).GetProperty("UsesSyntheticMetadataSource")?.GetValue(preview));
+        Assert.Equal(BindingSourceKind.Category, typeof(BindingResolutionPreview).GetProperty("SourceKind")?.GetValue(preview));
+        Assert.Equal(WorkspaceProfiles.FrontendId, typeof(BindingResolutionPreview).GetProperty("SourceProfileId")?.GetValue(preview));
     }
 
     [Fact]
@@ -2286,7 +2290,7 @@ public sealed class SkillsCatalogServiceTests
     }
 
     [Fact]
-    public async Task PreviewSkillGroupBindingResolutionAsync_Equivalent_Target_Fallbacks_Report_No_Metadata_Donor()
+    public async Task PreviewSkillGroupBindingResolutionAsync_Equivalent_Target_Fallbacks_Expose_Synthetic_Source_Semantics()
     {
         using var scope = new TestHubRootScope();
         var frontendRepoRoot = Path.Combine(GetProfileSkillsRoot(scope.RootPath, WorkspaceProfiles.FrontendId), "superpowers");
@@ -2348,6 +2352,9 @@ public sealed class SkillsCatalogServiceTests
         Assert.Equal(WorkspaceProfiles.FrontendId, preview.ContentDonorProfileId);
         Assert.Equal(BindingSourceKind.None, preview.MetadataDonorKind);
         Assert.Equal(string.Empty, preview.MetadataDonorProfileId);
+        Assert.Equal(true, typeof(BindingResolutionPreview).GetProperty("UsesSyntheticMetadataSource")?.GetValue(preview));
+        Assert.Equal(BindingSourceKind.Category, typeof(BindingResolutionPreview).GetProperty("SourceKind")?.GetValue(preview));
+        Assert.Equal(WorkspaceProfiles.FrontendId, typeof(BindingResolutionPreview).GetProperty("SourceProfileId")?.GetValue(preview));
     }
 
     [Fact]

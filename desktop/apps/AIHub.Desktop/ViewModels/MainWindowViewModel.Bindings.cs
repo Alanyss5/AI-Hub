@@ -84,7 +84,7 @@ public sealed partial class MainWindowViewModel
         set => SetProperty(ref _mcpServerEditor, value);
     }
 
-    public string SelectedSkillBindingSummaryDisplay => SelectedInstalledSkill?.BindingSummaryDisplay ?? "鏈€夋嫨 Skill";
+    public string SelectedSkillBindingSummaryDisplay => SelectedInstalledSkill?.BindingSummaryDisplay ?? "未选择 Skill";
 
     public string PendingSkillBindingSummaryDisplay => BuildBindingSummaryDisplay(SkillBindingProfiles);
 
@@ -96,7 +96,7 @@ public sealed partial class MainWindowViewModel
         _pendingSkillBindingResolution,
         "Skill");
 
-    public string SelectedSkillGroupBindingSummaryDisplay => SelectedSkillGroup?.ProfileSummary ?? "鏈€夋嫨鍒嗙粍";
+    public string SelectedSkillGroupBindingSummaryDisplay => SelectedSkillGroup?.ProfileSummary ?? "未选择分组";
 
     public string PendingSkillGroupBindingSummaryDisplay => BuildBindingSummaryDisplay(SkillGroupBindingProfiles);
 
@@ -106,7 +106,7 @@ public sealed partial class MainWindowViewModel
         SelectedSkillGroup is not null,
         _pendingSkillGroupBindingPreviewState,
         _pendingSkillGroupBindingResolution,
-        "鍒嗙粍");
+        "分组");
 
     public string CurrentSkillBindingImpactDisplay => BuildSkillBindingImpactDisplay();
 
@@ -757,14 +757,16 @@ public sealed partial class MainWindowViewModel
     {
         return BuildBindingImpactDisplay(
             GetSelectedBindingTargetProfiles(SkillBindingProfiles),
-            _pendingSkillBindingPreviewState == BindingPreviewState.Resolved ? _pendingSkillBindingResolution : null);
+            _pendingSkillBindingPreviewState,
+            _pendingSkillBindingResolution);
     }
 
     private string BuildSkillGroupBindingImpactDisplay()
     {
         return BuildBindingImpactDisplay(
             GetSelectedBindingTargetProfiles(SkillGroupBindingProfiles),
-            _pendingSkillGroupBindingPreviewState == BindingPreviewState.Resolved ? _pendingSkillGroupBindingResolution : null);
+            _pendingSkillGroupBindingPreviewState,
+            _pendingSkillGroupBindingResolution);
     }
 
     private string BuildSelectedBindingImpactDisplay()
@@ -786,14 +788,18 @@ public sealed partial class MainWindowViewModel
             _ => Array.Empty<string>()
         };
         var preview = _selectedSkillsBindingEditor switch
+            {
+                SkillsBindingEditor.Skill => _pendingSkillBindingResolution,
+                SkillsBindingEditor.SkillGroup => _pendingSkillGroupBindingResolution,
+                _ => null
+            };
+        var previewState = _selectedSkillsBindingEditor switch
         {
-            SkillsBindingEditor.Skill when _pendingSkillBindingPreviewState == BindingPreviewState.Resolved
-                => _pendingSkillBindingResolution,
-            SkillsBindingEditor.SkillGroup when _pendingSkillGroupBindingPreviewState == BindingPreviewState.Resolved
-                => _pendingSkillGroupBindingResolution,
-            _ => null
+            SkillsBindingEditor.Skill => _pendingSkillBindingPreviewState,
+            SkillsBindingEditor.SkillGroup => _pendingSkillGroupBindingPreviewState,
+            _ => BindingPreviewState.Idle
         };
-        return BuildBindingImpactDisplay(selectedTargets, preview);
+        return BuildBindingImpactDisplay(selectedTargets, previewState, preview);
     }
 
     private string BuildBindingPreviewSourceDisplay(
@@ -818,8 +824,14 @@ public sealed partial class MainWindowViewModel
     }
     private string BuildBindingImpactDisplay(
         IReadOnlyList<string> targetProfiles,
+        BindingPreviewState previewState,
         BindingResolutionPreview? preview = null)
     {
+        if (TryGetBindingPreviewValidationError(previewState, preview, out var previewError))
+        {
+            return BuildBlockedBindingImpactDisplay(previewError);
+        }
+
         var normalizedProfiles = ResolveImpactProfileIds(targetProfiles, preview);
         if (normalizedProfiles.Length == 0)
         {
@@ -839,6 +851,14 @@ public sealed partial class MainWindowViewModel
         var impactedPreview = string.Join(" / ", impactedProjects.Take(3));
         var suffix = impactedProjects.Length > 3 ? " / ..." : string.Empty;
         return $"影响说明：保存后会影响使用 {string.Join(" / ", profileDisplay)} 的已接管项目。当前项目：{impactedPreview}{suffix}";
+    }
+
+    private static string BuildBlockedBindingImpactDisplay(string previewError)
+    {
+        const string prefix = "影响说明：当前保存会被阻止，不会改动任何 profile，也不会直接影响任何已接管项目。";
+        return string.IsNullOrWhiteSpace(previewError)
+            ? prefix
+            : $"{prefix}原因：{previewError}";
     }
 
     private void ResetSkillBindingResolutionPreview(BindingPreviewState state)
@@ -1053,13 +1073,13 @@ public sealed partial class MainWindowViewModel
     {
         if (string.IsNullOrWhiteSpace(profileId))
         {
-            return "閺堫亣袙閺?";
+            return "未知来源";
         }
 
         var normalizedProfileId = WorkspaceProfiles.NormalizeId(profileId);
         if (string.Equals(normalizedProfileId, "library", StringComparison.OrdinalIgnoreCase))
         {
-            return "搴撲腑";
+            return "库中";
         }
 
         var profile = _workspaceProfileCatalog.FirstOrDefault(item =>

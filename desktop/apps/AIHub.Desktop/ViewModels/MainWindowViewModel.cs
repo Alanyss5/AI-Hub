@@ -1094,7 +1094,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             if (result.Success)
             {
-                await LoadSkillsAsync(draft.LocalName, draft.Profile);
+                await LoadSkillsAsync(preferredEditorSource: draft);
             }
         });
     }
@@ -1286,7 +1286,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ApplyMcpSnapshot(snapshot, preferredProfile, preferredProcessName);
     }
 
-    private async Task LoadSkillsAsync(string? preferredLocalName = null, string? preferredProfile = null)
+    private async Task LoadSkillsAsync(
+        SkillSourceRecord? preferredBrowserSource = null,
+        SkillSourceRecord? preferredEditorSource = null)
     {
         if (_skillsCatalogService is null)
         {
@@ -1295,8 +1297,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         var snapshot = await _skillsCatalogService.LoadAsync();
         CacheSkillSnapshot(snapshot);
-        ReconcileSelectedSkillSourceEditor(preferredLocalName, preferredProfile);
-        ApplySkillBrowserFilters(preferredLocalName, preferredProfile);
+        ReconcileSelectedSkillSourceEditor(preferredEditorSource?.LocalName, preferredEditorSource?.Profile);
+        ApplySkillBrowserFilters(preferredBrowserSource?.LocalName, preferredBrowserSource?.Profile);
     }
 
     private async Task LoadScriptsAsync(string? preferredRelativePath = null)

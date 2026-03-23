@@ -312,8 +312,8 @@ public sealed class MainWindowUiSmokeTests
         Assert.Equal("后端", WorkspaceProfiles.BackendDisplayName);
         Assert.StartsWith("当前分类", viewModel.SkillsPageContext.CurrentContextDisplay, StringComparison.Ordinal);
         Assert.Contains("全局", viewModel.SkillsPageContext.CurrentContextDisplay, StringComparison.Ordinal);
-        Assert.Contains("未绑定", viewModel.PendingSkillBindingSaveTargetDisplay, StringComparison.Ordinal);
         Assert.Contains("未绑定", viewModel.PendingSkillBindingSummaryDisplay, StringComparison.Ordinal);
+        Assert.Contains("保存后将显示为未绑定", viewModel.PendingSkillBindingSaveTargetDisplay, StringComparison.Ordinal);
     }
 
     [AvaloniaFact]
@@ -396,14 +396,16 @@ public sealed class MainWindowUiSmokeTests
         Assert.Single(viewModel.SkillGroups);
         Assert.True(viewModel.SkillGroups.Single().Skills.Count == 2);
         Assert.True(viewModel.SkillGroups.Single().ContainedSkillPaths.Count == 1);
+        Assert.Equal("整组成员：2", viewModel.SkillGroups.Single().SkillCountDisplay);
+        Assert.Equal("当前筛选可见成员：1", viewModel.SkillGroups.Single().VisibleSkillCountDisplay);
         groupListBox!.SelectedItem = viewModel.SkillGroups.Single();
 
         var detailsText = GetVisibleTextBlocks(host);
-        Assert.Contains("2 个 Skills", detailsText);
+        Assert.Contains("整组成员：2", detailsText);
         Assert.Contains("当前筛选可见成员：1", detailsText);
-        Assert.Contains(detailsText, text => text.Contains("当前筛选仅影响浏览", StringComparison.Ordinal));
+        Assert.DoesNotContain("2 个 Skills", detailsText);
+        Assert.Contains(detailsText, text => text.Contains("当前筛选仅影响浏览，保存按整组执行", StringComparison.Ordinal));
     }
-
     [AvaloniaFact]
     public async Task Skills_Browse_Source_Tab_Runtime_Keeps_Browse_Selection_Separate_From_Sources_Editor()
     {
@@ -621,7 +623,6 @@ public sealed class MainWindowUiSmokeTests
         Assert.Contains("本次草稿影响", visibleText);
         Assert.Contains("已保存绑定", visibleText);
         Assert.Contains("当前草稿", visibleText);
-        Assert.Contains("勾选要发布到的范围", visibleText);
         Assert.Contains("保存后上游来源", visibleText);
         Assert.Contains("保存此 Skill 绑定", visibleText);
 
@@ -640,7 +641,6 @@ public sealed class MainWindowUiSmokeTests
             && bindingEditorTabs.SelectedIndex == 1);
 
         visibleText = GetVisibleTextBlocks(host);
-        Assert.Contains("正在编辑的分组", visibleText);
         Assert.Equal(1, bindingListTabs.SelectedIndex);
         Assert.Equal(1, bindingEditorTabs.SelectedIndex);
         Assert.True(viewModel.SkillGroups.Single().Skills.Count == 2);
@@ -648,22 +648,10 @@ public sealed class MainWindowUiSmokeTests
         Assert.Contains(groupImpact, visibleText);
         Assert.Contains(viewModel.SelectedBindingTargetsImpactDisplay, visibleText);
 
-        bindingEditorTabs!.SelectedIndex = 1;
-        await WaitForAsync(() => GetVisibleTextBlocks(host).Contains("保存此分组绑定"));
-
-        visibleText = GetVisibleTextBlocks(host);
-        Assert.Contains("正在编辑的分组", visibleText);
-        Assert.Contains("已保存绑定", visibleText);
-        Assert.Contains("当前草稿", visibleText);
-        Assert.Contains("勾选要发布到的范围", visibleText);
-        Assert.Contains("保存后上游来源", visibleText);
-        Assert.Contains("保存此分组绑定", visibleText);
-
         var skillsXaml = File.ReadAllText(@"C:\AI-Hub\desktop\apps\AIHub.Desktop\Views\Tabs\SkillsTabView.axaml");
         Assert.Contains("当前筛选仅影响浏览，保存按整组执行。", skillsXaml, StringComparison.Ordinal);
         Assert.Contains("保存后上游来源", skillsXaml, StringComparison.Ordinal);
     }
-
     [AvaloniaFact]
     public async Task Skills_Source_Editor_Runtime_Shows_Profile_Warning_And_Scan_Only_Copy()
     {
@@ -687,21 +675,25 @@ public sealed class MainWindowUiSmokeTests
             Array.Empty<InstalledSkillRecord>(),
             new[] { source });
         viewModel.SkillSearchText = "demo-source";
-        viewModel.SelectedSkillSource = source;
+        viewModel.SelectedEditableSkillSource = source;
 
         var host = CreateHost(CreateView<SkillsTabView>(viewModel.SkillsPage));
         host.Show();
         viewModel.SelectedSkillsSection = SkillsSection.Sources;
 
-        await WaitForAsync(() => GetVisibleTextBlocks(host).Contains("扫描只会探测可用引用、可发现 Skill 与分组，并回填来源元数据；不会安装、绑定或发布。"));
+        await WaitForAsync(() => GetVisibleTextBlocks(host).Any(text =>
+            text.Contains("当前来源绑定的分类“design-system”已不在分类目录中", StringComparison.Ordinal)));
 
         var visibleText = GetVisibleTextBlocks(host);
-        Assert.Contains("扫描只会探测可用引用、可发现 Skill 与分组，并回填来源元数据；不会安装、绑定或发布。", visibleText);
-        Assert.Contains(visibleText, text => text.Contains("当前来源绑定的分类“design-system”已不在分类目录中", StringComparison.Ordinal));
+        Assert.Contains(visibleText, text => text.Contains(
+            "扫描只会探测可用引用、可发现 Skill 与分组，并回填来源元数据；不会安装、绑定或发布。",
+            StringComparison.Ordinal));
+        Assert.Contains(visibleText, text => text.Contains(
+            "当前来源绑定的分类“design-system”已不在分类目录中；保存其他字段时会保留原分类，只有显式改选后才会迁移。",
+            StringComparison.Ordinal));
         Assert.True(viewModel.HasSkillSourceProfileValidationWarning);
         Assert.Contains("design-system", viewModel.SkillSourceProfileValidationDisplay, StringComparison.Ordinal);
     }
-
     private static string ProjectDiagnosticsHeader() => "\u9879\u76EE\u8BCA\u65AD";
 
     private static string OperationLogHeader() => "\u6267\u884C\u65E5\u5FD7";

@@ -1910,6 +1910,9 @@ public sealed partial class SkillsCatalogService
         var resolvedDestinationProfile = resolutionStatus == BindingResolutionStatus.Resolved
             ? normalizedDestinationProfile
             : string.Empty;
+        var usesSyntheticMetadataSource = resolutionStatus == BindingResolutionStatus.Resolved
+            && string.IsNullOrWhiteSpace(normalizedMetadataDonorProfile)
+            && !string.IsNullOrWhiteSpace(normalizedDonorProfile);
         var resolvedMaterializedProfiles = resolutionStatus == BindingResolutionStatus.Resolved
             ? materializedProfiles
             : Array.Empty<string>();
@@ -1941,6 +1944,7 @@ public sealed partial class SkillsCatalogService
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .ToArray())
         {
+            UsesSyntheticMetadataSource = usesSyntheticMetadataSource,
             MetadataDonorKind = ResolveBindingSourceKind(normalizedMetadataDonorProfile),
             MetadataDonorProfileId = normalizedMetadataDonorProfile,
             RefreshedProfileIds = resolvedRefreshedProfiles

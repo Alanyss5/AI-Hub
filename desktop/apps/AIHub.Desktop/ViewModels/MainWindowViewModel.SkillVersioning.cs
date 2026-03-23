@@ -55,7 +55,8 @@ public sealed partial class MainWindowViewModel
 
     private async Task CheckSkillSourceVersionsAsync()
     {
-        if (SelectedSkillSource is null)
+        var selectedEditorSource = GetSelectedSkillSourceEditor();
+        if (selectedEditorSource is null)
         {
             SetOperation(false, Text.State.SelectSkillsSourceFirst, string.Empty);
             return;
@@ -64,16 +65,17 @@ public sealed partial class MainWindowViewModel
         await RunBusyAsync(async () =>
         {
             var result = await _skillsCatalogService!.CheckSourceVersionsAsync(
-                SelectedSkillSource.LocalName,
-                SelectedSkillSource.Profile);
+                selectedEditorSource.LocalName,
+                selectedEditorSource.Profile);
             ApplyOperationResult(result);
-            await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            await LoadSkillsAsync(preferredEditorSource: selectedEditorSource);
         });
     }
 
     private async Task UpgradeSkillSourceVersionsAsync()
     {
-        if (SelectedSkillSource is null)
+        var selectedEditorSource = GetSelectedSkillSourceEditor();
+        if (selectedEditorSource is null)
         {
             SetOperation(false, Text.State.SelectSkillsSourceFirst, string.Empty);
             return;
@@ -82,16 +84,16 @@ public sealed partial class MainWindowViewModel
         await RunBusyAsync(async () =>
         {
             var result = await _skillsCatalogService!.UpgradeSourceVersionAsync(
-                SelectedSkillSource.LocalName,
-                SelectedSkillSource.Profile);
+                selectedEditorSource.LocalName,
+                selectedEditorSource.Profile);
             ApplyOperationResult(result);
-            await LoadSkillsAsync(SelectedSkillSource.LocalName, SelectedSkillSource.Profile);
+            await LoadSkillsAsync(preferredEditorSource: selectedEditorSource);
         });
     }
 
     private bool CanUseSelectedSkillSourceVersioning()
     {
-        return !IsBusy && _skillsCatalogService is not null && SelectedSkillSource is not null;
+        return !IsBusy && _skillsCatalogService is not null && GetSelectedSkillSourceEditor() is not null;
     }
 
     private SkillVersionTrackingMode ResolveSelectedSkillVersionTrackingMode(SkillSourceKind sourceKind)

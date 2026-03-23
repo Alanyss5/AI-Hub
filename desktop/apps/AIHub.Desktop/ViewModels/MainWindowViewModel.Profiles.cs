@@ -188,7 +188,7 @@ public sealed partial class MainWindowViewModel
         await LoadWorkspaceProfilesAsync();
         await LoadWorkspaceAsync(SelectedProject?.Path);
         await LoadMcpAsync(preferredProfileId ?? SelectedMcpProfile?.Profile);
-        await LoadSkillsAsync(SelectedSkillSource?.LocalName, preferredProfileId ?? SelectedSkillSource?.Profile);
+        await LoadSkillsAsync();
         await LoadScriptsAsync(SelectedScript?.RelativePath);
     }
 
